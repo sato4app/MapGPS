@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地図アプリケーション選択</title>
+    <meta name="description" content="PointMarker、PointGPS、GeoReferencer、RouteEditorアプリケーションの選択画面">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>地図アプリケーション</h1>
+        <p class="subtitle">使用するアプリケーションを選択してください</p>
+        
+        <div class="app-grid">
+            <a href="PointGPS/index.html" class="app-card" onclick="openApp('PointGPS/index.html'); return false;">
+                <div class="app-icon">🗺️</div>
+                <div class="app-title">PointGPS</div>
+                <div class="app-description">
+                    国土地理院地図上でGPSポイントの表示・編集・管理を行うWebアプリケーション
+                </div>
+            </a>
+
+            <a href="PointMarker/index.html" class="app-card" onclick="openApp('PointMarker/index.html'); return false;">
+                <div class="app-icon">📍</div>
+                <div class="app-title">PointMarker</div>
+                <div class="app-description">
+                    PNG画像のハイキングマップから視覚的にポイントを選択し、座標データをJSONファイルとして出力
+                </div>
+            </a>
+
+            <a href="GeoReferencer/index.html" class="app-card" onclick="openApp('GeoReferencer/index.html'); return false;">
+                <div class="app-icon">🗺️</div>
+                <div class="app-title">GeoReference</div>
+                <div class="app-description">
+                    PNG画像のハイキングマップを国土地理院地図上に重ね合わせてGeoJOSNファイルとして出力
+                </div>
+            </a>
+
+            <a href="RouteEditor/index.html" class="app-card" onclick="openApp('RouteEditor/index.html'); return false;">
+                <div class="app-icon">🛤️</div>
+                <div class="app-title">RouteEditor</div>
+                <div class="app-description">
+                    国土地理院の地形図上でGPSポイントとルート編集を行うWebアプリケーション
+                </div>
+            </a>
+        </div>
+        
+        <div class="footer">
+            <p>各アプリケーションは新しいタブで開きます</p>
+        </div>
+    </div>
+
+    <script>
+        function openApp(filename) {
+            // 新しいタブでアプリケーションを開く
+            window.open(filename, '_blank');
+        }
+        
+        // キーボードナビゲーション対応
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const focusedElement = document.activeElement;
+                if (focusedElement.classList.contains('app-card')) {
+                    e.preventDefault();
+                    focusedElement.click();
+                }
+            }
+        });
+        
+        // アプリカードにフォーカス可能にする
+        document.querySelectorAll('.app-card').forEach(card => {
+            card.setAttribute('tabindex', '0');
+            card.addEventListener('focus', function() {
+                this.style.outline = '2px solid #3498db';
+                this.style.outlineOffset = '2px';
+            });
+            card.addEventListener('blur', function() {
+                this.style.outline = 'none';
+            });
+        });
+    </script>
+</body>
+</html>

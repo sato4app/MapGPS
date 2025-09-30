@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PointMarker - ポイント図マーキング</title>
+    <meta name="description" content="PNG画像のハイキングマップから視覚的にポイントを選択し、座標データをJSONファイルとして出力するWebアプリケーション">
+
+    <!-- Favicon設定（404エラー回避） -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
+    <link rel="icon" href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" type="image/x-icon">
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- レイアウト選択 -->
+        <div class="layout-selector">
+            <label class="layout-option">
+                <input type="radio" name="layout" value="sidebar" checked>
+                <span>サイドバー</span>
+            </label>
+            <label class="layout-option">
+                <input type="radio" name="layout" value="overlay">
+                <span>オーバーレイ</span>
+            </label>
+        </div>
+
+        <!-- ヘッダー -->
+        <header>
+            <h1>Points/Spots and Routes Marker</h1>
+            <p>ハイキングマップからポイント・スポットやルートをマークしてJSON出力</p>
+        </header>
+        
+        <!-- メインコンテンツ -->
+        <main class="main-content" data-layout="sidebar">
+            <!-- 地図表示エリア -->
+            <div class="map-container">
+                <canvas id="mapCanvas" class="map-canvas"></canvas>
+            </div>
+            
+            <!-- コントロールサイドバー -->
+            <aside class="controls-sidebar">
+                <!-- 画像ファイル入力 -->
+                <div class="file-input-wrapper">
+                    <input type="file" id="imageInput" accept="image/png" class="file-input" aria-label="PNG画像を選択">
+                    <label for="imageInput" class="file-input-label" title="ハイキングマップのPNG画像ファイルを選択してください">
+                        PNG画像を選択
+                    </label>
+                </div>
+                
+                <!-- 編集モード選択 -->
+                <fieldset class="editing-mode-selector">
+                    <legend class="sr-only">編集モード選択</legend>
+                    <label class="editing-option">
+                        <input type="radio" name="editingMode" value="point" checked>
+                        <span>ポイント編集</span>
+                    </label>
+                    <label class="editing-option">
+                        <input type="radio" name="editingMode" value="route">
+                        <span>ルート編集</span>
+                    </label>
+                    <label class="editing-option">
+                        <input type="radio" name="editingMode" value="spot">
+                        <span>スポット編集</span>
+                    </label>
+                </fieldset>
+                
+                <!-- ポイント編集パネル -->
+                <section class="point-editor" id="pointEditor">
+                    <h3>ポイント編集</h3>
+                    
+                    <div class="editor-controls">
+                        <button type="button" id="clearBtn" class="btn btn-clear" disabled 
+                                aria-label="全ポイントをクリア" title="地図上の全てのポイントを削除します">
+                            ポイントをクリア
+                        </button>
+                        <button type="button" id="formatBtn" class="btn btn-format" disabled 
+                                aria-label="全ポイントID名を補正" title="全てのポイントIDを正しい形式（X-nn）に自動補正します">
+                            ポイントID名の補正
+                        </button>
+                        <button type="button" id="exportBtn" class="btn btn-export" disabled 
+                                aria-label="ポイントをJSONで出力" title="現在のポイントデータをJSONファイルとして出力します">
+                            ポイントをJSON出力
+                        </button>
+                    </div>
+                    
+                    <div class="file-input-wrapper">
+                        <input type="file" id="jsonInput" accept="application/json" class="file-input" aria-label="ポイントJSONファイルを読み込み">
+                        <label for="jsonInput" class="file-input-label" title="以前に保存したポイントJSONファイルを選択して読み込みます">
+                            ポイントのJSON読込
+                        </label>
+                    </div>
+                    
+                    <div class="point-count" aria-live="polite">
+                        ポイント数: <span id="pointCount">0</span>
+                    </div>
+                </section>
+                
+                <!-- ルート編集パネル -->
+                <section class="route-editor" id="routeEditor" style="display: none;">
+                    <h3>ルート編集</h3>
+                    
+                    <div class="route-info">
+                        <!-- 開始・終了ポイント設定 -->
+                        <div class="route-points-inputs">
+                            <div class="route-point-input">
+                                <label for="startPointInput">開始ポイント:</label>
+                                <input type="text" id="startPointInput" class="route-point-field" maxlength="4" aria-describedby="start-point-desc">
+                                <span id="start-point-desc" class="sr-only">既存ポイントのIDを入力</span>
+                            </div>
+                            <div class="route-point-input">
+                                <label for="endPointInput">終了ポイント:</label>
+                                <input type="text" id="endPointInput" class="route-point-field" maxlength="4" aria-describedby="end-point-desc">
+                                <span id="end-point-desc" class="sr-only">既存ポイントのIDを入力</span>
+                            </div>
+                            
+                            <!-- 中間点数表示 -->
+                            <div class="waypoint-count" aria-live="polite">
+                                中間点数: <span id="waypointCount">0</span>
+                            </div>
+                        </div>
+                        
+                        <!-- ルート制御ボタン -->
+                        <div class="route-controls">
+                            <button type="button" id="clearRouteBtn" class="btn btn-clear-route" 
+                                    aria-label="ルート中間点をクリア" title="ルートの中間点を全てクリアします">
+                                ルートをクリア
+                            </button>
+                            <button type="button" id="exportRouteBtn" class="btn btn-export-route" 
+                                    aria-label="ルートをJSONで出力" title="現在のルートデータをJSONファイルとして出力します">
+                                ルートをJSON出力
+                            </button>
+                        </div>
+                        
+                        <!-- ルートJSON読込 -->
+                        <div class="file-input-wrapper">
+                            <input type="file" id="routeJsonInput" accept="application/json" class="file-input" 
+                                   aria-label="ルートJSONファイルを読み込み">
+                            <label for="routeJsonInput" class="file-input-label" title="以前に保存したルートJSONファイルを選択して読み込みます">
+                                ルートのJSON読込
+                            </label>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- スポット編集パネル -->
+                <section class="spot-editor" id="spotEditor" style="display: none;">
+                    <h3>スポット編集</h3>
+                    
+                    <div class="editor-controls">
+                        <button type="button" id="clearSpotBtn" class="btn btn-clear" 
+                                aria-label="全スポットをクリア" title="地図上の全てのスポットを削除します">
+                            スポットをクリア
+                        </button>
+                        <button type="button" id="exportSpotBtn" class="btn btn-export" 
+                                aria-label="スポットをJSONで出力" title="現在のスポットデータをJSONファイルとしてダウンロードします">
+                            スポットをJSON出力
+                        </button>
+                    </div>
+                    
+                    <div class="file-input-wrapper">
+                        <input type="file" id="spotJsonInput" accept="application/json" class="file-input" 
+                               aria-label="スポットJSONファイルを読み込み">
+                        <label for="spotJsonInput" class="file-input-label" title="以前に保存したスポットJSONファイルを選択して読み込みます">
+                            スポットのJSON読込
+                        </label>
+                    </div>
+                    
+                    <div class="spot-count" aria-live="polite">
+                        スポット数: <span id="spotCount">0</span>
+                    </div>
+                </section>
+            </aside>
+        </main>
+    </div>
+    
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

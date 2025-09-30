@@ -1,0 +1,232 @@
+/* 地図アプリケーション選択画面のスタイル */
+
+/* リセットとベース設定 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+}
+
+/* メインコンテナ */
+.container {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    padding: 40px;
+    max-width: 800px;
+    width: 90%;
+    text-align: center;
+}
+
+/* タイトル */
+h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    color: #2c3e50;
+    font-weight: 700;
+}
+
+/* サブタイトル */
+.subtitle {
+    font-size: 1.1em;
+    color: #7f8c8d;
+    margin-bottom: 40px;
+}
+
+/* アプリケーショングリッド */
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+/* アプリケーションカード */
+.app-card {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 30px 20px;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.app-card:hover {
+    transform: translateY(-5px);
+    border-color: #3498db;
+    box-shadow: 0 15px 35px rgba(52, 152, 219, 0.2);
+}
+
+.app-card:focus {
+    outline: 2px solid #3498db;
+    outline-offset: 2px;
+}
+
+/* アプリケーションアイコン */
+.app-icon {
+    font-size: 3em;
+    margin-bottom: 15px;
+}
+
+/* アプリケーションタイトル */
+.app-title {
+    font-size: 1.4em;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+/* アプリケーション説明 */
+.app-description {
+    color: #7f8c8d;
+    line-height: 1.5;
+    font-size: 0.95em;
+}
+
+/* フッター */
+.footer {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+    color: #95a5a6;
+    font-size: 0.9em;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .container {
+        padding: 30px 20px;
+        max-width: 600px;
+    }
+    
+    h1 {
+        font-size: 2em;
+    }
+    
+    .app-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .app-card {
+        padding: 25px 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 20px 15px;
+    }
+    
+    h1 {
+        font-size: 1.8em;
+    }
+    
+    .subtitle {
+        font-size: 1em;
+        margin-bottom: 30px;
+    }
+    
+    .app-icon {
+        font-size: 2.5em;
+    }
+    
+    .app-title {
+        font-size: 1.2em;
+    }
+    
+    .app-description {
+        font-size: 0.9em;
+    }
+}
+
+/* アニメーション */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.container {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.app-card {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.app-card:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.app-card:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.app-card:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+/* アクセシビリティ向上 */
+@media (prefers-reduced-motion: reduce) {
+    .app-card {
+        transition: none;
+        animation: none;
+    }
+    
+    .container {
+        animation: none;
+    }
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    }
+    
+    .container {
+        background: #2c3e50;
+        color: #ecf0f1;
+    }
+    
+    h1 {
+        color: #ecf0f1;
+    }
+    
+    .app-card {
+        background: #34495e;
+        color: #ecf0f1;
+    }
+    
+    .app-title {
+        color: #ecf0f1;
+    }
+    
+    .app-description {
+        color: #bdc3c7;
+    }
+    
+    .footer {
+        border-top-color: #34495e;
+        color: #95a5a6;
+    }
+}

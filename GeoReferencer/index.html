@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="PNG画像を国土地理院の地形図上に重ね合わせるジオリファレンスツール">
+    <meta name="keywords" content="地形図, ジオリファレンス, 画像重ね合わせ, 国土地理院, マップ">
+    <meta name="author" content="GeoReferencer">
+    <title>GeoReferencer - 画像重ね合わせツール</title>
+
+    <!-- セキュリティとパフォーマンスのためのメタタグ -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    
+    <!-- ファビコンのリクエストを抑制して404エラーを防ぐ -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
+    <!-- 外部CDNリソースの事前接続でパフォーマンス向上 -->
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    
+    <!-- Leaflet.js の CSS と JS を読み込み -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
+    <!-- SheetJS (XLSX) ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- アプリケーション固有のスタイルシート -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- メイン地図コンテナ -->
+    <main id="map" role="main" aria-label="国土地理院地形図"></main>
+
+    <!-- メッセージ表示エリア -->
+    <div id="messageArea" class="message-area" style="display: none;"></div>
+
+    <!-- アプリケーション制御パネル -->
+    <aside class="overlay-controls" role="complementary" aria-label="画像重ね合わせツール">
+        <!-- 画像重ね合わせセクション -->
+        <section id="geoReferencerPanel" class="editor-panel" aria-labelledby="geo-ref-title">
+            <h2 id="geo-ref-title" class="visually-hidden">画像重ね合わせツール</h2>
+            
+            <!-- 読み込みボタンとラジオボタンの横並び配置 -->
+            <div class="load-file-container">
+                <!-- 統合された読み込みボタン -->
+                <button id="loadFileBtn" title="選択した種類のファイルを読み込みます" class="leaflet-bar leaflet-control;">読み込み</button>
+                
+                <!-- ファイル種類選択ラジオボタン -->
+                <div class="radio-group">
+                    <div class="radio-item">
+                        <label>
+                            <input type="radio" name="fileType" value="gpsGeoJson" checked>
+                            ポイントGPS
+                        </label>
+                        <div class="count-display">
+                            <input type="text" id="gpsPointCount" readonly value="0" class="count-field">
+                            <span class="unit-label">個</span>
+                        </div>
+                    </div>
+                    <div class="radio-item">
+                        <label>
+                            <input type="radio" name="fileType" value="image">
+                            PNG画像
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 統合されたファイル入力 -->
+            <input type="file" id="gpsExcelInput" accept=".xlsx" style="display: none;">
+            <input type="file" id="imageInput" accept="image/png" style="display: none;">
+            <input type="file" id="pointCoordJsonInput" accept=".json" multiple style="display: none;">
+            <input type="file" id="multiJsonInput" accept=".json" multiple style="display: none;">
+            
+            <!-- JSONデータ読み込み結果表示 -->
+            <div class="json-data-counts">
+                <div class="json-load-row">
+                    <button id="loadJsonBtn" class="load-json-button leaflet-bar leaflet-control" 
+                            title="ポイント・ルート・スポットのJSONファイルを読み込みます">画像内座標<br>の読み込み</button>
+                    <div class="count-fields-inline">
+                        <div class="count-item-inline">
+                            <label>ポイント</label>
+                            <div class="count-value-group">
+                                <input type="text" id="pointCount" readonly value="0" class="count-field">
+                                <span class="unit-label">個</span>
+                            </div>
+                        </div>
+                        <div class="count-item-inline">
+                            <label>ルート</label>
+                            <div class="count-value-group">
+                                <input type="text" id="routeCount" readonly value="0" class="count-field">
+                                <span class="unit-label">本</span>
+                            </div>
+                        </div>
+                        <div class="count-item-inline">
+                            <label>スポット</label>
+                            <div class="count-value-group">
+                                <input type="text" id="spotCount" readonly value="0" class="count-field">
+                                <span class="unit-label">個</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            
+            <!-- 画像の重ね合わせ(ジオリファレンス)ボタン -->
+            <button id="matchPointsBtn" class="leaflet-bar leaflet-control"
+                    title="ポイントのマッチングと画像の重ね合わせを実行します">画像の重ね合わせ（ジオリファレンス）</button>
+            
+            <!-- ポイントマッチング結果表示 -->
+            <div class="matching-results-container">
+                <div class="matching-summary">
+                    <div class="matched-count">
+                        <label for="matchedPointCountField">一致するポイント数</label>
+                        <div class="count-value-group">
+                            <input type="text" id="matchedPointCountField" readonly value="0" class="count-field">
+                            <span class="unit-label">個</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="unmatched-points">
+                    <label for="unmatchedPointsField">不一致ポイント</label>
+                    <input type="text" id="unmatchedPointsField" readonly placeholder="マッチングしなかったポイント">
+                </div>
+            </div>
+            
+            
+            
+            <!-- GPS出力 -->
+            <button id="exportGeoJsonBtn"class="leaflet-bar leaflet-control" style="width: 160px;"
+                    title="ジオリファレンス済みデータをGeoJSON形式で出力します">GPS出力(GeoJSON)</button>
+            
+        </section>
+    </aside>
+
+    <!-- 分離したJavaScriptファイルを読み込む -->
+    <!-- type="module"により、ES6モジュールとして読み込む -->
+    <script type="module" src="js/app-main.js"></script>
+</body>
+</html>

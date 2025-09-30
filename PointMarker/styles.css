@@ -1,0 +1,707 @@
+/* =====================================
+   CSS Variables & Reset
+   ===================================== */
+:root {
+    --sidebar-width: 240px;
+    --primary-color: #3498db;
+    --primary-dark: #2980b9;
+    --secondary-color: #2c3e50;
+    --success-color: #27ae60;
+    --success-dark: #229954;
+    --danger-color: #e74c3c;
+    --danger-dark: #c0392b;
+    --warning-color: #f39c12;
+    --warning-dark: #d68910;
+    --info-color: #17a2b8;
+    --info-dark: #138496;
+    --light-gray: #f8f9fa;
+    --border-color: #e9ecef;
+    --text-muted: #7f8c8d;
+    --box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --box-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --border-radius: 6px;
+    --border-radius-sm: 4px;
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* =====================================
+   Base Styles
+   ===================================== */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    line-height: 1.5;
+    font-size: 13px;
+    overflow-x: hidden;
+}
+
+/* Screen reader only content */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* =====================================
+   Layout Structure
+   ===================================== */
+.container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    text-align: center;
+    padding: 10px 20px;
+    background: white;
+    box-shadow: var(--box-shadow);
+    z-index: 100;
+}
+
+header h1 {
+    color: var(--secondary-color);
+    font-size: 1.5em;
+    margin-bottom: 5px;
+}
+
+header p {
+    color: var(--text-muted);
+    font-size: 0.8em;
+}
+
+.main-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.main-content[data-layout="sidebar"] {
+    flex-direction: row;
+}
+
+.main-content[data-layout="overlay"] {
+    flex-direction: column;
+}
+
+/* =====================================
+   Map Container
+   ===================================== */
+.map-container {
+    background: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+}
+
+[data-layout="sidebar"] .map-container {
+    flex: 1;
+    width: calc(100vw - var(--sidebar-width));
+    height: 100%;
+}
+
+[data-layout="overlay"] .map-container {
+    width: 100vw;
+    height: 100%;
+    flex: 1;
+}
+
+.map-canvas {
+    border: 2px solid #ddd;
+    cursor: crosshair;
+    object-fit: contain;
+    transition: border-color 0.2s ease;
+}
+
+.map-canvas:hover {
+    border-color: var(--primary-color);
+}
+
+[data-layout="sidebar"] .map-canvas {
+    max-width: calc(100vw - var(--sidebar-width) - 40px);
+    max-height: calc(100vh - 140px);
+}
+
+[data-layout="overlay"] .map-canvas {
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 140px);
+}
+
+/* =====================================
+   Controls Sidebar
+   ===================================== */
+.controls-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: white;
+    padding: 20px;
+    box-shadow: var(--box-shadow);
+    transition: var(--transition);
+    overflow-y: auto;
+}
+
+[data-layout="sidebar"] .controls-sidebar {
+    width: var(--sidebar-width);
+    height: 100%;
+    position: relative;
+}
+
+[data-layout="overlay"] .controls-sidebar {
+    position: fixed;
+    top: 110px;
+    right: 20px;
+    width: var(--sidebar-width);
+    max-height: calc(100vh - 150px);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    box-shadow: var(--box-shadow-lg);
+}
+
+/* =====================================
+   Layout Selector
+   ===================================== */
+.layout-selector {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+    display: flex;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 8px 12px;
+    box-shadow: var(--box-shadow);
+}
+
+.layout-option {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    transition: color 0.3s ease;
+}
+
+.layout-option input[type="radio"] {
+    margin: 0;
+    transform: scale(0.8);
+}
+
+.layout-option:has(input:checked) {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.layout-option:hover {
+    color: var(--primary-dark);
+}
+
+/* =====================================
+   Form Elements
+   ===================================== */
+.file-input-wrapper {
+    position: relative;
+}
+
+.file-input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: -1;
+}
+
+.file-input-label {
+    display: block;
+    padding: 10px 16px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 500;
+    text-align: center;
+    width: 100%;
+    font-size: 13px;
+}
+
+.file-input-label:hover {
+    background: var(--primary-dark);
+}
+
+/* =====================================
+   Buttons
+   ===================================== */
+.btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: var(--transition);
+    text-align: center;
+    display: inline-block;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-clear {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-clear:hover:not(:disabled) {
+    background: var(--danger-dark);
+}
+
+.btn-format {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-format:hover:not(:disabled) {
+    background: var(--warning-dark);
+}
+
+.btn-export {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-export:hover:not(:disabled) {
+    background: var(--success-dark);
+}
+
+.btn-export-route {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-export-route:hover:not(:disabled) {
+    background: var(--success-dark);
+}
+
+.btn-clear-route {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-clear-route:hover:not(:disabled) {
+    background: var(--danger-dark);
+}
+
+/* スポット編集ボタンの色分け */
+.btn-clear-spot {
+    background: var(--danger-color);  /* 赤色 */
+    color: white;
+}
+
+.btn-clear-spot:hover:not(:disabled) {
+    background: var(--danger-dark);
+}
+
+.btn-export-spot {
+    background: var(--success-color);  /* 緑色 */
+    color: white;
+}
+
+.btn-export-spot:hover:not(:disabled) {
+    background: var(--success-dark);
+}
+
+.btn-load-spot {
+    background: var(--primary-color);  /* 青色 */
+    color: white;
+}
+
+.btn-load-spot:hover:not(:disabled) {
+    background: var(--primary-dark);
+}
+
+/* =====================================
+   Editing Mode Selector
+   ===================================== */
+.editing-mode-selector {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 12px;
+    background: var(--light-gray);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.editing-option {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #666;
+    transition: color 0.3s ease;
+}
+
+.editing-option input[type="radio"] {
+    margin: 0;
+    transform: scale(0.9);
+}
+
+.editing-option:has(input:checked) {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.editing-option:hover {
+    color: var(--primary-dark);
+}
+
+/* =====================================
+   Editor Panels
+   ===================================== */
+.point-editor,
+.route-editor,
+.spot-editor {
+    padding: 15px;
+    background: var(--light-gray);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.point-editor h3,
+.route-editor h3,
+.spot-editor h3 {
+    margin: 0;
+    color: var(--secondary-color);
+    font-size: 1.1em;
+}
+
+.editor-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* =====================================
+   Route Controls
+   ===================================== */
+.route-info {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.route-points-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+}
+
+.route-point-input {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+.route-point-input label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #495057;
+    min-width: 80px;
+    white-space: nowrap;
+}
+
+.route-point-field {
+    width: 60px;
+    padding: 6px 8px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.route-point-field:focus {
+    border-color: var(--primary-color);
+}
+
+.route-point-field::placeholder {
+    color: #bdc3c7;
+    font-weight: normal;
+}
+
+.route-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* =====================================
+   Counters & Status
+   ===================================== */
+.point-count,
+.waypoint-count,
+.spot-count {
+    padding: 10px;
+    background: var(--light-gray);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--secondary-color);
+}
+
+.point-count span {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.waypoint-count {
+    font-size: 0.9em;
+    background: white;
+}
+
+.waypoint-count span {
+    color: #e67e22;
+    font-weight: bold;
+}
+
+.spot-count span {
+    color: #ff9500;
+    font-weight: bold;
+}
+
+/* =====================================
+   Point ID Inputs (Dynamic)
+   ===================================== */
+.point-id-input {
+    width: 50px;
+    height: 24px;
+    padding: 2px 6px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    outline: none;
+    transition: var(--transition);
+}
+
+/* ポップアップコンテナ（入力＋プレビュー） */
+.point-id-popup {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 2px;
+    background: white;
+    border: 2px solid var(--primary-color);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
+}
+
+.point-id-popup.is-editing {
+    border-color: var(--primary-dark);
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.5);
+}
+
+/* 入力中の文字プレビュー（削除） */
+
+/* .point-id-input:focus のスタイルは .point-id-popup.is-editing で処理 */
+
+.point-id-input::placeholder {
+    color: #bdc3c7;
+    font-size: 10px;
+}
+
+/* スポット名入力ポップアップ */
+.spot-name-popup {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 2px;
+    background: white;
+    border: 2px solid var(--primary-color);  /* ポイントと同じ青色の枠線 */
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
+}
+
+.spot-name-popup.is-editing {
+    border-color: var(--primary-dark);  /* 濃い青色 */
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.5);
+}
+
+.spot-name-input {
+    width: 80px;
+    height: 24px;
+    padding: 2px 6px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    font-size: 11px;
+    font-weight: normal;
+    text-align: left;
+    outline: none;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.spot-name-input::placeholder {
+    color: #bdc3c7;
+    font-size: 10px;
+}
+
+/* =====================================
+   Responsive Design
+   ===================================== */
+@media (max-width: 768px) {
+    .container {
+        padding: 0;
+    }
+    
+    header h1 {
+        font-size: 1.3em;
+    }
+    
+    header p {
+        font-size: 0.7em;
+    }
+    
+    .main-content[data-layout="sidebar"] {
+        flex-direction: column;
+    }
+    
+    [data-layout="sidebar"] .controls-sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+        order: -1;
+    }
+    
+    [data-layout="sidebar"] .map-container {
+        width: 100vw;
+        flex: 1;
+    }
+    
+    [data-layout="sidebar"] .map-canvas {
+        max-width: calc(100vw - 40px);
+        max-height: calc(100vh - 280px);
+    }
+    
+    [data-layout="overlay"] .controls-sidebar {
+        width: var(--sidebar-width);
+        right: 10px;
+        top: 100px;
+    }
+    
+    .point-id-input {
+        width: 45px;
+        height: 22px;
+        font-size: 11px;
+    }
+    
+    .layout-selector {
+        top: 15px;
+        right: 15px;
+        padding: 6px 10px;
+    }
+    
+    .layout-option {
+        font-size: 11px;
+    }
+}
+
+/* メッセージオーバーレイスタイル */
+.message-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+    padding: 15px 25px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+    min-width: 200px;
+    max-width: 80%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    animation: messageSlideIn 0.3s ease-out;
+}
+
+.message-overlay.message-info {
+    background-color: #b3e5fc;
+    color: #0d47a1;
+    border: 2px solid #4fc3f7;
+}
+
+.message-overlay.message-warning {
+    background-color: #ff9800;
+    color: white;
+    border: 2px solid #f57c00;
+}
+
+.message-overlay.message-error {
+    background-color: #f44336;
+    color: white;
+    border: 2px solid #d32f2f;
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+    .message-overlay {
+        font-size: 14px;
+        padding: 12px 20px;
+        max-width: 90%;
+    }
+}
