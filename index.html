@@ -4,21 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>地図アプリケーション選択</title>
-    <meta name="description" content="PointMarker、PointGPS、GeoReferencer、RouteEditorアプリケーションの選択画面">
+    <meta name="description" content="PointGPS、PointMarker、GeoReferencer、RouteEditorアプリケーションの選択画面">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>地図アプリケーション</h1>
+        <h1>ハイキングマップのデジタル化アプリ</h1>
         <p class="subtitle">使用するアプリケーションを選択してください</p>
         
         <div class="app-list">
             <a href="PointGPS/index.html" class="app-card" onclick="openApp('PointGPS/index.html'); return false;">
-                <div class="app-icon">🗺️</div>
+                <div class="app-icon">🚩</div>
                 <div class="app-content">
                     <div class="app-title">PointGPS</div>
                     <div class="app-description">
-                        国土地理院地図上でGPSポイントの表示・編集・管理を行うWebアプリケーション
+                        国土地理院地図上でポイントの追加・移動・削除を行い、座標データをExcel形式で出力
                     </div>
                 </div>
             </a>
@@ -28,7 +28,7 @@
                 <div class="app-content">
                     <div class="app-title">PointMarker</div>
                     <div class="app-description">
-                        PNG画像のハイキングマップから視覚的にポイントを選択し、座標データをJSONファイルとして出力
+                        PNG画像のマップから視覚的にポイント・ルート・スポットを選択し、座標データを出力
                     </div>
                 </div>
             </a>
@@ -38,17 +38,17 @@
                 <div class="app-content">
                     <div class="app-title">GeoReference</div>
                     <div class="app-description">
-                        PNG画像のハイキングマップを国土地理院地図上に重ね合わせてGeoJOSNファイルとして出力
+                        PNG画像のハイキングマップを国土地理院地図に重ね合わせ（ジオリファレンス）
                     </div>
                 </div>
             </a>
 
             <a href="RouteEditor/index.html" class="app-card" onclick="openApp('RouteEditor/index.html'); return false;">
-                <div class="app-icon">🛤️</div>
+                <div class="app-icon">🗾</div>
                 <div class="app-content">
                     <div class="app-title">RouteEditor</div>
                     <div class="app-description">
-                        国土地理院の地形図上でGPSポイントとルート編集を行うWebアプリケーション
+                        国土地理院地図上で、ルート編集、スポット編集
                     </div>
                 </div>
             </a>
