@@ -43,11 +43,11 @@ h1 {
     margin-bottom: 40px;
 }
 
-/* アプリケーショングリッド */
-.app-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 30px;
+/* アプリケーションリスト */
+.app-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     margin-bottom: 30px;
 }
 
@@ -55,13 +55,16 @@ h1 {
 .app-card {
     background: #f8f9fa;
     border-radius: 12px;
-    padding: 30px 20px;
+    padding: 20px;
     transition: all 0.3s ease;
     border: 2px solid transparent;
     cursor: pointer;
     text-decoration: none;
     color: inherit;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    text-align: left;
 }
 
 .app-card:hover {
@@ -78,14 +81,23 @@ h1 {
 /* アプリケーションアイコン */
 .app-icon {
     font-size: 3em;
-    margin-bottom: 15px;
+    flex-shrink: 0;
+    width: 80px;
+    text-align: center;
+}
+
+/* アプリケーションコンテンツ */
+.app-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 /* アプリケーションタイトル */
 .app-title {
     font-size: 1.4em;
     font-weight: 600;
-    margin-bottom: 10px;
     color: #2c3e50;
 }
 
@@ -111,18 +123,23 @@ h1 {
         padding: 30px 20px;
         max-width: 600px;
     }
-    
+
     h1 {
         font-size: 2em;
     }
-    
-    .app-grid {
-        grid-template-columns: 1fr;
-        gap: 20px;
+
+    .app-list {
+        gap: 15px;
     }
-    
+
     .app-card {
-        padding: 25px 15px;
+        padding: 15px;
+        gap: 15px;
+    }
+
+    .app-icon {
+        width: 60px;
+        font-size: 2.5em;
     }
 }
 
@@ -130,24 +147,32 @@ h1 {
     .container {
         padding: 20px 15px;
     }
-    
+
     h1 {
         font-size: 1.8em;
     }
-    
+
     .subtitle {
         font-size: 1em;
         margin-bottom: 30px;
     }
-    
-    .app-icon {
-        font-size: 2.5em;
+
+    .app-card {
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
     }
-    
+
+    .app-icon {
+        width: 100%;
+        font-size: 2.5em;
+        text-align: left;
+    }
+
     .app-title {
         font-size: 1.2em;
     }
-    
+
     .app-description {
         font-size: 0.9em;
     }
