@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="国土地理院地図上でGPSポイントの表示・編集・管理を行うWebアプリケーション">
+    <meta name="keywords" content="GPS, 地図, 国土地理院, ポイント編集">
+    <meta name="author" content="PointGPS">
+    <title>PointGPS - ポイント(GPS)編集アプリ</title>
+
+    <!-- セキュリティとパフォーマンスのためのメタタグ -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    
+    <!-- ファビコンのリクエストを抑制して404エラーを防ぐ -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
+    <!-- 外部CDNリソースの事前接続でパフォーマンス向上 -->
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    
+    <!-- Leaflet.js の CSS と JS を読み込み -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
+    <!-- SheetJS ライブラリを読み込み -->
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- アプリケーション固有のスタイルシート -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- メイン地図コンテナ -->
+    <main id="map" role="main" aria-label="国土地理院地図"></main>
+
+    <!-- アプリケーション制御パネル -->
+    <aside class="overlay-controls" role="complementary" aria-label="ポイント(GPS)編集ツール">
+        <!-- GPS ポイント編集パネル -->
+        <section id="pointGpsEditor" class="editor-panel" aria-labelledby="gps-editor-title">
+            <h2 id="gps-editor-title">ポイント(GPS)編集</h2>
+            
+            <!-- データ読み込みボタン -->
+            <div class="import-buttons">
+                <input type="file" id="gpsCsvInput" accept=".xlsx" aria-label="GPSデータExcelファイル選択" style="display: none;">
+                
+                <div class="import-control-row">
+                    <button id="loadBtn" 
+                            type="button" 
+                            title="GPS値の格納されているポイントデータ(Excel形式)の読み込み"
+                            aria-describedby="load-help" 
+                            class="import-button">
+                        ポイント読み込み(Excel)
+                    </button>
+                    
+                </div>
+            </div>
+            <div id="load-help" class="visually-hidden">選択したファイル形式でGPS座標データを読み込みます</div>
+            <div id="export-help" class="visually-hidden">選択したファイル形式でGPS座標データを出力します</div>
+            
+            <!-- ポイント数表示フィールド -->
+            <div class="info-field-container">
+                <label for="pointCountField">ポイント数</label>
+                <input type="text" id="pointCountField" readonly value="0" aria-describedby="point-count-help">
+                <span class="unit-label" aria-hidden="true">個</span>
+                <div id="point-count-help" class="visually-hidden">現在読み込まれているGPSポイントの数</div>
+            </div>
+            
+            <!-- ポイント(GPS)情報枠 -->
+            <div id="pointInfoContainer" class="point-info-container">
+                <h3 class="point-info-title">選択したポイントの位置(GPS)情報</h3>
+                
+                <!-- ポイントID -->
+                <div class="info-field-row">
+                    <label for="pointIdField">ポイントID</label>
+                    <input type="text" id="pointIdField" maxlength="5" tabindex="1">
+                </div>
+                
+                <!-- 名称 -->
+                <div class="info-field-row">
+                    <label for="locationField">名称</label>
+                    <input type="text" id="locationField" placeholder="名称を表示" maxlength="20" tabindex="2">
+                </div>
+                
+                <!-- 緯度 -->
+                <div class="info-field-row">
+                    <label for="latDecimalField">緯度</label>
+                    <input type="text" id="latDecimalField" readonly placeholder="10進数形式" maxlength="12" size="10" tabindex="-1">
+                </div>
+                
+                <!-- 経度 -->
+                <div class="info-field-row">
+                    <label for="lngDecimalField">経度</label>
+                    <input type="text" id="lngDecimalField" readonly placeholder="10進数形式" maxlength="13" size="11" tabindex="-1">
+                </div>
+                
+                <!-- DMS -->
+                <div class="info-field-row">
+                    <label for="dmsField">DMS</label>
+                    <input type="text" id="dmsField" readonly placeholder="DMS形式緯度/経度" maxlength="30" size="25" tabindex="-1">
+                </div>
+                
+                <!-- 標高 -->
+                <div class="info-field-row">
+                    <label for="elevationField">標高</label>
+                    <input type="text" id="elevationField" readonly maxlength="8" size="6" tabindex="-1">
+                    <span class="unit-label">m</span>
+                </div>
+                
+                <!-- 備考 -->
+                <div class="info-field-row">
+                    <label for="remarksField">備考</label>
+                    <input type="text" id="remarksField" placeholder="備考を入力" maxlength="50" tabindex="3">
+                </div>
+                
+                <!-- ポイント操作ボタン -->
+                <div class="point-action-buttons">
+                    <button id="addPointBtn" class="point-action-btn" type="button" title="ポイントの追加">追加</button>
+                    <button id="movePointBtn" class="point-action-btn" type="button" title="ポイントの移動">移動</button>
+                    <button id="deletePointBtn" class="point-action-btn" type="button" title="ポイントの削除">削除</button>
+                </div>
+            </div>
+
+            <!-- データ出力ボタン -->
+            <div class="export-buttons">
+                <div class="export-control-row">
+                    <button id="exportBtn" 
+                            type="button" 
+                            title="ポイントのデータ(GPS値、名称等)を出力(Excel形式)"
+                            aria-describedby="export-help" 
+                            class="control-button">
+                        ポイント出力(Excel)
+                    </button>
+                    
+                </div>
+            </div>
+        </section>
+    </aside>
+
+    <!-- メッセージ表示エリア -->
+    <div id="messageArea" class="message-area" style="display: none;"></div>
+
+    <!-- 分離したJavaScriptファイルを読み込む -->
+    <!-- type="module"により、ES6モジュールとして読み込む -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

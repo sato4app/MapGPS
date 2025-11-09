@@ -1,0 +1,457 @@
+/* PointGPS スタイルシート */
+
+/* リセットとベース設定 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #333;
+    background-color: #f5f5f5;
+}
+
+/* 地図コンテナ */
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 1;
+}
+
+/* アクセシビリティ - スクリーンリーダー用の隠しテキスト */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* オーバーレイコントロールパネル */
+.overlay-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* エディターパネル */
+.editor-panel {
+    padding: 20px;
+}
+
+.editor-panel h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #3498db;
+}
+
+/* コントロールボタン */
+.control-button {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.control-button:hover {
+    background-color: #2980b9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.control-button:active {
+    transform: translateY(0);
+}
+
+/* データ読み込みボタン */
+.import-buttons {
+    margin-bottom: 12px;
+}
+
+.import-control-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.import-button {
+    width: 180px;
+    padding: 8px 16px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.import-button:hover {
+    background-color: #2980b9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.import-button:active {
+    transform: translateY(0);
+}
+
+
+/* 情報フィールドコンテナ */
+.info-field-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 8px;
+}
+
+.info-field-container label {
+    font-weight: 500;
+    color: #34495e;
+    min-width: 60px;
+    font-size: 13px;
+}
+
+.info-field-container input[type="text"] {
+    padding: 6px 8px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 13px;
+    background-color: #ecf0f1;
+}
+
+/* 特定フィールドの幅設定 */
+#pointCountField {
+    width: 48px;
+    flex: none;
+}
+
+#pointIdField,
+#elevationField {
+    width: 60px;
+    flex: none;
+}
+
+#latDecimalField,
+#lngDecimalField {
+    width: 80px;
+    flex: none;
+}
+
+.unit-label {
+    font-size: 12px;
+    color: #7f8c8d;
+    white-space: nowrap;
+}
+
+/* ポイント情報コンテナ */
+.point-info-container {
+    margin-top: 20px;
+    padding: 16px;
+    background-color: rgba(236, 240, 241, 0.8);
+    border-radius: 6px;
+    border: 1px solid #d5dbdb;
+}
+
+.point-info-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+/* 情報フィールド行 */
+.info-field-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 8px;
+}
+
+.info-field-row label {
+    font-weight: 500;
+    color: #34495e;
+    min-width: 40px;
+    font-size: 12px;
+}
+
+.info-field-row input[type="text"] {
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid #bdc3c7;
+    border-radius: 3px;
+    font-size: 12px;
+    min-width: 0;
+}
+
+.info-field-row input[readonly] {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+/* ポイント操作ボタン */
+.point-action-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: space-between;
+}
+
+.point-action-btn {
+    flex: 1;
+    padding: 8px 12px;
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.point-action-btn:hover {
+    background-color: #219a52;
+    transform: translateY(-1px);
+}
+
+.point-action-btn:active {
+    transform: translateY(0);
+}
+
+/* 出力ボタン */
+.export-buttons {
+    margin-top: 20px;
+}
+
+.export-control-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.export-buttons .control-button {
+    width: 180px;
+    margin-bottom: 0;
+    background-color: #e67e22;
+    flex-shrink: 0;
+    padding: 8px 16px;
+}
+
+.export-buttons .control-button:hover {
+    background-color: #d35400;
+}
+
+
+/* メッセージエリア */
+.message-area {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 16px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    z-index: 10000;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.message-info {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message-warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.message-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .overlay-controls {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+    }
+    
+    .editor-panel {
+        padding: 16px;
+    }
+    
+    .point-action-buttons {
+        flex-direction: column;
+    }
+    
+    .point-action-btn {
+        margin-bottom: 8px;
+    }
+    
+    .export-buttons {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .overlay-controls {
+        top: 5px;
+        right: 5px;
+        left: 5px;
+    }
+    
+    .editor-panel {
+        padding: 12px;
+    }
+    
+    .info-field-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .info-field-row label {
+        min-width: auto;
+        margin-bottom: 4px;
+    }
+}
+
+/* カスタムカーソル */
+body.crosshair-cursor {
+    cursor: crosshair;
+}
+
+body.move-cursor {
+    cursor: move;
+}
+
+/* アニメーション */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-area {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Leaflet カスタマイズ */
+.leaflet-popup-content-wrapper {
+    border-radius: 6px;
+}
+
+.leaflet-popup-content {
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* フォーカススタイル（アクセシビリティ向上） */
+button:focus,
+input:focus,
+select:focus {
+    outline: 2px solid #3498db;
+    outline-offset: 2px;
+}
+
+/* ローディング状態の表示 */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #3498db;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Leafletコントロールのカスタマイズ */
+/* ズームコントロールをスケールの上に配置 */
+.leaflet-control-zoom {
+    margin-bottom: 10px !important;
+}
+
+.leaflet-control-scale {
+    margin-bottom: 10px !important;
+}
+
+/* ズームコントロールのスタイリング */
+.leaflet-control-zoom a {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
+    border: 1px solid rgba(0, 0, 0, 0.2) !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background-color: #f4f4f4 !important;
+}
+
+/* スケールコントロールのスタイリング */
+.leaflet-control-scale-line {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border: 1px solid #777 !important;
+    color: #333 !important;
+    font-size: 11px !important;
+}

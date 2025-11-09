@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地図アプリケーション選択</title>
+    <meta name="description" content="PointGPS、PointMarker、GeoReferencer、RouteEditorアプリケーションの選択画面">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>ハイキングマップのGPSデータ化</h1>
+        <p class="subtitle">使用するアプリケーションを選択してください</p>
+        
+        <div class="app-list">
+            <a href="PointGPS/index.html" class="app-card" onclick="openApp('PointGPS/index.html'); return false;">
+                <div class="app-icon">🚩</div>
+                <div class="app-content">
+                    <div class="app-title">PointGPS</div>
+                    <div class="app-description">
+                        国土地理院地図上でポイントの追加・移動・削除を行い、GPS値をExcel形式で出力
+                    </div>
+                </div>
+            </a>
+
+            <a href="PointMarker/index.html" class="app-card" onclick="openApp('PointMarker/index.html'); return false;">
+                <div class="app-icon">📍</div>
+                <div class="app-content">
+                    <div class="app-title">PointMarker</div>
+                    <div class="app-description">
+                        PNG画像のマップからポイント・ルート・スポットを選択し、座標データを出力
+                    </div>
+                </div>
+            </a>
+
+            <a href="GeoReferencer/index.html" class="app-card" onclick="openApp('GeoReferencer/index.html'); return false;">
+                <div class="app-icon">🗺️</div>
+                <div class="app-content">
+                    <div class="app-title">GeoReferencer</div>
+                    <div class="app-description">
+                        PNG画像のハイキングマップを国土地理院地図に重ね合わせ（ジオリファレンス）
+                    </div>
+                </div>
+            </a>
+
+            <a href="RouteEditor/index.html" class="app-card" onclick="openApp('RouteEditor/index.html'); return false;">
+                <div class="app-icon">🗾</div>
+                <div class="app-content">
+                    <div class="app-title">RouteEditor</div>
+                    <div class="app-description">
+                        国土地理院地図上で、ルート・スポットを位置編集し、GeoJSONファイルに出力
+                    </div>
+                </div>
+            </a>
+        </div>
+        
+        <div class="footer">
+            <p>各アプリケーションは新しいタブで開きます</p>
+        </div>
+    </div>
+
+    <script>
+        function openApp(filename) {
+            // 新しいタブでアプリケーションを開く
+            window.open(filename, '_blank');
+        }
+        
+        // キーボードナビゲーション対応
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const focusedElement = document.activeElement;
+                if (focusedElement.classList.contains('app-card')) {
+                    e.preventDefault();
+                    focusedElement.click();
+                }
+            }
+        });
+        
+        // アプリカードにフォーカス可能にする
+        document.querySelectorAll('.app-card').forEach(card => {
+            card.setAttribute('tabindex', '0');
+            card.addEventListener('focus', function() {
+                this.style.outline = '2px solid #3498db';
+                this.style.outlineOffset = '2px';
+            });
+            card.addEventListener('blur', function() {
+                this.style.outline = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
