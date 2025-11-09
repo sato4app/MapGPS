@@ -58,7 +58,8 @@ export class MapCore {
             // スケールバーを右下に追加
             L.control.scale({ position: 'bottomright', imperial: false, maxWidth: 150 }).addTo(this.map);
 
-            // ズームコントロールを右下に追加（スケールの上に配置）
+            // ズームコントロールを左上と右下に追加
+            L.control.zoom({ position: 'topleft' }).addTo(this.map);
             L.control.zoom({ position: 'bottomright' }).addTo(this.map);
 
             // 国土地理院タイルレイヤー

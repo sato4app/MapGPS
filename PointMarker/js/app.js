@@ -36,7 +36,11 @@ export class PointMarkerApp {
 
         // ホバー状態管理
         this.isHoveringPoint = false;
-        
+
+        // ルート編集用の編集前ポイントID保存
+        this.previousStartPoint = '';
+        this.previousEndPoint = '';
+
         this.initializeCallbacks();
         this.initializeEventListeners();
         this.enableBasicControls();
@@ -70,13 +74,35 @@ export class PointMarkerApp {
         this.routeManager.setCallback('onStartEndChange', (data) => {
             document.getElementById('startPointInput').value = data.start;
             document.getElementById('endPointInput').value = data.end;
-            
+
             // InputManagerに開始・終了ポイントの強調表示を更新
             const highlightIds = [];
-            if (data.start && data.start.trim()) highlightIds.push(data.start);
-            if (data.end && data.end.trim()) highlightIds.push(data.end);
+            const highlightSpotNames = [];
+            const registeredIds = this.pointManager.getRegisteredIds();
+
+            // 開始ポイント
+            if (data.start && data.start.trim()) {
+                if (registeredIds.includes(data.start)) {
+                    highlightIds.push(data.start);
+                } else {
+                    // ポイントIDとして存在しない場合、スポット名として扱う
+                    highlightSpotNames.push(data.start);
+                }
+            }
+
+            // 終了ポイント
+            if (data.end && data.end.trim()) {
+                if (registeredIds.includes(data.end)) {
+                    highlightIds.push(data.end);
+                } else {
+                    // ポイントIDとして存在しない場合、スポット名として扱う
+                    highlightSpotNames.push(data.end);
+                }
+            }
+
             this.inputManager.setHighlightedPoints(highlightIds);
-            
+            this.inputManager.setHighlightedSpotNames(highlightSpotNames);
+
             this.redrawCanvas();
         });
 
@@ -99,10 +125,51 @@ export class PointMarkerApp {
 
         // 入力管理のコールバック
         this.inputManager.setCallback('onPointIdChange', (data) => {
+            // まずフォーマット処理を実行（blur時もinput時も）
             this.pointManager.updatePointId(data.index, data.id, data.skipFormatting, true);
+
+            // blur時のみ、フォーマット後のIDで重複チェックを実行
+            if (!data.skipFormatting && data.id.trim() !== '') {
+                // フォーマット後のIDを取得
+                const point = this.pointManager.getPoints()[data.index];
+                const formattedId = point ? point.id : data.id;
+
+                const registeredIds = this.pointManager.getRegisteredIds();
+
+                // 自分以外で同じIDが存在するかチェック
+                const hasDuplicate = registeredIds.some((id, idx) => {
+                    return id === formattedId && idx !== data.index;
+                });
+
+                if (hasDuplicate) {
+                    // 重複エラーを表示
+                    const inputElement = document.querySelector(`input[data-point-index="${data.index}"]`);
+                    if (inputElement) {
+                        inputElement.style.backgroundColor = '#ffebee'; // ピンク背景
+                        inputElement.style.borderColor = '#f44336'; // 赤枠
+                        inputElement.style.borderWidth = '2px';
+                        inputElement.title = `ポイントID "${formattedId}" は既に使用されています`;
+                    }
+                    UIHelper.showError(`ポイントID "${formattedId}" は既に使用されています。別のIDを入力してください。`);
+                } else {
+                    // 重複がない場合はエラー表示をクリア
+                    const inputElement = document.querySelector(`input[data-point-index="${data.index}"]`);
+                    if (inputElement) {
+                        inputElement.style.backgroundColor = '';
+                        inputElement.style.borderColor = '';
+                        inputElement.style.borderWidth = '';
+                        inputElement.title = '';
+                    }
+                }
+            }
+
             // 入力中の場合は表示更新をスキップ（入力ボックスの値はそのまま維持）
             if (!data.skipDisplay) {
-                this.inputManager.updatePointIdDisplay(data.index, data.id);
+                // フォーマット処理後の値を取得して表示
+                const point = this.pointManager.getPoints()[data.index];
+                if (point) {
+                    this.inputManager.updatePointIdDisplay(data.index, point.id);
+                }
             }
         });
         
@@ -114,11 +181,15 @@ export class PointMarkerApp {
         
         // スポット名変更のコールバック
         this.inputManager.setCallback('onSpotNameChange', (data) => {
-            // 入力中はスポット入力ボックス再生成をスキップ
-            this.spotManager.updateSpotName(data.index, data.name, !!data.skipDisplay);
+            // フォーマット処理を実行（blur時のみ、input時はスキップ）
+            this.spotManager.updateSpotName(data.index, data.name, !!data.skipFormatting, !!data.skipDisplay);
             // 入力中の場合は表示更新をスキップ（入力ボックスの値はそのまま維持）
             if (!data.skipDisplay) {
-                this.inputManager.updateSpotNameDisplay(data.index, data.name);
+                // フォーマット処理後の値を取得して表示
+                const spot = this.spotManager.getSpots()[data.index];
+                if (spot) {
+                    this.inputManager.updateSpotNameDisplay(data.index, spot.name);
+                }
             }
         });
         
@@ -139,6 +210,9 @@ export class PointMarkerApp {
         
         this.layoutManager.setCallback('onModeChange', (mode) => {
             this.inputManager.setEditMode(mode);
+            const pointIdCheckbox = document.getElementById('showPointIdsCheckbox');
+            const spotNameCheckbox = document.getElementById('showSpotNamesCheckbox');
+
             if (mode === 'route') {
                 // ルート編集モードに切り替えた時、既存の開始・終了ポイントを強調表示
                 const startEndPoints = this.routeManager.getStartEndPoints();
@@ -146,10 +220,38 @@ export class PointMarkerApp {
                 if (startEndPoints.start && startEndPoints.start.trim()) highlightIds.push(startEndPoints.start);
                 if (startEndPoints.end && startEndPoints.end.trim()) highlightIds.push(startEndPoints.end);
                 this.inputManager.setHighlightedPoints(highlightIds);
+
+                // チェックボックスをオンにしてポイントIDを表示
+                if (pointIdCheckbox) {
+                    pointIdCheckbox.checked = true;
+                    this.handlePointIdVisibilityChange(true);
+                }
+
+                // スポット名表示チェックボックスをOFFにする
+                if (spotNameCheckbox && spotNameCheckbox.checked) {
+                    spotNameCheckbox.checked = false;
+                    this.handleSpotNameVisibilityChange(false);
+                }
             } else if (mode === 'spot') {
                 // スポット編集モードに切り替えた時、スポット入力ボックスを表示
                 this.inputManager.redrawSpotInputBoxes(this.spotManager.getSpots());
+
+                // ポイントIDポップアップを非表示
+                this.handlePointIdVisibilityChange(false);
+            } else if (mode === 'point') {
+                // ポイント編集モードに切り替えた時、チェックボックスをオンにする
+                if (pointIdCheckbox && !pointIdCheckbox.checked) {
+                    pointIdCheckbox.checked = true;
+                    this.handlePointIdVisibilityChange(true);
+                }
+
+                // スポット名表示チェックボックスをOFFにする
+                if (spotNameCheckbox && spotNameCheckbox.checked) {
+                    spotNameCheckbox.checked = false;
+                    this.handleSpotNameVisibilityChange(false);
+                }
             }
+
             this.redrawCanvas();
         });
     }
@@ -179,12 +281,7 @@ export class PointMarkerApp {
             e.preventDefault();
             this.clearPoints();
         });
-        
-        document.getElementById('formatBtn').addEventListener('click', (e) => {
-            e.preventDefault();
-            this.formatAllPointIds();
-        });
-        
+
         document.getElementById('exportBtn').addEventListener('click', async (e) => {
             e.preventDefault();
             await this.exportPoints();
@@ -218,40 +315,76 @@ export class PointMarkerApp {
         
         document.getElementById('spotJsonInput').addEventListener('change', (e) => this.handleSpotJSONLoad(e));
 
+        // ズーム・パンコントロール
+        document.getElementById('zoomInBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleZoomIn();
+        });
+
+        document.getElementById('zoomOutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleZoomOut();
+        });
+
+        document.getElementById('panUpBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handlePanUp();
+        });
+
+        document.getElementById('panDownBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handlePanDown();
+        });
+
+        document.getElementById('panLeftBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handlePanLeft();
+        });
+
+        document.getElementById('panRightBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handlePanRight();
+        });
+
+        document.getElementById('resetViewBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleResetView();
+        });
+
         // 開始・終了ポイント入力
         const startPointInput = document.getElementById('startPointInput');
         const endPointInput = document.getElementById('endPointInput');
-        
-        // input時は変換処理を一切行わない（フォーマット処理もしない）
-        startPointInput.addEventListener('input', (e) => {
-            const value = e.target.value;
-            // 入力中は変換処理なし、フォーマット処理をスキップして設定
-            this.routeManager.setStartPoint(value, true);
+
+        // focus時に編集前の値を保存
+        startPointInput.addEventListener('focus', (e) => {
+            this.previousStartPoint = e.target.value.trim();
         });
-        
-        endPointInput.addEventListener('input', (e) => {
-            const value = e.target.value;
-            // 入力中は変換処理なし、フォーマット処理をスキップして設定
-            this.routeManager.setEndPoint(value, true);
+
+        endPointInput.addEventListener('focus', (e) => {
+            this.previousEndPoint = e.target.value.trim();
         });
-        
-        // blur時にX-nn形式のフォーマット処理を実行
+
+        // blur時に半角・大文字変換とX-nn形式のフォーマット処理を実行
         startPointInput.addEventListener('blur', (e) => {
-            this.routeManager.setStartPoint(e.target.value);
-            const newValue = this.routeManager.getStartEndPoints().start;
+            const inputValue = e.target.value.trim();
+            const newValue = this.handleRoutePointBlur(inputValue, 'start', this.previousStartPoint);
             e.target.value = newValue;
-            
-            // 開始・終了ポイント両方の検証フィードバック
-            ValidationManager.updateBothRoutePointsValidation(this.routeManager, this.pointManager);
         });
-        
+
         endPointInput.addEventListener('blur', (e) => {
-            this.routeManager.setEndPoint(e.target.value);
-            const newValue = this.routeManager.getStartEndPoints().end;
+            const inputValue = e.target.value.trim();
+            const newValue = this.handleRoutePointBlur(inputValue, 'end', this.previousEndPoint);
             e.target.value = newValue;
-            
-            // 開始・終了ポイント両方の検証フィードバック
-            ValidationManager.updateBothRoutePointsValidation(this.routeManager, this.pointManager);
+        });
+
+        // ポイントID表示切り替えチェックボックス
+        document.getElementById('showPointIdsCheckbox').addEventListener('change', (e) => {
+            this.handlePointIdVisibilityChange(e.target.checked);
+        });
+
+        // スポット名表示切り替えチェックボックス
+        document.getElementById('showSpotNamesCheckbox').addEventListener('change', (e) => {
+            this.handleSpotNameVisibilityChange(e.target.checked);
         });
 
         // ウィンドウリサイズ
@@ -276,8 +409,17 @@ export class PointMarkerApp {
      */
     enableImageControls() {
         document.getElementById('clearBtn').disabled = false;
-        document.getElementById('formatBtn').disabled = false;
         document.getElementById('exportBtn').disabled = false;
+
+        // ズーム・パンボタンを有効化
+        document.getElementById('zoomInBtn').disabled = false;
+        // ズームアウトは初期状態（1.0倍）では無効
+        document.getElementById('zoomOutBtn').disabled = true;
+        document.getElementById('panUpBtn').disabled = false;
+        document.getElementById('panDownBtn').disabled = false;
+        document.getElementById('panLeftBtn').disabled = false;
+        document.getElementById('panRightBtn').disabled = false;
+        document.getElementById('resetViewBtn').disabled = false;
     }
 
     /**
@@ -347,16 +489,28 @@ export class PointMarkerApp {
     handleCanvasMouseMove(event) {
         if (!this.currentImage) return;
 
-        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas);
+        // ズーム・パン情報を取得
+        const scale = this.canvasRenderer.getScale();
+        const offset = this.canvasRenderer.getOffset();
+
+        // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
+        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
 
         // ドラッグ中の処理
-        if (this.dragDropHandler.updateDrag(coords.x, coords.y, this.pointManager, this.spotManager)) {
+        if (this.dragDropHandler.updateDrag(coords.x, coords.y, this.pointManager, this.spotManager, this.routeManager)) {
             this.redrawCanvas();
             return;
         }
 
         // ホバー処理
-        const hasObject = this.findObjectAtMouse(coords.x, coords.y) !== null;
+        const mode = this.layoutManager.getCurrentEditingMode();
+        let hasObject = this.findObjectAtMouse(coords.x, coords.y) !== null;
+
+        // ルート編集モード時は中間点もホバー対象
+        if (mode === 'route' && !hasObject) {
+            hasObject = this.routeManager.findRoutePointAt(coords.x, coords.y) !== null;
+        }
+
         this.updateCursor(hasObject);
     }
 
@@ -378,10 +532,32 @@ export class PointMarkerApp {
     handleCanvasMouseDown(event) {
         if (!this.currentImage) return;
 
-        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas);
-        const objectInfo = this.findObjectAtMouse(coords.x, coords.y);
+        // ズーム・パン情報を取得
+        const scale = this.canvasRenderer.getScale();
+        const offset = this.canvasRenderer.getOffset();
+
+        // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
+        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
         const mode = this.layoutManager.getCurrentEditingMode();
 
+        // ルート編集モードの場合、中間点ドラッグを優先チェック
+        if (mode === 'route') {
+            const routePointInfo = this.routeManager.findRoutePointAt(coords.x, coords.y);
+            if (routePointInfo) {
+                this.dragDropHandler.startDrag(
+                    'routePoint',
+                    routePointInfo.index,
+                    coords.x,
+                    coords.y,
+                    routePointInfo.point
+                );
+                event.preventDefault();
+                return;
+            }
+        }
+
+        // ポイント・スポットのドラッグ処理
+        const objectInfo = this.findObjectAtMouse(coords.x, coords.y);
         if (!objectInfo) return;
 
         // 適切なモードでのドラッグ開始をチェック
@@ -420,8 +596,22 @@ export class PointMarkerApp {
     handleCanvasClick(event) {
         if (!this.currentImage || this.dragDropHandler.isDraggingObject()) return;
 
-        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas);
+        // ズーム・パン情報を取得
+        const scale = this.canvasRenderer.getScale();
+        const offset = this.canvasRenderer.getOffset();
+
+        // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
+        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
         const mode = this.layoutManager.getCurrentEditingMode();
+
+        // ルート編集モードの場合、中間点上のクリックは無視（ドラッグ専用）
+        if (mode === 'route') {
+            const routePointInfo = this.routeManager.findRoutePointAt(coords.x, coords.y);
+            if (routePointInfo) {
+                return;
+            }
+        }
+
         const objectInfo = this.findObjectAtMouse(coords.x, coords.y);
 
         // 既存オブジェクトクリック時の処理
@@ -508,6 +698,65 @@ export class PointMarkerApp {
     }
 
     /**
+     * ルートポイント（開始・終了）のblur処理を統合処理
+     * @param {string} inputValue - 入力値
+     * @param {string} pointType - ポイントタイプ ('start' or 'end')
+     * @param {string} previousValue - 前回の値
+     * @returns {string} 設定された値
+     */
+    handleRoutePointBlur(inputValue, pointType, previousValue) {
+        const isStartPoint = pointType === 'start';
+        const setPointMethod = isStartPoint ? 'setStartPoint' : 'setEndPoint';
+        const pointLabel = isStartPoint ? '開始ポイント' : '終了ポイント';
+
+        // 入力値が空でない場合のみ処理
+        if (inputValue !== '') {
+            // まず元の入力値でスポット名の部分一致検索
+            const matchingSpots = this.spotManager.findSpotsByPartialName(inputValue);
+
+            if (matchingSpots.length === 1) {
+                // 1件のみ該当する場合、そのスポット名を設定（フォーマット処理も適用）
+                const formattedSpotName = Validators.formatPointId(matchingSpots[0].name);
+                this.routeManager[setPointMethod](formattedSpotName);
+            } else if (matchingSpots.length > 1) {
+                // 複数件該当する場合、ポイントIDとしてフォーマット処理を試みる
+                // （警告は表示せず、バリデーション時にピンク背景で表示）
+                this.routeManager[setPointMethod](inputValue);
+            } else {
+                // スポット名が該当しない場合、ポイントIDとしてフォーマット処理
+                this.routeManager[setPointMethod](inputValue);
+            }
+        } else {
+            // 空の場合はそのまま設定
+            this.routeManager[setPointMethod](inputValue);
+        }
+
+        const newValue = isStartPoint
+            ? this.routeManager.getStartEndPoints().start
+            : this.routeManager.getStartEndPoints().end;
+
+        // 開始・終了ポイント両方の検証フィードバック（複数一致したスポット名を取得）
+        const matchingSpots = ValidationManager.updateBothRoutePointsValidation(this.routeManager, this.pointManager, this.spotManager);
+
+        // 複数一致したスポット名をエラー状態として設定
+        const allMatchingSpotNames = [...matchingSpots.start, ...matchingSpots.end];
+        this.inputManager.setErrorSpotNames(allMatchingSpotNames);
+
+        // 値が変更された場合の処理（ブランクも含む）
+        if (previousValue !== newValue) {
+            this.checkRoutePointChange(previousValue, newValue, pointLabel);
+            // ポイントID表示チェックボックスをオンにする
+            const checkbox = document.getElementById('showPointIdsCheckbox');
+            if (!checkbox.checked) {
+                checkbox.checked = true;
+                this.handlePointIdVisibilityChange(true);
+            }
+        }
+
+        return newValue;
+    }
+
+    /**
      * ポイントをクリア
      */
     clearPoints() {
@@ -527,6 +776,26 @@ export class PointMarkerApp {
     }
 
     /**
+     * ルートポイント変更チェック
+     * @param {string} previousValue - 編集前の値
+     * @param {string} newValue - 編集後の値
+     * @param {string} pointType - ポイントタイプ（'開始ポイント' or '終了ポイント'）
+     */
+    checkRoutePointChange(previousValue, newValue, pointType) {
+        // 値が変更され、かつ中間点が存在する場合
+        if (previousValue !== newValue && this.routeManager.getRoutePoints().length > 0) {
+            const waypointCount = this.routeManager.getRoutePoints().length;
+            const message = `${pointType}が変更されました（${previousValue || '(空)'} → ${newValue || '(空)'}）。\n\n` +
+                `ルート上の中間点（${waypointCount}個）をクリアしますか？`;
+
+            if (confirm(message)) {
+                this.routeManager.clearRoutePoints();
+                UIHelper.showMessage(`${waypointCount}個の中間点をクリアしました`);
+            }
+        }
+    }
+
+    /**
      * スポットをクリア
      */
     clearSpots() {
@@ -534,6 +803,24 @@ export class PointMarkerApp {
         this.spotManager.clearSpots();
         this.inputManager.clearSpotInputBoxes();
         UIHelper.showMessage(`${spotCount}個のスポットをクリアしました`);
+    }
+
+    /**
+     * ポイントID表示/非表示切り替え処理
+     * @param {boolean} visible - 表示するかどうか
+     */
+    handlePointIdVisibilityChange(visible) {
+        this.inputManager.setPointIdVisibility(visible);
+    }
+
+    /**
+     * スポット名表示/非表示切り替え処理
+     * @param {boolean} visible - 表示するかどうか
+     */
+    handleSpotNameVisibilityChange(visible) {
+        // スポットデータを取得して渡す
+        const spots = this.spotManager.getSpots();
+        this.inputManager.setSpotNameVisibility(visible, spots);
     }
 
 
@@ -571,28 +858,18 @@ export class PointMarkerApp {
     }
 
     /**
-     * 全ポイントID名を補正
-     */
-    formatAllPointIds() {
-        const pointCount = this.pointManager.getPoints().length;
-        this.pointManager.formatAllPointIds();
-        this.inputManager.redrawInputBoxes(this.pointManager.getPoints());
-        this.redrawCanvas();
-        UIHelper.showMessage(`${pointCount}個のポイントIDを補正しました`);
-    }
-
-    /**
      * ルートをJSON出力
      */
     async exportRoute() {
         const routePoints = this.routeManager.getRoutePoints();
         if (routePoints.length === 0) {
-            alert('ルートポイントが選択されていません');
+            alert('ルート中間点が設定されていません');
             return;
         }
 
         const validation = this.routeManager.validateStartEndPoints(
-            this.pointManager.getRegisteredIds()
+            this.pointManager.getRegisteredIds(),
+            this.spotManager
         );
         
         if (!validation.isValid) {
@@ -605,14 +882,16 @@ export class PointMarkerApp {
                 this.fileHandler.getCurrentImageFileName()
             );
 
-            await this.fileHandler.exportRouteData(
+            const saved = await this.fileHandler.exportRouteData(
                 this.routeManager,
                 this.fileHandler.getCurrentImageFileName() + '.png',
                 this.canvas.width, this.canvas.height,
                 this.currentImage.width, this.currentImage.height,
                 filename
             );
-            UIHelper.showMessage(`ルートデータを「${filename}」に出力しました`);
+            if (saved) {
+                UIHelper.showMessage(`ルートデータを「${filename}」に出力しました`);
+            }
         } catch (error) {
             console.error('エクスポートエラー:', error);
             UIHelper.showError('エクスポート中にエラーが発生しました');
@@ -671,6 +950,13 @@ export class PointMarkerApp {
             );
             const waypointCount = this.routeManager.getRoutePoints().length;
             UIHelper.showMessage(`ルートJSONファイルを読み込みました（${waypointCount}個の中間点）`);
+
+            // ポイントID表示チェックボックスをオンにする
+            const checkbox = document.getElementById('showPointIdsCheckbox');
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                this.handlePointIdVisibilityChange(true);
+            }
         } catch (error) {
             console.error('ルートJSON読み込みエラー:', error);
             UIHelper.showError('ルートJSON読み込み中にエラーが発生しました: ' + error.message);
@@ -756,6 +1042,107 @@ export class PointMarkerApp {
             this.spotManager,
             () => this.redrawCanvas()
         );
+    }
+
+    /**
+     * ズーム処理（汎用）
+     * @param {string} direction - 方向 ('in' or 'out')
+     */
+    handleZoom(direction) {
+        if (direction === 'in') {
+            this.canvasRenderer.zoomIn();
+        } else if (direction === 'out') {
+            this.canvasRenderer.zoomOut();
+        }
+        this.updateZoomButtonStates();
+        this.updatePopupPositions();
+        this.redrawCanvas();
+    }
+
+    /**
+     * ズームイン処理
+     */
+    handleZoomIn() {
+        this.handleZoom('in');
+    }
+
+    /**
+     * ズームアウト処理
+     */
+    handleZoomOut() {
+        this.handleZoom('out');
+    }
+
+    /**
+     * ポップアップ位置を更新
+     */
+    updatePopupPositions() {
+        const scale = this.canvasRenderer.getScale();
+        const offset = this.canvasRenderer.getOffset();
+        const points = this.pointManager.getPoints();
+        const spots = this.spotManager.getSpots();
+
+        this.inputManager.updateTransform(scale, offset.x, offset.y, points, spots);
+
+        // チェックボックスの状態を反映（ポイントID）
+        const checkbox = document.getElementById('showPointIdsCheckbox');
+        if (checkbox && !checkbox.checked) {
+            this.inputManager.setPointIdVisibility(false);
+        }
+
+        // スポット名の状態を再適用（強調表示とエラー状態を復元）
+        this.inputManager.updateSpotInputsState();
+    }
+
+    /**
+     * ズームボタンの状態を更新
+     */
+    updateZoomButtonStates() {
+        const scale = this.canvasRenderer.getScale();
+        const minScale = this.canvasRenderer.minScale;
+
+        // 表示倍率が1.0倍（最小値）の時、ズームアウトボタンを無効化
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        if (scale <= minScale) {
+            zoomOutBtn.disabled = true;
+        } else {
+            zoomOutBtn.disabled = false;
+        }
+    }
+
+    /**
+     * パン処理（汎用）
+     * @param {string} direction - 方向 ('up', 'down', 'left', 'right')
+     */
+    handlePan(direction) {
+        const panMethods = {
+            'up': () => this.canvasRenderer.panUp(),
+            'down': () => this.canvasRenderer.panDown(),
+            'left': () => this.canvasRenderer.panLeft(),
+            'right': () => this.canvasRenderer.panRight()
+        };
+
+        if (panMethods[direction]) {
+            panMethods[direction]();
+            this.updatePopupPositions();
+            this.redrawCanvas();
+        }
+    }
+
+    // 後方互換性のための個別メソッド
+    handlePanUp() { this.handlePan('up'); }
+    handlePanDown() { this.handlePan('down'); }
+    handlePanLeft() { this.handlePan('left'); }
+    handlePanRight() { this.handlePan('right'); }
+
+    /**
+     * 表示リセット処理
+     */
+    handleResetView() {
+        this.canvasRenderer.resetTransform();
+        this.updateZoomButtonStates();
+        this.updatePopupPositions();
+        this.redrawCanvas();
     }
 
 }

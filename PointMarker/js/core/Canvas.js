@@ -10,6 +10,15 @@ export class CanvasRenderer {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.currentImage = null;
+
+        // ズーム・パン用の状態管理
+        this.scale = 1.0;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.minScale = 1.0;  // 最小倍率を1.0倍に設定
+        this.maxScale = 5.0;
+        this.zoomStep = 0.2;
+        this.panStep = 50;  // ピクセル単位での移動量
     }
 
     /**
@@ -25,9 +34,18 @@ export class CanvasRenderer {
      */
     drawImage() {
         if (!this.currentImage) return;
-        
+
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 変換を適用
+        this.ctx.save();
+        this.ctx.translate(this.offsetX, this.offsetY);
+        this.ctx.scale(this.scale, this.scale);
+
+        // キャンバスサイズに合わせて画像を描画
         this.ctx.drawImage(this.currentImage, 0, 0, this.canvas.width, this.canvas.height);
+
+        this.ctx.restore();
     }
 
     /**
@@ -98,7 +116,7 @@ export class CanvasRenderer {
      */
     drawRoutePoints(routePoints) {
         routePoints.forEach(point => {
-            this.drawDiamond(point.x, point.y, 4, '#ff9500', '#ffffff', 1);
+            this.drawDiamond(point.x, point.y, 5, '#ff9500', '#ffffff', 1);
         });
     }
 
@@ -150,9 +168,17 @@ export class CanvasRenderer {
      */
     redraw(points = [], routePoints = [], spots = [], options = {}) {
         this.drawImage();
+
+        // マーカー描画時にズーム・パン変換を適用
+        this.ctx.save();
+        this.ctx.translate(this.offsetX, this.offsetY);
+        this.ctx.scale(this.scale, this.scale);
+
         this.drawPoints(points, options);
         this.drawRoutePoints(routePoints);
         this.drawSpots(spots, options);
+
+        this.ctx.restore();
     }
 
     /**
@@ -161,35 +187,103 @@ export class CanvasRenderer {
      */
     setupCanvas(layout = 'sidebar') {
         if (!this.currentImage) return;
-        
+
         const container = this.canvas.parentElement;
         const containerRect = container.getBoundingClientRect();
-        
+
         let availableWidth, availableHeight;
-        
+
         if (layout === 'sidebar') {
-            availableWidth = containerRect.width - 40;
-            availableHeight = window.innerHeight - 140;
+            availableWidth = containerRect.width - 20;
+            availableHeight = window.innerHeight - 100;
         } else {
-            availableWidth = window.innerWidth - 40;
-            availableHeight = window.innerHeight - 140;
+            availableWidth = window.innerWidth - 20;
+            availableHeight = window.innerHeight - 100;
         }
-        
+
         const imageAspectRatio = this.currentImage.height / this.currentImage.width;
-        
+
         let canvasWidth = availableWidth;
         let canvasHeight = canvasWidth * imageAspectRatio;
-        
+
         if (canvasHeight > availableHeight) {
             canvasHeight = availableHeight;
             canvasWidth = canvasHeight / imageAspectRatio;
         }
-        
+
         this.canvas.width = canvasWidth;
         this.canvas.height = canvasHeight;
         this.canvas.style.width = canvasWidth + 'px';
         this.canvas.style.height = canvasHeight + 'px';
         this.canvas.style.display = 'block';
         this.canvas.style.visibility = 'visible';
+
+        // ズーム・パン状態をリセット
+        this.resetTransform();
+    }
+
+    /**
+     * ズームイン
+     */
+    zoomIn() {
+        this.scale = Math.min(this.scale + this.zoomStep, this.maxScale);
+    }
+
+    /**
+     * ズームアウト
+     */
+    zoomOut() {
+        this.scale = Math.max(this.scale - this.zoomStep, this.minScale);
+    }
+
+    /**
+     * 上に移動
+     */
+    panUp() {
+        this.offsetY += this.panStep;
+    }
+
+    /**
+     * 下に移動
+     */
+    panDown() {
+        this.offsetY -= this.panStep;
+    }
+
+    /**
+     * 左に移動
+     */
+    panLeft() {
+        this.offsetX += this.panStep;
+    }
+
+    /**
+     * 右に移動
+     */
+    panRight() {
+        this.offsetX -= this.panStep;
+    }
+
+    /**
+     * 変換をリセット
+     */
+    resetTransform() {
+        this.scale = 1.0;
+        this.offsetX = 0;
+        this.offsetY = 0;
+    }
+
+    /**
+     * 現在のスケールを取得
+     */
+    getScale() {
+        return this.scale;
+    }
+
+    /**
+     * 現在のオフセットを取得
+     */
+    getOffset() {
+        return { x: this.offsetX, y: this.offsetY };
     }
 }

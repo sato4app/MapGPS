@@ -132,18 +132,39 @@ export class Validators {
      */
     static isValidSpotData(data) {
         if (!data) return false;
-        
+
         // 新しい形式: data.spots
         if (data.spots && Array.isArray(data.spots)) {
             return true;
         }
-        
+
         // 旧形式: data.points with type: 'spot'
-        if (data.points && Array.isArray(data.points) && 
+        if (data.points && Array.isArray(data.points) &&
             data.points.some(point => point.type === 'spot')) {
             return true;
         }
-        
+
         return false;
+    }
+
+    /**
+     * スポット名をフォーマット（全角→半角、英小文字→英大文字、数字を半角に変換）
+     * @param {string} value - フォーマットする値
+     * @returns {string} フォーマット後の値
+     */
+    static formatSpotName(value) {
+        if (!value || value.trim() === '') {
+            return value;
+        }
+
+        // 1. 全角英数字を半角英数字に変換
+        let convertedValue = this.convertFullWidthToHalfWidth(value);
+
+        // 2. 英文字を大文字に変換（半角・全角両方対応）
+        convertedValue = convertedValue.replace(/[a-zA-Z]/g, function(char) {
+            return char.toUpperCase();
+        });
+
+        return convertedValue;
     }
 }

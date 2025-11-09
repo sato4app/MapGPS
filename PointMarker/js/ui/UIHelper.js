@@ -69,6 +69,14 @@ export class UIHelper {
     }
 
     /**
+     * 警告メッセージを表示
+     * @param {string} message - 警告メッセージ
+     */
+    static showWarning(message) {
+        UIHelper.showMessage(message, 'warning');
+    }
+
+    /**
      * エラーメッセージを表示
      * @param {string} message - エラーメッセージ
      */

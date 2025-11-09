@@ -36,8 +36,8 @@ export class PointManager {
                 this.setAddingMode(false);
             }
         });
-        
-        // 地図全体でのマウスイベント（ドラッグ用）
+
+        // 地図全体でのマウスイベント（ドラッグ用、追加モード時のカーソル制御）
         const map = this.mapManager.getMap();
         map.on('mousemove', (e) => {
             if (this.isDragging && this.draggingMarker && this.draggingPointId === this.selectedPointId) {
@@ -45,8 +45,13 @@ export class PointManager {
                 // ドラッグ中にリアルタイムで座標情報を更新
                 this.updateCoordinateFieldsRealtime(e.latlng.lat, e.latlng.lng);
             }
+            // 追加モード時のカーソル制御
+            else if (this.isAddingPoint) {
+                const nearbyPoint = this.findNearbyPoint(e.latlng);
+                document.body.style.cursor = nearbyPoint ? 'not-allowed' : 'crosshair';
+            }
         });
-        
+
         map.on('mouseup', (e) => {
             if (this.isDragging && this.draggingMarker) {
                 this.stopDragging();
@@ -64,6 +69,26 @@ export class PointManager {
         });
 
         this.updatePointCountDisplay();
+    }
+
+    // 指定位置の近くに既存ポイントがあるかチェック
+    findNearbyPoint(latlng) {
+        const map = this.mapManager.getMap();
+        const clickPoint = map.latLngToLayerPoint(latlng);
+
+        // すべてのマーカーをチェック
+        for (const [pointId, marker] of this.markers) {
+            const markerPoint = map.latLngToLayerPoint(marker.getLatLng());
+            const distance = clickPoint.distanceTo(markerPoint);
+
+            // 設定距離内に既存ポイントがある場合
+            if (distance <= CONFIG.DUPLICATE_CHECK_DISTANCE) {
+                const point = this.gpsDataManager.getPointById(pointId);
+                return point;
+            }
+        }
+
+        return null;
     }
 
     // 指定ポイントのマーカーを追加
@@ -112,22 +137,29 @@ export class PointManager {
 
     // 指定位置にポイントを追加
     async addPointAtLocation(latlng) {
+        // 既存ポイントとの重複チェック
+        const nearbyPoint = this.findNearbyPoint(latlng);
+        if (nearbyPoint) {
+            this.showMessage(DataUtils.formatMessage(CONFIG.MESSAGES.DUPLICATE_POINT_WARNING, {id: nearbyPoint.id}));
+            return;
+        }
+
         const point = this.gpsDataManager.addPoint(latlng.lat, latlng.lng);
         this.addMarkerForPoint(point);
         await this.selectPoint(point.id, true); // 新しいポイントフラグをtrueにする
         this.updatePointCountDisplay();
         this.showMessage(DataUtils.formatMessage(CONFIG.MESSAGES.POINT_ADDED, {id: point.id}));
-        
+
         // 標高をAPIから取得
         await this.ensureElevationIfNeeded(point);
-        
+
         // すべての処理が完了してからポイントIDフィールドをフォーカス・全選択
         setTimeout(() => {
             const pointIdField = document.getElementById('pointIdField');
             if (pointIdField && point.id.match(/^仮\d{2}$/)) {
                 pointIdField.focus();
                 pointIdField.select();
-                
+
                 // さらに確実にするため、setSelectionRangeも併用
                 setTimeout(() => {
                     pointIdField.setSelectionRange(0, pointIdField.value.length);

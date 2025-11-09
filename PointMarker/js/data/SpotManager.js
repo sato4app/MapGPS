@@ -134,9 +134,10 @@ export class SpotManager {
      * スポット名を更新
      * @param {number} index - スポットのインデックス
      * @param {string} name - 新しいスポット名
+     * @param {boolean} skipFormatting - フォーマット処理をスキップするか
      * @param {boolean} skipRedrawInput - 入力ボックスの再描画をスキップするか
      */
-    updateSpotName(index, name, skipRedrawInput = false) {
+    updateSpotName(index, name, skipFormatting = false, skipRedrawInput = false) {
         if (index >= 0 && index < this.spots.length) {
             // スポット名がブランクの場合はスポットを削除
             if (!name || name.trim() === '') {
@@ -146,8 +147,14 @@ export class SpotManager {
                     return;
                 }
             }
-            
-            this.spots[index].name = name;
+
+            // フォーマット処理（blur時のみ実行）
+            let formattedName = name;
+            if (!skipFormatting && name && name.trim() !== '') {
+                formattedName = Validators.formatSpotName(name);
+            }
+
+            this.spots[index].name = formattedName;
             // 入力中は入力ボックスの再生成を避けるため
             if (skipRedrawInput) {
                 // 入力中はキャンバス再描画のみ（入力ボックス再生成はスキップ）
@@ -205,5 +212,22 @@ export class SpotManager {
     generateSpotFilename(imageFileName) {
         const baseFileName = imageFileName || 'spots';
         return `${baseFileName}_spots.json`;
+    }
+
+    /**
+     * スポット名で部分一致検索を行う
+     * @param {string} searchText - 検索テキスト
+     * @returns {Array} 部分一致したスポットの配列
+     */
+    findSpotsByPartialName(searchText) {
+        if (!searchText || searchText.trim() === '') {
+            return [];
+        }
+
+        const searchLower = searchText.toLowerCase();
+        return this.spots.filter(spot => {
+            const spotName = (spot.name || '').toLowerCase();
+            return spotName.includes(searchLower);
+        });
     }
 }

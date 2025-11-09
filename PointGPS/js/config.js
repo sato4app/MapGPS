@@ -25,6 +25,9 @@ export const CONFIG = {
     // UI設定
     MESSAGE_DISPLAY_DURATION: 3000, // ms
     
+    // 重複チェック距離（ピクセル単位）
+    DUPLICATE_CHECK_DISTANCE: 10,
+
     // エラーメッセージ
     MESSAGES: {
         EXCEL_LOAD_SUCCESS: 'Excelファイルを正常に読み込みました',
@@ -35,6 +38,7 @@ export const CONFIG = {
         NO_POINT_SELECTED: 'ポイントが選択されていません',
         EXPORT_SUCCESS: 'ファイルを出力しました',
         EXPORT_ERROR: 'ファイル出力に失敗しました',
-        EXCEL_ROWS_LIMITED: '読み込み行数が上限に達しました。最初の{rows}行のみ処理されました。'
+        EXCEL_ROWS_LIMITED: '読み込み行数が上限に達しました。最初の{rows}行のみ処理されました。',
+        DUPLICATE_POINT_WARNING: '既存のポイント {id} と同じ場所には追加できません'
     }
 };

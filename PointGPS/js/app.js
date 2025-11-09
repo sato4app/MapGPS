@@ -102,12 +102,12 @@ class PointGPSApp {
 
         // Excel出力ボタン
         const exportBtn = document.getElementById('exportBtn');
-        
+
         exportBtn.addEventListener('click', async () => {
             try {
                 const defaultFileName = this.fileHandler.getDefaultFileName();
                 const result = await this.gpsDataManager.exportToExcel(defaultFileName);
-                
+
                 if (result.success) {
                     this.showMessage(`Excelファイルを保存しました:\n${result.filename}`);
                 } else if (result.error !== 'キャンセル') {
@@ -117,6 +117,13 @@ class PointGPSApp {
                 console.error('ファイル出力エラー:', error);
                 this.showError(CONFIG.MESSAGES.EXPORT_ERROR);
             }
+        });
+
+        // チュートリアルボタン
+        const helpBtn = document.getElementById('helpBtn');
+
+        helpBtn.addEventListener('click', () => {
+            window.open('tutorial/tutorial.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
         });
 
         // ポイント情報フィールドの変更イベント

@@ -157,18 +157,29 @@ body {
 #pointCountField {
     width: 48px;
     flex: none;
+    text-align: right;
 }
 
-#pointIdField,
+#pointIdField {
+    width: 60px;
+    flex: none;
+}
+
 #elevationField {
     width: 60px;
     flex: none;
+    text-align: right;
 }
 
 #latDecimalField,
 #lngDecimalField {
     width: 80px;
     flex: none;
+    text-align: right;
+}
+
+#dmsField {
+    text-align: center;
 }
 
 .unit-label {
@@ -274,6 +285,35 @@ body {
 
 .export-buttons .control-button:hover {
     background-color: #d35400;
+}
+
+/* チュートリアルボタン */
+.tutorial-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background-color: #d5dbdb;
+    color: #7f8c8d;
+    border: 1px solid #bdc3c7;
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.tutorial-button:hover {
+    background-color: #bdc3c7;
+    color: #2c3e50;
+    transform: scale(1.1);
+}
+
+.tutorial-button:active {
+    transform: scale(0.95);
 }
 
 

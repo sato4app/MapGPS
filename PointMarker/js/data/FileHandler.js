@@ -166,17 +166,20 @@ export class FileHandler {
                 await writable.close();
                 
                 console.log(`JSONファイルが保存されました: ${fileHandle.name}`);
+                return true;
             } else {
                 this.downloadJSON(data, defaultFilename);
+                return true;
             }
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('ファイル保存がキャンセルされました');
-                return;
+                return false;
             }
             
             console.error('ファイル保存エラー:', error);
             this.downloadJSON(data, defaultFilename);
+            return true;
         }
     }
 
@@ -270,7 +273,7 @@ export class FileHandler {
             }),
             exportedAt: new Date().toISOString()
         };
-        await this.saveJSONWithUserChoice(jsonData, filename);
+        return await this.saveJSONWithUserChoice(jsonData, filename);
     }
 
     /**

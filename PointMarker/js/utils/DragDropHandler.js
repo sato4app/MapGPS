@@ -6,7 +6,7 @@ import { CoordinateUtils } from './Coordinates.js';
 export class DragDropHandler {
     constructor() {
         this.isDragging = false;
-        this.draggedObjectType = null;  // 'point' | 'spot'
+        this.draggedObjectType = null;  // 'point' | 'spot' | 'routePoint'
         this.draggedObjectIndex = -1;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
@@ -14,7 +14,7 @@ export class DragDropHandler {
 
     /**
      * ドラッグ開始処理
-     * @param {string} objectType - ドラッグするオブジェクトの種類（'point' | 'spot'）
+     * @param {string} objectType - ドラッグするオブジェクトの種類（'point' | 'spot' | 'routePoint'）
      * @param {number} objectIndex - オブジェクトのインデックス
      * @param {number} mouseX - マウスX座標
      * @param {number} mouseY - マウスY座標
@@ -34,9 +34,10 @@ export class DragDropHandler {
      * @param {number} mouseY - マウスY座標
      * @param {Object} pointManager - PointManagerインスタンス
      * @param {Object} spotManager - SpotManagerインスタンス
+     * @param {Object} routeManager - RouteManagerインスタンス
      * @returns {boolean} 位置が更新されたかどうか
      */
-    updateDrag(mouseX, mouseY, pointManager, spotManager) {
+    updateDrag(mouseX, mouseY, pointManager, spotManager, routeManager) {
         if (!this.isDragging) return false;
 
         const newX = mouseX - this.dragOffsetX;
@@ -51,6 +52,9 @@ export class DragDropHandler {
             }
         } else if (this.draggedObjectType === 'spot') {
             spotManager.updateSpotPosition(this.draggedObjectIndex, newX, newY);
+            return true;
+        } else if (this.draggedObjectType === 'routePoint') {
+            routeManager.updateRoutePoint(this.draggedObjectIndex, newX, newY);
             return true;
         }
 

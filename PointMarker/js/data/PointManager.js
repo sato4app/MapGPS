@@ -98,30 +98,6 @@ export class PointManager {
         this.notify('onCountChange', 0);
     }
 
-    /**
-     * すべてのポイントID名を補正し、ブランクのポイントを削除
-     */
-    formatAllPointIds() {
-        // まず、ID名のフォーマット補正を実行
-        this.points.forEach(point => {
-            if (point.id) {
-                point.id = Validators.formatPointId(point.id);
-            }
-        });
-        
-        // 次に、ID名がブランクまたは空のポイントを削除
-        const initialLength = this.points.length;
-        this.points = this.points.filter(point => {
-            return point.id && point.id.trim() !== '';
-        });
-        
-        // ポイント数が変更された場合は数の更新通知も送信
-        if (this.points.length !== initialLength) {
-            this.notify('onCountChange', this.getUserPointCount());
-        }
-        
-        this.notify('onChange', this.points);
-    }
 
     /**
      * ポイント配列を取得

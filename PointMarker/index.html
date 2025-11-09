@@ -14,24 +14,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- レイアウト選択 -->
-        <div class="layout-selector">
-            <label class="layout-option">
-                <input type="radio" name="layout" value="sidebar" checked>
-                <span>サイドバー</span>
-            </label>
-            <label class="layout-option">
-                <input type="radio" name="layout" value="overlay">
-                <span>オーバーレイ</span>
-            </label>
-        </div>
-
-        <!-- ヘッダー -->
-        <header>
-            <h1>Points/Spots and Routes Marker</h1>
-            <p>ハイキングマップからポイント・スポットやルートをマークしてJSON出力</p>
-        </header>
-        
         <!-- メインコンテンツ -->
         <main class="main-content" data-layout="sidebar">
             <!-- 地図表示エリア -->
@@ -39,8 +21,10 @@
                 <canvas id="mapCanvas" class="map-canvas"></canvas>
             </div>
             
-            <!-- コントロールサイドバー -->
+            <!-- コントロールパネル（オーバーレイ） -->
             <aside class="controls-sidebar">
+                <h2>Points/Routes Marker</h2>
+
                 <!-- 画像ファイル入力 -->
                 <div class="file-input-wrapper">
                     <input type="file" id="imageInput" accept="image/png" class="file-input" aria-label="PNG画像を選択">
@@ -71,15 +55,11 @@
                     <h3>ポイント編集</h3>
                     
                     <div class="editor-controls">
-                        <button type="button" id="clearBtn" class="btn btn-clear" disabled 
+                        <button type="button" id="clearBtn" class="btn btn-clear" disabled
                                 aria-label="全ポイントをクリア" title="地図上の全てのポイントを削除します">
                             ポイントをクリア
                         </button>
-                        <button type="button" id="formatBtn" class="btn btn-format" disabled 
-                                aria-label="全ポイントID名を補正" title="全てのポイントIDを正しい形式（X-nn）に自動補正します">
-                            ポイントID名の補正
-                        </button>
-                        <button type="button" id="exportBtn" class="btn btn-export" disabled 
+                        <button type="button" id="exportBtn" class="btn btn-export" disabled
                                 aria-label="ポイントをJSONで出力" title="現在のポイントデータをJSONファイルとして出力します">
                             ポイントをJSON出力
                         </button>
@@ -118,6 +98,18 @@
                             <!-- 中間点数表示 -->
                             <div class="waypoint-count" aria-live="polite">
                                 中間点数: <span id="waypointCount">0</span>
+                            </div>
+
+                            <!-- ポップアップ表示切り替え -->
+                            <div class="popup-visibility-control">
+                                <label>
+                                    <input type="checkbox" id="showPointIdsCheckbox" checked>
+                                    <span>ポイントID表示</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" id="showSpotNamesCheckbox">
+                                    <span>スポット名表示</span>
+                                </label>
                             </div>
                         </div>
                         
@@ -171,6 +163,36 @@
                         スポット数: <span id="spotCount">0</span>
                     </div>
                 </section>
+
+                <!-- ズーム・移動コントロール（最下部） -->
+                <div class="navigation">
+                    <div class="nav-group">
+                        <div></div>
+                        <button type="button" id="panUpBtn" class="nav-btn" title="上に移動" disabled>
+                            <img src="icons/arrow-icon-up.svg" alt="上に移動" class="nav-icon">
+                        </button>
+                        <button type="button" id="resetViewBtn" class="nav-btn" title="表示をリセット" disabled>
+                            <img src="icons/reset-icon.svg" alt="リセット" class="nav-icon">
+                        </button>
+                        <button type="button" id="panLeftBtn" class="nav-btn" title="左に移動" disabled>
+                            <img src="icons/arrow-icon-left.svg" alt="左に移動" class="nav-icon">
+                        </button>
+                        <button type="button" id="panDownBtn" class="nav-btn" title="下に移動" disabled>
+                            <img src="icons/arrow-icon-down.svg" alt="下に移動" class="nav-icon">
+                        </button>
+                        <button type="button" id="panRightBtn" class="nav-btn" title="右に移動" disabled>
+                            <img src="icons/arrow-icon-right.svg" alt="右に移動" class="nav-icon">
+                        </button>
+                    </div>
+                    <div class="zoom-group">
+                        <button type="button" id="zoomInBtn" class="nav-btn" title="ズームイン" disabled>
+                            <img src="icons/zoom-icon-in.svg" alt="ズームイン" class="nav-icon">
+                        </button>
+                        <button type="button" id="zoomOutBtn" class="nav-btn" title="ズームアウト" disabled>
+                            <img src="icons/zoom-icon-out.svg" alt="ズームアウト" class="nav-icon">
+                        </button>
+                    </div>
+                </div>
             </aside>
         </main>
     </div>

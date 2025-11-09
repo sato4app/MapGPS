@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポイントGPS チュートリアル</title>
+    <link rel="stylesheet" href="tutorial-css.css">
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="tutorial-config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 動画セクション -->
+        <div class="video-section">
+            <div class="video-wrapper">
+                <iframe id="tutorialVideo"
+                    width="560"
+                    height="315"
+                    src="https://www.youtube.com/embed/-wBnHrMF4OI?enablejsapi=1"
+                    title="ポイントGPS チュートリアル動画"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowfullscreen>
+                </iframe>
+                <div class="video-controls">
+                    <p>※ 動画を再生すると、右側の台本が自動的に同期します</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 台本セクション -->
+        <div class="script-section" id="scriptSection">
+            <h1 class="script-title">📋 台本</h1>
+            <!-- 台本はJavaScriptで動的に読み込まれます -->
+        </div>
+    </div>
+
+    <script src="tutorial-js.js"></script>
+</body>
+</html>

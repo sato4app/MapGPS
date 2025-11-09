@@ -244,12 +244,23 @@ export class GPSDataManager {
         ];
 
         this.gpsPoints.forEach(point => {
+            // 標高を数値に変換（空文字の場合は空文字のまま）
+            let elevationValue = '';
+            if (point.elevation && point.elevation !== '') {
+                const numValue = parseFloat(point.elevation);
+                if (!isNaN(numValue)) {
+                    elevationValue = numValue; // 数値として出力
+                } else {
+                    elevationValue = point.elevation; // 数値でない場合はそのまま
+                }
+            }
+
             data.push([
                 point.id,
                 point.location,
                 parseFloat(point.lat.toFixed(5)), // 小数点以下5桁まで
                 parseFloat(point.lng.toFixed(5)), // 小数点以下5桁まで
-                DataUtils.normalizeElevation(point.elevation),
+                elevationValue,
                 point.remarks
             ]);
         });
