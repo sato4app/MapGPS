@@ -204,20 +204,23 @@ export class FileHandler {
      */
     async exportPointData(pointManager, imageFileName, canvasWidth, canvasHeight, imageWidth, imageHeight, filename) {
         const points = pointManager.getPoints();
+        // ポイントIDが空白でないポイントのみをフィルタリング
+        const validPoints = points.filter(point => point.id && point.id.trim() !== '');
+
         const jsonData = {
-            totalPoints: points.length,
+            totalPoints: validPoints.length,
             imageReference: imageFileName,
             imageInfo: {
                 width: imageWidth,
                 height: imageHeight
             },
-            points: points.map((point, index) => {
+            points: validPoints.map((point, index) => {
                 const imageCoords = CoordinateUtils.canvasToImage(
                     point.x, point.y,
                     canvasWidth, canvasHeight,
                     imageWidth, imageHeight
                 );
-                
+
                 return {
                     index: index + 1,
                     id: point.id,
@@ -329,20 +332,25 @@ export class FileHandler {
      */
     async importPointData(pointManager, file, canvasWidth, canvasHeight, imageWidth, imageHeight) {
         const jsonData = await this.loadJsonFile(file);
-        
+
         if (!Validators.isValidPointData(jsonData)) {
             throw new Error('JSONファイルにポイントデータが見つかりません');
         }
 
         pointManager.clearPoints();
-        
+
         jsonData.points.forEach(pointData => {
+            // ポイントIDが空白のポイントはスキップ
+            if (!pointData.id || pointData.id.trim() === '') {
+                return;
+            }
+
             const canvasCoords = CoordinateUtils.imageToCanvas(
                 pointData.imageX, pointData.imageY,
                 canvasWidth, canvasHeight,
                 imageWidth, imageHeight
             );
-            
+
             pointManager.addPoint(canvasCoords.x, canvasCoords.y, pointData.id);
         });
     }

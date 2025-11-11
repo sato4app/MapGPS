@@ -125,6 +125,12 @@ export class PointMarkerApp {
 
         // 入力管理のコールバック
         this.inputManager.setCallback('onPointIdChange', (data) => {
+            // blur時にIDが空白の場合はポイントを削除
+            if (!data.skipFormatting && data.id.trim() === '') {
+                this.pointManager.removePoint(data.index);
+                return;
+            }
+
             // まずフォーマット処理を実行（blur時もinput時も）
             this.pointManager.updatePointId(data.index, data.id, data.skipFormatting, true);
 

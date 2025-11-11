@@ -11,6 +11,10 @@ export class CanvasRenderer {
         this.ctx = canvas.getContext('2d');
         this.currentImage = null;
 
+        // devicePixelRatio による補正係数（Windowsの拡大/縮小設定に対応）
+        // 100%: 1.0, 125%: 1.25, 150%: 1.5, 175%: 1.75, 200%: 2.0
+        this.dpr = window.devicePixelRatio || 1.0;
+
         // ズーム・パン用の状態管理
         this.scale = 1.0;
         this.offsetX = 0;
@@ -54,14 +58,20 @@ export class CanvasRenderer {
      * @param {string} color - 描画色 (デフォルト: '#ff0000')
      * @param {number} radius - 半径 (デフォルト: 4)
      * @param {number} strokeWidth - 線の太さ (デフォルト: 1.5)
+     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
-    drawPoint(point, color = '#ff0000', radius = 6, strokeWidth = 1.5) {
+    drawPoint(point, color = '#ff0000', radius = 6, strokeWidth = 1.5, canvasScale = 1.0) {
+        // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
+        // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
+        const adjustedRadius = radius / this.dpr / canvasScale;
+        const adjustedStrokeWidth = strokeWidth / this.dpr / canvasScale;
+
         this.ctx.fillStyle = color;
         this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = strokeWidth;
-        
+        this.ctx.lineWidth = adjustedStrokeWidth;
+
         this.ctx.beginPath();
-        this.ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+        this.ctx.arc(point.x, point.y, adjustedRadius, 0, 2 * Math.PI);
         this.ctx.fill();
         this.ctx.stroke();
     }
@@ -70,8 +80,9 @@ export class CanvasRenderer {
      * 複数のポイントを一括描画
      * @param {Array} points - ポイント配列
      * @param {Object} options - 描画オプション
+     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
-    drawPoints(points, options = {}) {
+    drawPoints(points, options = {}, canvasScale = 1.0) {
         const {
             defaultColor = '#ff0000'
         } = options;
@@ -80,8 +91,8 @@ export class CanvasRenderer {
             let color = defaultColor;
             let radius = 6;
             let strokeWidth = 1.5;
-            
-            this.drawPoint(point, color, radius, strokeWidth);
+
+            this.drawPoint(point, color, radius, strokeWidth, canvasScale);
         });
     }
 
@@ -93,19 +104,25 @@ export class CanvasRenderer {
      * @param {string} fillColor - 塗りつぶし色
      * @param {string} strokeColor - 枠線色
      * @param {number} strokeWidth - 枠線の太さ
+     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
-    drawDiamond(cx, cy, radius, fillColor = '#ff0000', strokeColor = '#ffffff', strokeWidth = 1) {
+    drawDiamond(cx, cy, radius, fillColor = '#ff0000', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
+        // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
+        // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
+        const adjustedRadius = radius / this.dpr / canvasScale;
+        const adjustedStrokeWidth = strokeWidth / this.dpr / canvasScale;
+
         this.ctx.fillStyle = fillColor;
         this.ctx.strokeStyle = strokeColor;
-        this.ctx.lineWidth = strokeWidth;
-        
+        this.ctx.lineWidth = adjustedStrokeWidth;
+
         this.ctx.beginPath();
-        this.ctx.moveTo(cx, cy - radius);  // 上
-        this.ctx.lineTo(cx + radius, cy);  // 右
-        this.ctx.lineTo(cx, cy + radius);  // 下
-        this.ctx.lineTo(cx - radius, cy);  // 左
+        this.ctx.moveTo(cx, cy - adjustedRadius);  // 上
+        this.ctx.lineTo(cx + adjustedRadius, cy);  // 右
+        this.ctx.lineTo(cx, cy + adjustedRadius);  // 下
+        this.ctx.lineTo(cx - adjustedRadius, cy);  // 左
         this.ctx.closePath();
-        
+
         this.ctx.fill();
         this.ctx.stroke();
     }
@@ -113,10 +130,11 @@ export class CanvasRenderer {
     /**
      * ルートポイント（中間点）を描画
      * @param {Array} routePoints - ルートポイント配列
+     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
-    drawRoutePoints(routePoints) {
+    drawRoutePoints(routePoints, canvasScale = 1.0) {
         routePoints.forEach(point => {
-            this.drawDiamond(point.x, point.y, 5, '#ff9500', '#ffffff', 1);
+            this.drawDiamond(point.x, point.y, 5, '#ff9500', '#ffffff', 1, canvasScale);
         });
     }
 
@@ -129,24 +147,30 @@ export class CanvasRenderer {
      * @param {string} fillColor - 塗りつぶし色
      * @param {string} strokeColor - 枠線色
      * @param {number} strokeWidth - 枠線の太さ
+     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
-    drawSquare(cx, cy, size, fillColor = '#ff9500', strokeColor = '#ffffff', strokeWidth = 1) {
-        const halfSize = size / 2;
-        
+    drawSquare(cx, cy, size, fillColor = '#ff9500', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
+        // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
+        // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
+        const adjustedSize = size / this.dpr / canvasScale;
+        const adjustedStrokeWidth = strokeWidth / this.dpr / canvasScale;
+        const halfSize = adjustedSize / 2;
+
         this.ctx.fillStyle = fillColor;
         this.ctx.strokeStyle = strokeColor;
-        this.ctx.lineWidth = strokeWidth;
-        
-        this.ctx.fillRect(cx - halfSize, cy - halfSize, size, size);
-        this.ctx.strokeRect(cx - halfSize, cy - halfSize, size, size);
+        this.ctx.lineWidth = adjustedStrokeWidth;
+
+        this.ctx.fillRect(cx - halfSize, cy - halfSize, adjustedSize, adjustedSize);
+        this.ctx.strokeRect(cx - halfSize, cy - halfSize, adjustedSize, adjustedSize);
     }
 
     /**
      * スポット（正四角形マーカー）を描画
      * @param {Array} spots - スポット配列
      * @param {Object} options - 描画オプション
+     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
-    drawSpots(spots, options = {}) {
+    drawSpots(spots, options = {}, canvasScale = 1.0) {
         const {
             fillColor = '#0066ff',    // 青色
             strokeColor = '#ffffff',   // 白色の枠線
@@ -155,7 +179,7 @@ export class CanvasRenderer {
         } = options;
 
         spots.forEach(spot => {
-            this.drawSquare(spot.x, spot.y, size, fillColor, strokeColor, strokeWidth);
+            this.drawSquare(spot.x, spot.y, size, fillColor, strokeColor, strokeWidth, canvasScale);
         });
     }
 
@@ -174,9 +198,10 @@ export class CanvasRenderer {
         this.ctx.translate(this.offsetX, this.offsetY);
         this.ctx.scale(this.scale, this.scale);
 
-        this.drawPoints(points, options);
-        this.drawRoutePoints(routePoints);
-        this.drawSpots(spots, options);
+        // 現在のスケール値をマーカー描画メソッドに渡す
+        this.drawPoints(points, options, this.scale);
+        this.drawRoutePoints(routePoints, this.scale);
+        this.drawSpots(spots, options, this.scale);
 
         this.ctx.restore();
     }

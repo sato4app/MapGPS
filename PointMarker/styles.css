@@ -107,6 +107,14 @@ header p {
     height: 100%;
 }
 
+/* オーバーレイモード用の地図コンテナ */
+.main-content[data-layout="overlay"] .map-container {
+    width: 100vw;
+    justify-content: flex-start;  /* 左寄せ */
+    align-items: flex-start;      /* 上寄せ */
+    padding: 10px;                /* 余白を最小限に */
+}
+
 .map-canvas {
     border: 2px solid #ddd;
     cursor: crosshair;
@@ -114,6 +122,12 @@ header p {
     transition: border-color 0.2s ease;
     max-width: calc(100vw - var(--sidebar-width) - 20px);
     max-height: calc(100vh - 20px);
+}
+
+/* オーバーレイモード用のキャンバス */
+.main-content[data-layout="overlay"] .map-canvas {
+    max-width: calc(100vw - 20px);  /* 余白を最小限に（2px padding × 2） */
+    max-height: calc(100vh - 20px);  /* 余白を最小限に（2px padding × 2） */
 }
 
 .map-canvas:hover {
@@ -135,6 +149,18 @@ header p {
     width: var(--sidebar-width);
     height: 100%;
     position: relative;
+}
+
+/* オーバーレイモード用のサイドバー */
+.main-content[data-layout="overlay"] .controls-sidebar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    height: auto;
+    max-height: calc(100vh - 40px);
+    z-index: 10001;  /* ポイントID・スポット名ポップアップより前面に表示 */
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow-lg);
 }
 
 /* =====================================
