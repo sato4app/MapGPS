@@ -51,6 +51,17 @@ h1 {
     margin-bottom: 30px;
 }
 
+/* アプリケーションの横並び行 */
+.app-row {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+}
+
+.app-row .app-card {
+    flex: 1;
+}
+
 /* アプリケーションカード */
 .app-card {
     background: #f8f9fa;
@@ -132,6 +143,11 @@ h1 {
         gap: 15px;
     }
 
+    .app-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
     .app-card {
         padding: 15px;
         gap: 15px;
@@ -194,20 +210,25 @@ h1 {
     animation: fadeIn 0.6s ease-out;
 }
 
-.app-card {
+.app-list > .app-card,
+.app-list > .app-row {
     animation: fadeIn 0.6s ease-out;
 }
 
-.app-card:nth-child(1) {
+.app-list > :nth-child(1) {
     animation-delay: 0.1s;
 }
 
-.app-card:nth-child(2) {
+.app-list > :nth-child(2) {
     animation-delay: 0.2s;
 }
 
-.app-card:nth-child(3) {
+.app-list > :nth-child(3) {
     animation-delay: 0.3s;
+}
+
+.app-list > :nth-child(4) {
+    animation-delay: 0.4s;
 }
 
 /* アクセシビリティ向上 */
