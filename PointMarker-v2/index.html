@@ -11,11 +11,16 @@
     <link rel="icon" href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" type="image/x-icon">
 
     <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="container">
         <!-- メインコンテンツ -->
-        <main class="main-content" data-layout="sidebar">
+        <main class="main-content" data-layout="overlay">
             <!-- 地図表示エリア -->
             <div class="map-container">
                 <canvas id="mapCanvas" class="map-canvas"></canvas>
@@ -27,12 +32,11 @@
 
                 <!-- 画像ファイル入力 -->
                 <div class="file-input-wrapper">
-                    <input type="file" id="imageInput" accept="image/png" class="file-input" aria-label="PNG画像を選択">
-                    <label for="imageInput" class="file-input-label" title="ハイキングマップのPNG画像ファイルを選択してください">
+                    <button type="button" id="imageInputBtn" class="file-input-label" title="ハイキングマップのPNG画像ファイルを選択してください" aria-label="PNG画像を選択">
                         PNG画像を選択
-                    </label>
+                    </button>
                 </div>
-                
+
                 <!-- 編集モード選択 -->
                 <fieldset class="editing-mode-selector">
                     <legend class="sr-only">編集モード選択</legend>
@@ -53,25 +57,7 @@
                 <!-- ポイント編集パネル -->
                 <section class="point-editor" id="pointEditor">
                     <h3>ポイント編集</h3>
-                    
-                    <div class="editor-controls">
-                        <button type="button" id="clearBtn" class="btn btn-clear" disabled
-                                aria-label="全ポイントをクリア" title="地図上の全てのポイントを削除します">
-                            ポイントをクリア
-                        </button>
-                        <button type="button" id="exportBtn" class="btn btn-export" disabled
-                                aria-label="ポイントをJSONで出力" title="現在のポイントデータをJSONファイルとして出力します">
-                            ポイントをJSON出力
-                        </button>
-                    </div>
-                    
-                    <div class="file-input-wrapper">
-                        <input type="file" id="jsonInput" accept="application/json" class="file-input" aria-label="ポイントJSONファイルを読み込み">
-                        <label for="jsonInput" class="file-input-label" title="以前に保存したポイントJSONファイルを選択して読み込みます">
-                            ポイントのJSON読込
-                        </label>
-                    </div>
-                    
+
                     <div class="point-count" aria-live="polite">
                         ポイント数: <span id="pointCount">0</span>
                     </div>
@@ -79,28 +65,38 @@
                 
                 <!-- ルート編集パネル -->
                 <section class="route-editor" id="routeEditor" style="display: none;">
-                    <h3>ルート編集</h3>
-                    
+                    <h3>ルート編集 <span id="routeUnsavedLabel" class="unsaved-label">要保存</span></h3>
+
+                    <!-- ルート選択ドロップダウン -->
+                    <div class="route-selector">
+                        <select id="routeSelectDropdown" aria-label="ルート選択">
+                            <option value="">-- ルートを選択 --</option>
+                        </select>
+                    </div>
+
+                    <!-- ルート操作ボタン -->
+                    <div class="route-actions">
+                        <button id="addRouteBtn" class="route-action-btn" title="新しいルートを追加">追加</button>
+                        <button id="saveRouteBtn" class="route-action-btn" title="更新のあったルートを保存">保存</button>
+                        <button id="deleteRouteBtn" class="route-action-btn" title="選択中のルートを削除">削除</button>
+                    </div>
+
                     <div class="route-info">
-                        <!-- 開始・終了ポイント設定 -->
+                        <!-- ルート設定 -->
                         <div class="route-points-inputs">
                             <div class="route-point-input">
                                 <label for="startPointInput">開始ポイント:</label>
-                                <input type="text" id="startPointInput" class="route-point-field" maxlength="4" aria-describedby="start-point-desc">
+                                <input type="text" id="startPointInput" class="route-point-field" maxlength="4" aria-describedby="start-point-desc" readonly>
                                 <span id="start-point-desc" class="sr-only">既存ポイントのIDを入力</span>
                             </div>
                             <div class="route-point-input">
                                 <label for="endPointInput">終了ポイント:</label>
-                                <input type="text" id="endPointInput" class="route-point-field" maxlength="4" aria-describedby="end-point-desc">
+                                <input type="text" id="endPointInput" class="route-point-field" maxlength="4" aria-describedby="end-point-desc" readonly>
                                 <span id="end-point-desc" class="sr-only">既存ポイントのIDを入力</span>
                             </div>
-                            
-                            <!-- 中間点数表示 -->
                             <div class="waypoint-count" aria-live="polite">
                                 中間点数: <span id="waypointCount">0</span>
                             </div>
-
-                            <!-- ポップアップ表示切り替え -->
                             <div class="popup-visibility-control">
                                 <label>
                                     <input type="checkbox" id="showPointIdsCheckbox" checked>
@@ -112,53 +108,13 @@
                                 </label>
                             </div>
                         </div>
-                        
-                        <!-- ルート制御ボタン -->
-                        <div class="route-controls">
-                            <button type="button" id="clearRouteBtn" class="btn btn-clear-route" 
-                                    aria-label="ルート中間点をクリア" title="ルートの中間点を全てクリアします">
-                                ルートをクリア
-                            </button>
-                            <button type="button" id="exportRouteBtn" class="btn btn-export-route" 
-                                    aria-label="ルートをJSONで出力" title="現在のルートデータをJSONファイルとして出力します">
-                                ルートをJSON出力
-                            </button>
-                        </div>
-                        
-                        <!-- ルートJSON読込 -->
-                        <div class="file-input-wrapper">
-                            <input type="file" id="routeJsonInput" accept="application/json" class="file-input" 
-                                   aria-label="ルートJSONファイルを読み込み">
-                            <label for="routeJsonInput" class="file-input-label" title="以前に保存したルートJSONファイルを選択して読み込みます">
-                                ルートのJSON読込
-                            </label>
-                        </div>
                     </div>
                 </section>
                 
                 <!-- スポット編集パネル -->
                 <section class="spot-editor" id="spotEditor" style="display: none;">
                     <h3>スポット編集</h3>
-                    
-                    <div class="editor-controls">
-                        <button type="button" id="clearSpotBtn" class="btn btn-clear" 
-                                aria-label="全スポットをクリア" title="地図上の全てのスポットを削除します">
-                            スポットをクリア
-                        </button>
-                        <button type="button" id="exportSpotBtn" class="btn btn-export" 
-                                aria-label="スポットをJSONで出力" title="現在のスポットデータをJSONファイルとしてダウンロードします">
-                            スポットをJSON出力
-                        </button>
-                    </div>
-                    
-                    <div class="file-input-wrapper">
-                        <input type="file" id="spotJsonInput" accept="application/json" class="file-input" 
-                               aria-label="スポットJSONファイルを読み込み">
-                        <label for="spotJsonInput" class="file-input-label" title="以前に保存したスポットJSONファイルを選択して読み込みます">
-                            スポットのJSON読込
-                        </label>
-                    </div>
-                    
+
                     <div class="spot-count" aria-live="polite">
                         スポット数: <span id="spotCount">0</span>
                     </div>
@@ -196,7 +152,89 @@
             </aside>
         </main>
     </div>
-    
-    <script type="module" src="js/app.js"></script>
+
+    <!-- 認証状態表示（オーバーレイパネルに追加される） -->
+    <div id="authStatus" style="display: none; position: fixed; top: 10px; right: 10px; background-color: white; padding: 10px 15px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10002; font-size: 12px;">
+        <div id="authUserInfo">
+            <span id="authIcon">🔒</span>
+            <span id="authText">認証中...</span>
+        </div>
+    </div>
+
+    <!-- Firebase設定とモジュールのインポート -->
+    <script type="module">
+        import { firebaseConfig } from './js/firebase/firebase.config.js';
+        import { FirebaseClient } from './js/firebase/FirebaseClient.js';
+        import { AuthManager } from './js/firebase/AuthManager.js';
+        import { FirestoreDataManager } from './js/firebase/FirestoreDataManager.js';
+        import { PointMarkerApp } from './js/app.js';
+
+        // グローバルスコープに配置（app.jsからアクセス可能にする）
+        window.firebaseConfig = firebaseConfig;
+        window.FirebaseClient = FirebaseClient;
+        window.AuthManager = AuthManager;
+        window.FirestoreDataManager = FirestoreDataManager;
+
+        // アプリケーション初期化
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Firebaseクライアント初期化
+                const firebaseClient = new FirebaseClient(firebaseConfig);
+                await firebaseClient.initialize();
+
+                // 認証マネージャー初期化
+                const authManager = new AuthManager(firebaseClient.getApp());
+
+                // 匿名ログイン
+                const authStatusEl = document.getElementById('authStatus');
+                const authTextEl = document.getElementById('authText');
+                const authIconEl = document.getElementById('authIcon');
+
+                authStatusEl.style.display = 'block';
+                authTextEl.textContent = '認証中...';
+
+                await authManager.signInAnonymously();
+
+                authIconEl.textContent = '✅';
+                authTextEl.textContent = 'ログイン済み';
+
+                // Firestoreデータマネージャー初期化
+                const userId = authManager.getUserId();
+                const firestoreManager = new FirestoreDataManager(
+                    firebaseClient.getFirestore(),
+                    userId
+                );
+
+                // グローバルスコープに配置
+                window.firebaseClient = firebaseClient;
+                window.authManager = authManager;
+                window.firestoreManager = firestoreManager;
+
+                // PointMarkerアプリ起動
+                const app = new PointMarkerApp();
+                window.pointMarkerApp = app;
+
+                // 3秒後に認証状態表示を非表示
+                setTimeout(() => {
+                    authStatusEl.style.opacity = '0';
+                    authStatusEl.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => {
+                        authStatusEl.style.display = 'none';
+                    }, 500);
+                }, 3000);
+
+            } catch (error) {
+                console.error('アプリケーション初期化エラー:', error);
+                const authStatusEl = document.getElementById('authStatus');
+                const authTextEl = document.getElementById('authText');
+                const authIconEl = document.getElementById('authIcon');
+
+                authStatusEl.style.display = 'block';
+                authStatusEl.style.backgroundColor = '#fee';
+                authIconEl.textContent = '❌';
+                authTextEl.textContent = '初期化失敗: ' + error.message;
+            }
+        });
+    </script>
 </body>
 </html>

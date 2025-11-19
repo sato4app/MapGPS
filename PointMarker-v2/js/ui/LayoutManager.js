@@ -3,7 +3,7 @@
  */
 export class LayoutManager {
     constructor() {
-        this.currentLayout = 'sidebar';
+        this.currentLayout = 'overlay';  // デフォルトをオーバーレイに変更
         this.currentEditingMode = 'point';
         this.callbacks = {
             onLayoutChange: null,

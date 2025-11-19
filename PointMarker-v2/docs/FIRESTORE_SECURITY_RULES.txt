@@ -1,0 +1,38 @@
+// Firestore セキュリティルール（共有プロジェクト用）
+// 更新日: 2025-11-16
+//
+// 【重要】Firebase Consoleで以下のルールを設定してください
+//
+// 設定手順:
+// 1. https://console.firebase.google.com/ にアクセス
+// 2. プロジェクトを選択
+// 3. 左メニュー「Firestore Database」→「ルール」タブ
+// 4. 以下のルールをコピー＆ペースト
+// 5. 「公開」ボタンをクリック
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 共有プロジェクト: 認証済みユーザーなら誰でも読み書き可能
+    match /projects/{projectId} {
+      // 認証必須（匿名認証でもOK）
+      allow read, write: if request.auth != null;
+
+      // ポイント・ルート・スポットのサブコレクション
+      match /{document=**} {
+        allow read, write: if request.auth != null;
+      }
+    }
+  }
+}
+
+// ルールの説明:
+// - projects/{projectId}: PNG画像ファイル名をキーとするプロジェクト
+// - request.auth != null: 匿名認証を含む、認証済みユーザーのみアクセス可能
+// - {document=**}: すべてのサブコレクション（points, routes, spots）に適用
+// - 認証済みなら誰でも全プロジェクトを読み書き可能（共同編集可能）
+
+// セキュリティ:
+// - PNG画像ファイルはメンバーにのみ配布することで、プロジェクトへのアクセスを制限
+// - 画像ファイル名を知らない第三者はデータにアクセス不可
