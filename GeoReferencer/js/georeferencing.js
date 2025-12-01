@@ -113,7 +113,7 @@ export class Georeferencing {
                 await this.applyTransformationToImage(transformation, controlPoints);
                 
                 // 変換適用後に手動でルート・スポット同期を実行
-                this.syncRouteSpotPositions();
+                await this.syncRouteSpotPositions();
             } else {
                 this.logger.warn('変換パラメータの計算に失敗しました');
             }
@@ -272,17 +272,23 @@ export class Georeferencing {
             const unmatchedPointJsonIds = [];
             let totalPointJsons = 0;
 
-            if (!this.pointJsonData) {
-                this.logger.warn('ポイントJSONデータが存在しません');
+            // Firebaseのポイントデータを優先的に使用
+            let pointJsonArray = [];
+            if (this.routeSpotHandler && this.routeSpotHandler.pointData && this.routeSpotHandler.pointData.length > 0) {
+                this.logger.info(`Firebaseポイントデータを使用: ${this.routeSpotHandler.pointData.length}件`);
+                pointJsonArray = this.routeSpotHandler.pointData;
+            } else if (this.pointJsonData) {
+                this.logger.info('ポイントJSONデータを使用（旧形式）');
+                pointJsonArray = Array.isArray(this.pointJsonData) ? this.pointJsonData :
+                    (this.pointJsonData.points ? this.pointJsonData.points : [this.pointJsonData]);
+            } else {
+                this.logger.warn('ポイントデータが存在しません（FirebaseポイントもポイントJSONも見つかりませんでした）');
                 return {
                     matchedPairs: [],
                     unmatchedPointJsonIds: [],
                     totalPointJsons: 0
                 };
             }
-
-            const pointJsonArray = Array.isArray(this.pointJsonData) ? this.pointJsonData : 
-                (this.pointJsonData.points ? this.pointJsonData.points : [this.pointJsonData]);
 
             totalPointJsons = pointJsonArray.length;
 
@@ -293,13 +299,15 @@ export class Georeferencing {
 
             pointJsonArray.forEach((pointJson, index) => {
                 const pointJsonId = pointJson.Id || pointJson.id || pointJson.name;
-                
+
                 if (!pointJsonId) {
-                    this.logger.warn(`ポイントJSON[${index}]にIdが見つかりません:`, pointJson);
+                    this.logger.warn(`ポイント[${index}]にIdが見つかりません:`, pointJson);
                     unmatchedPointJsonIds.push(`[${index}] (IDなし)`);
                     return;
                 }
 
+                // Firebaseポイントの場合でも、ExcelファイルのGPSデータとマッチングする
+                // （pointJson.lat/lngは画像境界から計算されたもので、初期スケールに依存するため使用しない）
                 const matchingGpsPoint = gpsPointMap.get(pointJsonId);
 
                 if (matchingGpsPoint) {
@@ -380,17 +388,19 @@ export class Georeferencing {
 
     transformImageCoordsToGps(imageX, imageY, transformation) {
         try {
-            
+
             if (transformation.type === 'precise') {
+                this.logger.info(`変換前: 画像座標=(${imageX}, ${imageY}), 変換パラメータ=`, transformation.transformation);
                 const result = mathUtils.applyAffineTransform(imageX, imageY, transformation);
                 if (result) {
+                    this.logger.info(`変換後: GPS座標=(${result[0]}, ${result[1]})`);
                 }
                 return result;
             } else {
                 this.logger.error('精密版以外の変換はサポートされていません');
                 return null;
             }
-            
+
         } catch (error) {
             this.logger.error('座標変換エラー', error);
             return null;
@@ -427,22 +437,34 @@ export class Georeferencing {
         }
     }
 
-    syncRouteSpotPositions() {
+    async syncRouteSpotPositions() {
         try {
             if (!this.routeSpotHandler) {
                 this.logger.warn('⚠️ RouteSpotHandlerが設定されていません。ルート・スポット同期をスキップします。');
                 return;
             }
 
+            this.logger.info(`🔄 ルート・スポット・ポイント同期開始`);
+            this.logger.info(`  ルートマーカー: ${this.routeSpotHandler.routeMarkers?.length || 0}個`);
+            this.logger.info(`  スポットマーカー: ${this.routeSpotHandler.spotMarkers?.length || 0}個`);
+            this.logger.info(`  ポイントデータ: ${this.routeSpotHandler.pointData?.length || 0}個`);
 
             // ルートマーカーの位置同期
             if (this.routeSpotHandler.routeMarkers && this.routeSpotHandler.routeMarkers.length > 0) {
+                this.logger.info('🔄 ルートマーカー同期中...');
                 this.syncRouteMarkers();
             }
 
             // スポットマーカーの位置同期
             if (this.routeSpotHandler.spotMarkers && this.routeSpotHandler.spotMarkers.length > 0) {
+                this.logger.info('🔄 スポットマーカー同期中...');
                 this.syncSpotMarkers();
+            }
+
+            // Firebaseポイントマーカーの位置同期
+            if (this.routeSpotHandler.pointData && this.routeSpotHandler.pointData.length > 0) {
+                this.logger.info('🔄 Firebaseポイントマーカー同期中...');
+                await this.syncFirebasePointMarkers();
             }
 
 
@@ -457,6 +479,7 @@ export class Georeferencing {
                 return;
             }
 
+            this.logger.info(`🔍 ルートマーカー同期: ${this.routeSpotHandler.routeMarkers.length}個のマーカーを処理`);
 
             let movedMarkers = 0;
             let skippedMarkers = 0;
@@ -465,16 +488,22 @@ export class Georeferencing {
                 const meta = marker.__meta;
                 if (marker.setLatLng && typeof marker.setLatLng === 'function') {
                     // 単一のマーカー（ルートの開始/中間/終了点）
-                    if (meta && meta.origin === 'image' && meta.imageX !== undefined && meta.imageY !== undefined) {
+                    // 'image'または'firebase'起源で画像座標を持つマーカーを移動
+                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase') && meta.imageX !== undefined && meta.imageY !== undefined) {
                         const newPos = this.transformImageCoordsToGps(meta.imageX, meta.imageY, this.currentTransformation);
                         if (newPos) {
                             const currentPos = marker.getLatLng();
+                            this.logger.info(`  📍 ルートマーカー[${index}]: origin=${meta.origin}, (${currentPos.lat.toFixed(6)}, ${currentPos.lng.toFixed(6)}) → (${newPos[0].toFixed(6)}, ${newPos[1].toFixed(6)})`);
                             marker.setLatLng(newPos);
                             movedMarkers++;
                         } else {
+                            this.logger.warn(`  ⚠️ ルートマーカー[${index}]: 変換失敗`);
                         }
                     } else {
                         // GPS由来は移動しない
+                        if (index < 3) {  // 最初の3個だけログ出力
+                            this.logger.info(`  ⏭️ ルートマーカー[${index}]: スキップ (origin=${meta?.origin}, imageX=${meta?.imageX}, imageY=${meta?.imageY})`);
+                        }
                         skippedMarkers++;
                     }
                 } else if (marker.getLatLngs && typeof marker.getLatLngs === 'function') {
@@ -483,7 +512,8 @@ export class Georeferencing {
                     const metaPoints = (marker.__meta && Array.isArray(marker.__meta.points)) ? marker.__meta.points : [];
                     const newLatLngs = currentLatLngs.map((latlng, i) => {
                         const pMeta = metaPoints[i];
-                        if (pMeta && pMeta.origin === 'image' && pMeta.imageX !== undefined && pMeta.imageY !== undefined) {
+                        // 'image'または'firebase'起源で画像座標を持つポイントを移動
+                        if (pMeta && (pMeta.origin === 'image' || pMeta.origin === 'firebase') && pMeta.imageX !== undefined && pMeta.imageY !== undefined) {
                             const newPos = this.transformImageCoordsToGps(pMeta.imageX, pMeta.imageY, this.currentTransformation);
                             if (newPos) {
                                 movedMarkers++;
@@ -498,6 +528,7 @@ export class Georeferencing {
                 }
             });
 
+            this.logger.info(`✅ ルートマーカー同期完了: 移動=${movedMarkers}個, スキップ=${skippedMarkers}個`);
 
         } catch (error) {
             this.logger.error('❌ ルートマーカー同期エラー', error);
@@ -510,30 +541,89 @@ export class Georeferencing {
                 return;
             }
 
+            this.logger.info(`🔍 スポットマーカー同期: ${this.routeSpotHandler.spotMarkers.length}個のマーカーを処理`);
 
             let moved = 0;
             let skipped = 0;
 
             this.routeSpotHandler.spotMarkers.forEach((marker, index) => {
                 const meta = marker.__meta;
-                if (meta && meta.origin === 'image' && meta.imageX !== undefined && meta.imageY !== undefined) {
+                // 'image'または'firebase'起源で画像座標を持つマーカーを移動
+                if (meta && (meta.origin === 'image' || meta.origin === 'firebase') && meta.imageX !== undefined && meta.imageY !== undefined) {
                     const newPos = this.transformImageCoordsToGps(meta.imageX, meta.imageY, this.currentTransformation);
                     if (newPos) {
                         const currentPos = marker.getLatLng();
+                        if (index < 3) {  // 最初の3個だけログ出力
+                            this.logger.info(`  📍 スポットマーカー[${index}]: origin=${meta.origin}, (${currentPos.lat.toFixed(6)}, ${currentPos.lng.toFixed(6)}) → (${newPos[0].toFixed(6)}, ${newPos[1].toFixed(6)})`);
+                        }
                         marker.setLatLng(newPos);
                         moved++;
                     } else {
+                        this.logger.warn(`  ⚠️ スポットマーカー[${index}]: 変換失敗`);
                         skipped++;
                     }
                 } else {
                     // GPS由来は移動しない
+                    if (index < 3) {  // 最初の3個だけログ出力
+                        this.logger.info(`  ⏭️ スポットマーカー[${index}]: スキップ (origin=${meta?.origin}, imageX=${meta?.imageX}, imageY=${meta?.imageY})`);
+                    }
                     skipped++;
                 }
             });
 
+            this.logger.info(`✅ スポットマーカー同期完了: 移動=${moved}個, スキップ=${skipped}個`);
 
         } catch (error) {
             this.logger.error('❌ スポットマーカー同期エラー', error);
+        }
+    }
+
+    async syncFirebasePointMarkers() {
+        try {
+            if (!this.routeSpotHandler || !this.routeSpotHandler.pointData) {
+                this.logger.warn('RouteSpotHandlerまたはpointDataが存在しません');
+                return;
+            }
+
+            let created = 0;
+            let skipped = 0;
+
+            // 既存のマーカーを全てクリア
+            this.routeSpotHandler.clearPointMarkers();
+
+            // pointDataの各ポイントについてGPS座標を計算し、マーカーを作成
+            for (const point of this.routeSpotHandler.pointData) {
+                if (point.imageX === undefined || point.imageY === undefined) {
+                    this.logger.warn(`ポイント ${point.id}: 画像座標がありません`);
+                    skipped++;
+                    continue;
+                }
+
+                // アフィン変換でGPS座標を計算
+                const gpsCoords = this.transformImageCoordsToGps(point.imageX, point.imageY, this.currentTransformation);
+
+                if (gpsCoords && gpsCoords.length === 2 && isFinite(gpsCoords[0]) && isFinite(gpsCoords[1])) {
+                    // pointDataにGPS座標を保存
+                    point.lat = gpsCoords[0];
+                    point.lng = gpsCoords[1];
+                    point.isGeoreferenced = true;  // ジオリファレンス済みフラグ
+
+                    this.logger.info(`✅ ポイント ${point.id}: 画像座標(${point.imageX}, ${point.imageY}) → GPS座標(${gpsCoords[0].toFixed(6)}, ${gpsCoords[1].toFixed(6)})`);
+                    created++;
+                } else {
+                    this.logger.warn(`ポイント ${point.id}: GPS座標変換失敗`);
+                    skipped++;
+                }
+            }
+
+            // 更新されたpointDataでマーカーを再表示
+            if (created > 0) {
+                await this.routeSpotHandler.displayPointsOnMap(this.routeSpotHandler.pointData);
+                this.logger.info(`✅ Firebaseポイント ${created}個のGPS座標を計算し、マーカーを作成しました（スキップ: ${skipped}個）`);
+            }
+
+        } catch (error) {
+            this.logger.error('❌ Firebaseポイントマーカー同期エラー', error);
         }
     }
 

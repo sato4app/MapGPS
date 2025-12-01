@@ -15,10 +15,11 @@ export class ResizeHandler {
      * @param {Object} pointManager - PointManagerインスタンス
      * @param {Object} routeManager - RouteManagerインスタンス
      * @param {Object} spotManager - SpotManagerインスタンス
+     * @param {Object} viewportManager - ViewportManagerインスタンス（オプション）
      * @param {Function} redrawCallback - 再描画コールバック
      */
     handleResize(currentImage, canvas, canvasRenderer, layoutManager,
-                 pointManager, routeManager, spotManager, redrawCallback) {
+                 pointManager, routeManager, spotManager, viewportManager, redrawCallback) {
         if (!currentImage) return;
 
         const oldWidth = canvas.width;
@@ -32,6 +33,11 @@ export class ResizeHandler {
         if (oldWidth !== newWidth || oldHeight !== newHeight) {
             this.scaleCoordinates(oldWidth, oldHeight, newWidth, newHeight,
                                 pointManager, routeManager, spotManager);
+        }
+
+        // ポップアップ位置を更新
+        if (viewportManager) {
+            viewportManager.updatePopupPositions();
         }
 
         redrawCallback();
@@ -58,10 +64,15 @@ export class ResizeHandler {
             point.y = Math.round(point.y * scaleY);
         });
 
-        // ルートポイント座標のスケーリング
-        routeManager.getRoutePoints().forEach(point => {
-            point.x = Math.round(point.x * scaleX);
-            point.y = Math.round(point.y * scaleY);
+        // 全ルートの中間点座標をスケーリング
+        const allRoutes = routeManager.getAllRoutes();
+        allRoutes.forEach(route => {
+            if (route.routePoints) {
+                route.routePoints.forEach(point => {
+                    point.x = Math.round(point.x * scaleX);
+                    point.y = Math.round(point.y * scaleY);
+                });
+            }
         });
 
         // スポット座標のスケーリング

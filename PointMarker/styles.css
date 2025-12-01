@@ -107,6 +107,14 @@ header p {
     height: 100%;
 }
 
+/* オーバーレイモード用の地図コンテナ */
+.main-content[data-layout="overlay"] .map-container {
+    width: 100vw;
+    justify-content: flex-start;  /* 左寄せ */
+    align-items: flex-start;      /* 上寄せ */
+    padding: 10px;                /* 余白を最小限に */
+}
+
 .map-canvas {
     border: 2px solid #ddd;
     cursor: crosshair;
@@ -114,6 +122,12 @@ header p {
     transition: border-color 0.2s ease;
     max-width: calc(100vw - var(--sidebar-width) - 20px);
     max-height: calc(100vh - 20px);
+}
+
+/* オーバーレイモード用のキャンバス */
+.main-content[data-layout="overlay"] .map-canvas {
+    max-width: calc(100vw - 20px);  /* 余白を最小限に（2px padding × 2） */
+    max-height: calc(100vh - 20px);  /* 余白を最小限に（2px padding × 2） */
 }
 
 .map-canvas:hover {
@@ -135,6 +149,18 @@ header p {
     width: var(--sidebar-width);
     height: 100%;
     position: relative;
+}
+
+/* オーバーレイモード用のサイドバー */
+.main-content[data-layout="overlay"] .controls-sidebar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    height: auto;
+    max-height: calc(100vh - 40px);
+    z-index: 10001;  /* ポイントID・スポット名ポップアップより前面に表示 */
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow-lg);
 }
 
 /* =====================================
@@ -437,12 +463,74 @@ header p {
 
 .route-editor h3 {
     margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* 要保存ラベル */
+.unsaved-label {
+    display: none;
+    font-size: 12px;
+    color: #ff9500;
+    font-weight: normal;
+}
+
+.unsaved-label.visible {
+    display: inline;
 }
 
 .editor-controls {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+/* =====================================
+   Route Selector & Actions
+   ===================================== */
+.route-selector {
+    margin-bottom: 10px;
+}
+
+.route-selector select {
+    width: 100%;
+    padding: 4px;
+    font-size: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: white;
+}
+
+.route-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.route-action-btn {
+    flex: 1;
+    min-width: 48px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: white;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.route-action-btn:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.route-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* =====================================
@@ -489,11 +577,20 @@ header p {
     font-weight: bold;
     text-align: center;
     outline: none;
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
 }
 
 .route-point-field:focus {
     border-color: var(--primary-color);
+}
+
+.route-point-field[readonly] {
+    background-color: #f0f0f0;
+    cursor: not-allowed;
+}
+
+.route-point-field:not([readonly]) {
+    background-color: white;
 }
 
 .route-point-field::placeholder {
@@ -527,9 +624,12 @@ header p {
     font-weight: bold;
 }
 
-.waypoint-count {
+.route-points-inputs .waypoint-count {
     font-size: 0.9em;
-    background: white;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin-top: 5px;
 }
 
 .waypoint-count span {
@@ -537,15 +637,15 @@ header p {
     font-weight: bold;
 }
 
-.popup-visibility-control {
-    padding: 8px;
-    background: white;
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--border-color);
+.route-points-inputs .popup-visibility-control {
+    padding: 0;
+    background: transparent;
+    border: none;
     font-size: 0.9em;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    margin-top: 5px;
 }
 
 .popup-visibility-control label {
@@ -694,11 +794,12 @@ header p {
     border-radius: 8px;
     font-size: 16px;
     font-weight: 500;
-    text-align: center;
+    text-align: left;
     min-width: 200px;
     max-width: 80%;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     animation: messageSlideIn 0.3s ease-out;
+    white-space: pre-wrap;
 }
 
 .message-overlay.message-info {
@@ -736,5 +837,275 @@ header p {
         font-size: 14px;
         padding: 12px 20px;
         max-width: 90%;
+    }
+}
+
+/* =====================================
+   Duplicate Detection Dialog
+   ===================================== */
+.duplicate-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20000;
+    backdrop-filter: blur(2px);
+}
+
+.duplicate-dialog {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: duplicateDialogSlideIn 0.3s ease-out;
+}
+
+.duplicate-dialog-header {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    color: white;
+    padding: 20px 24px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.duplicate-dialog-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.duplicate-dialog-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.duplicate-dialog-body {
+    padding: 24px;
+}
+
+.duplicate-dialog-message {
+    font-size: 15px;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.duplicate-dialog-message strong {
+    color: #e67e22;
+    font-weight: 600;
+}
+
+.duplicate-dialog-comparison {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #f39c12;
+}
+
+.duplicate-dialog-item {
+    flex: 1;
+}
+
+.duplicate-dialog-item h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.duplicate-dialog-item p {
+    margin: 6px 0;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+.duplicate-dialog-item .highlight {
+    color: #e67e22;
+    font-weight: 600;
+    background-color: #fff3e0;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.duplicate-dialog-arrow {
+    font-size: 24px;
+    color: #bdc3c7;
+    flex-shrink: 0;
+}
+
+.duplicate-dialog-question {
+    font-size: 15px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-top: 20px;
+    margin-bottom: 0;
+}
+
+.duplicate-dialog-footer {
+    padding: 16px 24px 24px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.duplicate-dialog-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.duplicate-dialog-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.duplicate-dialog-btn:active {
+    transform: translateY(0);
+}
+
+.duplicate-dialog-btn-update {
+    background-color: #3498db;
+    color: white;
+}
+
+.duplicate-dialog-btn-update:hover {
+    background-color: #2980b9;
+}
+
+.duplicate-dialog-btn-rename {
+    background-color: #9b59b6;
+    color: white;
+}
+
+.duplicate-dialog-btn-rename:hover {
+    background-color: #8e44ad;
+}
+
+.duplicate-dialog-btn-keep {
+    background-color: #27ae60;
+    color: white;
+}
+
+.duplicate-dialog-btn-keep:hover {
+    background-color: #229954;
+}
+
+.duplicate-dialog-btn-cancel {
+    background-color: #95a5a6;
+    color: white;
+}
+
+.duplicate-dialog-btn-cancel:hover {
+    background-color: #7f8c8d;
+}
+
+.duplicate-dialog-btn-primary {
+    background-color: #3498db;
+    color: white;
+}
+
+.duplicate-dialog-btn-primary:hover {
+    background-color: #2980b9;
+}
+
+/* 入力グループ */
+.duplicate-dialog-input-group {
+    margin: 20px 0;
+}
+
+.duplicate-dialog-input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.duplicate-dialog-input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-family: inherit;
+    transition: border-color 0.2s ease;
+}
+
+.duplicate-dialog-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.duplicate-dialog-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #7f8c8d;
+}
+
+/* アニメーション */
+@keyframes duplicateDialogSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes duplicateDialogSlideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .duplicate-dialog {
+        width: 95%;
+        max-width: none;
+    }
+
+    .duplicate-dialog-comparison {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .duplicate-dialog-arrow {
+        transform: rotate(90deg);
+    }
+
+    .duplicate-dialog-footer {
+        flex-direction: column;
+    }
+
+    .duplicate-dialog-btn {
+        width: 100%;
     }
 }

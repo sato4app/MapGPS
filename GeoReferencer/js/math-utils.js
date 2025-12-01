@@ -62,17 +62,43 @@ export class MathUtils {
 
             const southWest = imageBounds.getSouthWest();
             const northEast = imageBounds.getNorthEast();
-            
+
             const xRatio = imageX / imageWidth;
             const yRatio = imageY / imageHeight;
-            
+
             const lng = southWest.lng + (northEast.lng - southWest.lng) * xRatio;
             const lat = northEast.lat - (northEast.lat - southWest.lat) * yRatio;
-            
+
             return [lat, lng];
-            
+
         } catch (error) {
             this.logger.error('画像座標→GPS座標変換エラー', error);
+            return null;
+        }
+    }
+
+    // GPS座標を画像座標に変換（convertImageCoordsToGpsの逆変換）
+    convertGpsToImageCoords(lat, lng, imageBounds, imageWidth, imageHeight) {
+        try {
+            if (!imageBounds || !imageWidth || !imageHeight) {
+                this.logger.warn('画像境界または画像サイズが不正です');
+                return null;
+            }
+
+            const southWest = imageBounds.getSouthWest();
+            const northEast = imageBounds.getNorthEast();
+
+            // GPS座標から画像座標への逆変換
+            const xRatio = (lng - southWest.lng) / (northEast.lng - southWest.lng);
+            const yRatio = (northEast.lat - lat) / (northEast.lat - southWest.lat);
+
+            const imageX = xRatio * imageWidth;
+            const imageY = yRatio * imageHeight;
+
+            return [imageX, imageY];
+
+        } catch (error) {
+            this.logger.error('GPS座標→画像座標変換エラー', error);
             return null;
         }
     }
@@ -86,17 +112,22 @@ export class MathUtils {
             }
 
             const trans = transformation.transformation;
-            
+
             // アフィン変換でWeb Mercator座標に変換
             const webMercatorX = trans.a * imageX + trans.b * imageY + trans.c;
             const webMercatorY = trans.d * imageX + trans.e * imageY + trans.f;
-            
+
+            this.logger.info(`アフィン変換: img(${imageX},${imageY}) → webMerc(${webMercatorX},${webMercatorY})`);
+            this.logger.info(`変換係数: a=${trans.a}, b=${trans.b}, c=${trans.c}, d=${trans.d}, e=${trans.e}, f=${trans.f}`);
+
             // Web MercatorからGPS座標に変換
             const lat = this.webMercatorYToLat(webMercatorY);
             const lng = this.webMercatorXToLon(webMercatorX);
-            
+
+            this.logger.info(`WebMerc→GPS: (${webMercatorX},${webMercatorY}) → (${lat},${lng})`);
+
             return [lat, lng];
-            
+
         } catch (error) {
             this.logger.error('アフィン変換エラー', error);
             return null;

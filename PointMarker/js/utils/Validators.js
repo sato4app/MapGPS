@@ -149,6 +149,7 @@ export class Validators {
 
     /**
      * スポット名をフォーマット（全角→半角、英小文字→英大文字、数字を半角に変換）
+     * ※ポイントIDと同じフォーマット処理だが、X-nn形式への自動補正は行わない
      * @param {string} value - フォーマットする値
      * @returns {string} フォーマット後の値
      */
@@ -160,10 +161,8 @@ export class Validators {
         // 1. 全角英数字を半角英数字に変換
         let convertedValue = this.convertFullWidthToHalfWidth(value);
 
-        // 2. 英文字を大文字に変換（半角・全角両方対応）
-        convertedValue = convertedValue.replace(/[a-zA-Z]/g, function(char) {
-            return char.toUpperCase();
-        });
+        // 2. 英小文字を英大文字に変換
+        convertedValue = convertedValue.toUpperCase();
 
         return convertedValue;
     }

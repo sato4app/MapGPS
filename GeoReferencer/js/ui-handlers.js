@@ -46,19 +46,25 @@ export class UIHandlers {
 
     updateRouteSpotCount(routeSpotHandler) {
         try {
+            const pointCountField = document.getElementById('pointCount');
             const routeCountField = document.getElementById('routeCount');
             const spotCountField = document.getElementById('spotCount');
-            
+
+            if (pointCountField) {
+                const pointCount = routeSpotHandler.getPointCount ? routeSpotHandler.getPointCount() : 0;
+                pointCountField.value = pointCount;
+            }
+
             if (routeCountField) {
                 const routeCount = routeSpotHandler.getRouteCount();
                 routeCountField.value = routeCount;
             }
-            
+
             if (spotCountField) {
                 const spotCount = routeSpotHandler.getSpotCount();
                 spotCountField.value = spotCount;
             }
-            
+
         } catch (error) {
             this.logger.error('ルート・スポット数更新エラー', error);
         }

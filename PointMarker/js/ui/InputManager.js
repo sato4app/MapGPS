@@ -14,6 +14,7 @@ export class InputManager {
         this.highlightedPointIds = new Set(); // 強調表示するポイントIDのセット
         this.highlightedSpotNames = new Set(); // 強調表示するスポット名のセット
         this.errorSpotNames = new Set(); // エラー状態のスポット名のセット
+        this.alwaysVisibleSpotNames = new Set(); // ルートの開始・終了ポイントとして指定されたスポット名（常に表示）
         this.spotNameVisibility = false; // スポット名表示チェックボックスの状態
         // ズーム・パン状態
         this.scale = 1.0;
@@ -109,6 +110,22 @@ export class InputManager {
             spotNames.forEach(name => {
                 if (name && name.trim()) {
                     this.errorSpotNames.add(name);
+                }
+            });
+        }
+        this.updateSpotInputsState();
+    }
+
+    /**
+     * ルートの開始・終了ポイントとして使用されているスポット名を設定（常に表示）
+     * @param {Array<string>} spotNames - 常に表示するスポット名の配列
+     */
+    setAlwaysVisibleSpotNames(spotNames) {
+        this.alwaysVisibleSpotNames.clear();
+        if (spotNames) {
+            spotNames.forEach(name => {
+                if (name && name.trim()) {
+                    this.alwaysVisibleSpotNames.add(name);
                 }
             });
         }
@@ -485,8 +502,11 @@ export class InputManager {
                 return;
             }
 
-            // ルート編集モードでチェックボックスがオンの場合
-            if (this.isRouteEditMode && this.spotNameVisibility) {
+            // 常に表示すべきスポット名かどうかをチェック
+            const isAlwaysVisible = this.alwaysVisibleSpotNames.has(inputValue);
+
+            // ルート編集モードで、チェックボックスがオンまたは常に表示すべきスポットの場合
+            if (this.isRouteEditMode && (this.spotNameVisibility || isAlwaysVisible)) {
                 container.style.display = 'block';
 
                 if (isError) {
@@ -586,12 +606,17 @@ export class InputManager {
      */
     clearSpotInputBoxes() {
         this.spotInputElements.forEach(input => {
-            const container = input && input._container;
-            if (container && container.parentNode) {
-                container.parentNode.removeChild(container);
-            } else if (input && input.parentNode) {
-                // 後方互換（コンテナ未設定の場合）
-                input.parentNode.removeChild(input);
+            try {
+                const container = input && input._container;
+                if (container && container.parentNode) {
+                    container.parentNode.removeChild(container);
+                } else if (input && input.parentNode) {
+                    // 後方互換（コンテナ未設定の場合）
+                    input.parentNode.removeChild(input);
+                }
+            } catch (error) {
+                // ドラッグ中などで既に削除されている場合は無視
+                console.log('[InputManager] Input element already removed:', error.message);
             }
         });
         this.spotInputElements = [];

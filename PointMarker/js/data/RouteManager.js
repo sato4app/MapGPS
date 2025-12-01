@@ -1,69 +1,149 @@
-import { CoordinateUtils } from '../utils/Coordinates.js';
 import { Validators } from '../utils/Validators.js';
+import { BaseManager } from '../core/BaseManager.js';
 
 /**
- * ルートデータの管理を行うクラス
+ * ルートデータの管理を行うクラス（複数ルート対応）
  */
-export class RouteManager {
+export class RouteManager extends BaseManager {
     constructor() {
-        this.routePoints = [];
-        this.startPointId = '';
-        this.endPointId = '';
-        this.callbacks = {
-            onChange: null,
-            onCountChange: null,
-            onStartEndChange: null
-        };
+        super();
+        // 複数ルートを管理
+        this.routes = [];
+        // 現在選択されているルートのインデックス（-1 = 未選択）
+        this.selectedRouteIndex = -1;
     }
 
     /**
-     * コールバック関数を設定
-     * @param {string} event - イベント名
-     * @param {Function} callback - コールバック関数
+     * 全ルートを取得
+     * @returns {Array} 全ルートの配列
      */
-    setCallback(event, callback) {
-        this.callbacks[event] = callback;
+    getAllRoutes() {
+        return this.routes;
     }
 
     /**
-     * 変更通知を発行
-     * @param {string} event - イベント名
-     * @param {any} data - イベントデータ
+     * 選択中のルートを取得
+     * @returns {Object|null} 選択中のルート、または null
      */
-    notify(event, data) {
-        if (this.callbacks[event]) {
-            this.callbacks[event](data);
+    getSelectedRoute() {
+        if (this.selectedRouteIndex >= 0 && this.selectedRouteIndex < this.routes.length) {
+            return this.routes[this.selectedRouteIndex];
         }
+        return null;
     }
 
     /**
-     * ルート中間点を追加
+     * ルートを選択
+     * @param {number} index - ルートのインデックス（-1 = 未選択）
+     */
+    selectRoute(index) {
+        this.selectedRouteIndex = index;
+        this.notify('onSelectionChange', index);
+
+        // 選択されたルートの開始・終了ポイントを設定
+        if (index >= 0 && index < this.routes.length) {
+            const route = this.routes[index];
+            this.notify('onStartEndChange', {
+                start: route.startPointId,
+                end: route.endPointId
+            });
+            this.notify('onCountChange', route.routePoints ? route.routePoints.length : 0);
+        } else {
+            // 未選択の場合はクリア
+            this.notify('onStartEndChange', { start: '', end: '' });
+            this.notify('onCountChange', 0);
+        }
+        this.notify('onChange');
+    }
+
+    /**
+     * ルートを追加
+     * @param {Object} route - ルートデータ {startPointId, endPointId, routePoints, routeName}
+     */
+    addRoute(route) {
+        // isModifiedフラグを初期化（デフォルト: false）
+        if (route.isModified === undefined) {
+            route.isModified = false;
+        }
+        this.routes.push(route);
+        this.notify('onRouteListChange', this.routes);
+    }
+
+    /**
+     * ルートを削除
+     * @param {number} index - 削除するルートのインデックス
+     */
+    deleteRoute(index) {
+        if (index < 0 || index >= this.routes.length) {
+            console.warn('Invalid route index:', index);
+            return;
+        }
+
+        this.routes.splice(index, 1);
+
+        // 削除したルートが選択中だった場合、選択を解除
+        if (this.selectedRouteIndex === index) {
+            this.selectedRouteIndex = -1;
+            this.notify('onStartEndChange', { start: '', end: '' });
+            this.notify('onCountChange', 0);
+            this.notify('onSelectionChange', -1);
+        } else if (this.selectedRouteIndex > index) {
+            // 削除したルートより後ろのルートが選択されていた場合、インデックスを調整
+            this.selectedRouteIndex--;
+            this.notify('onSelectionChange', this.selectedRouteIndex);
+        }
+
+        this.notify('onRouteListChange', this.routes);
+        this.notify('onChange');
+    }
+
+    /**
+     * ルート中間点を追加（選択中のルートにのみ追加）
      * @param {number} x - X座標
      * @param {number} y - Y座標
      * @returns {Object} 追加されたポイント
      */
     addRoutePoint(x, y) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute) {
+            console.warn('No route selected. Cannot add route point.');
+            this.notify('onNoRouteSelected', 'ルートを選択してから中間点を追加してください');
+            return null;
+        }
+
         const point = {
             x: Math.round(x),
             y: Math.round(y)
         };
 
-        this.routePoints.push(point);
-        this.notify('onChange', this.routePoints);
-        this.notify('onCountChange', this.routePoints.length);
+        if (!selectedRoute.routePoints) {
+            selectedRoute.routePoints = [];
+        }
+        selectedRoute.routePoints.push(point);
+        this.notify('onChange');
+        this.notify('onCountChange', selectedRoute.routePoints.length);
+
+        // 更新状態をチェック
+        this.checkAndUpdateModifiedState();
+
         return point;
     }
 
     /**
-     * 指定位置に最も近いルート中間点を検索
+     * 指定位置に最も近いルート中間点を検索（選択中のルートのみ）
      * @param {number} x - X座標（キャンバス座標）
      * @param {number} y - Y座標（キャンバス座標）
      * @param {number} threshold - 判定閾値（デフォルト: 10px）
      * @returns {{index: number, point: Object} | null} 見つかった中間点と配列インデックス、見つからない場合はnull
      */
     findRoutePointAt(x, y, threshold = 10) {
-        for (let i = 0; i < this.routePoints.length; i++) {
-            const point = this.routePoints[i];
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints) {
+            return null;
+        }
+
+        for (let i = 0; i < selectedRoute.routePoints.length; i++) {
+            const point = selectedRoute.routePoints[i];
             const dx = point.x - x;
             const dy = point.y - y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -76,16 +156,24 @@ export class RouteManager {
     }
 
     /**
-     * ルート中間点の座標を更新
+     * ルート中間点の座標を更新（選択中のルートのみ）
      * @param {number} index - 中間点の配列インデックス
      * @param {number} x - 新しいX座標
      * @param {number} y - 新しいY座標
      */
     updateRoutePoint(index, x, y) {
-        if (index >= 0 && index < this.routePoints.length) {
-            this.routePoints[index].x = Math.round(x);
-            this.routePoints[index].y = Math.round(y);
-            this.notify('onChange', this.routePoints);
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints) {
+            return;
+        }
+
+        if (index >= 0 && index < selectedRoute.routePoints.length) {
+            selectedRoute.routePoints[index].x = Math.round(x);
+            selectedRoute.routePoints[index].y = Math.round(y);
+            this.notify('onChange');
+
+            // 更新状態をチェック
+            this.checkAndUpdateModifiedState();
         }
     }
 
@@ -93,126 +181,219 @@ export class RouteManager {
      * ルート中間点のみをクリア（開始・終了ポイントは保持）
      */
     clearRoutePoints() {
-        this.routePoints = [];
-        this.notify('onChange', this.routePoints);
-        this.notify('onCountChange', 0);
+        const selectedRoute = this.getSelectedRoute();
+        if (selectedRoute) {
+            selectedRoute.routePoints = [];
+            this.notify('onChange');
+            this.notify('onCountChange', 0);
+        }
     }
 
     /**
-     * ルート情報を全てクリア（開始・終了ポイント含む）
+     * 選択中のルート情報を全てクリア（開始・終了ポイント含む）
      */
     clearRoute() {
-        this.routePoints = [];
-        this.startPointId = '';
-        this.endPointId = '';
-        this.notify('onChange', this.routePoints);
+        const selectedRoute = this.getSelectedRoute();
+        if (selectedRoute) {
+            selectedRoute.routePoints = [];
+            selectedRoute.startPointId = '';
+            selectedRoute.endPointId = '';
+            this.notify('onChange');
+            this.notify('onCountChange', 0);
+            this.notify('onStartEndChange', { start: '', end: '' });
+        }
+    }
+
+    /**
+     * 全ルートをクリア
+     */
+    clearAllRoutes() {
+        this.routes = [];
+        this.selectedRouteIndex = -1;
+        this.notify('onChange');
         this.notify('onCountChange', 0);
         this.notify('onStartEndChange', { start: '', end: '' });
+        this.notify('onRouteListChange', []);
+        this.notify('onSelectionChange', -1);
     }
 
     /**
-     * 開始ポイントIDを設定
+     * 開始ポイントIDを設定（選択中のルートのみ）
      * @param {string} id - 開始ポイントID
      * @param {boolean} skipFormatting - フォーマット処理をスキップするかどうか (デフォルト: false)
-     * @example
-     * // 入力時（フォーマット処理なし）
-     * routeManager.setStartPoint('J-1', true);  // → 'J-1'
-     * 
-     * // blur時（フォーマット処理あり）
-     * routeManager.setStartPoint('J-1');  // → 'J-01'
      */
     setStartPoint(id, skipFormatting = false) {
-        this.startPointId = skipFormatting ? id : Validators.formatPointId(id);
-        this.notify('onStartEndChange', { 
-            start: this.startPointId, 
-            end: this.endPointId 
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute) {
+            console.warn('No route selected. Cannot set start point.');
+            return;
+        }
+
+        selectedRoute.startPointId = skipFormatting ? id : Validators.formatPointId(id);
+
+        // 開始・終了ポイントが両方設定されている場合、ルート名を更新
+        this.updateRouteNameIfComplete();
+
+        this.notify('onStartEndChange', {
+            start: selectedRoute.startPointId,
+            end: selectedRoute.endPointId
         });
     }
 
     /**
-     * 終了ポイントIDを設定
+     * 終了ポイントIDを設定（選択中のルートのみ）
      * @param {string} id - 終了ポイントID
      * @param {boolean} skipFormatting - フォーマット処理をスキップするかどうか (デフォルト: false)
-     * @example
-     * // 入力時（フォーマット処理なし）
-     * routeManager.setEndPoint('A-2', true);  // → 'A-2'
-     * 
-     * // blur時（フォーマット処理あり）
-     * routeManager.setEndPoint('A-2');  // → 'A-02'
      */
     setEndPoint(id, skipFormatting = false) {
-        this.endPointId = skipFormatting ? id : Validators.formatPointId(id);
-        this.notify('onStartEndChange', { 
-            start: this.startPointId, 
-            end: this.endPointId 
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute) {
+            console.warn('No route selected. Cannot set end point.');
+            return;
+        }
+
+        selectedRoute.endPointId = skipFormatting ? id : Validators.formatPointId(id);
+
+        // 開始・終了ポイントが両方設定されている場合、ルート名を更新
+        this.updateRouteNameIfComplete();
+
+        this.notify('onStartEndChange', {
+            start: selectedRoute.startPointId,
+            end: selectedRoute.endPointId
         });
     }
 
     /**
-     * ルートポイント配列を取得
+     * 開始・終了ポイントが両方設定されている場合、ルート名を更新
+     */
+    updateRouteNameIfComplete() {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute) return;
+
+        if (selectedRoute.startPointId && selectedRoute.endPointId) {
+            selectedRoute.routeName = `${selectedRoute.startPointId} ～ ${selectedRoute.endPointId}`;
+            this.notify('onRouteListChange', this.routes);
+            // 更新状態をチェック
+            this.checkAndUpdateModifiedState();
+        }
+    }
+
+    /**
+     * ルートの更新状態をチェックして必要に応じてフラグを設定
+     * 更新基準:
+     * - 開始ポイント、終了ポイントの指定があり、ルート中間点が追加・移動された
+     * - ルート中間点があり、開始ポイントと終了ポイントが指定された
+     */
+    checkAndUpdateModifiedState() {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute) return;
+
+        const hasStartEnd = selectedRoute.startPointId && selectedRoute.endPointId;
+        const hasWaypoints = selectedRoute.routePoints && selectedRoute.routePoints.length > 0;
+
+        // 更新基準を満たす場合、isModifiedフラグを立てる
+        if (hasStartEnd && hasWaypoints) {
+            if (!selectedRoute.isModified) {
+                selectedRoute.isModified = true;
+                this.notify('onModifiedStateChange', { isModified: true, routeIndex: this.selectedRouteIndex });
+                this.notify('onRouteListChange', this.routes);
+            }
+        }
+    }
+
+    /**
+     * ルートの更新フラグをクリア（保存完了時などに使用）
+     */
+    clearModifiedFlag() {
+        const selectedRoute = this.getSelectedRoute();
+        if (selectedRoute && selectedRoute.isModified) {
+            selectedRoute.isModified = false;
+            this.notify('onModifiedStateChange', { isModified: false, routeIndex: this.selectedRouteIndex });
+            this.notify('onRouteListChange', this.routes);
+        }
+    }
+
+    /**
+     * ルートポイント配列を取得（選択中のルートのみ）
      * @returns {Array} ルートポイント配列
      */
     getRoutePoints() {
-        return this.routePoints;
+        const selectedRoute = this.getSelectedRoute();
+        return selectedRoute && selectedRoute.routePoints ? selectedRoute.routePoints : [];
     }
 
     /**
-     * 開始・終了ポイントIDを取得
+     * 開始・終了ポイントIDを取得（選択中のルートのみ）
      * @returns {{start: string, end: string}} 開始・終了ポイントID
      */
     getStartEndPoints() {
-        return {
-            start: this.startPointId,
-            end: this.endPointId
-        };
+        const selectedRoute = this.getSelectedRoute();
+        if (selectedRoute) {
+            return {
+                start: selectedRoute.startPointId || '',
+                end: selectedRoute.endPointId || ''
+            };
+        }
+        return { start: '', end: '' };
     }
 
     /**
-     * 開始・終了ポイントの検証
+     * 開始・終了ポイントの検証（選択中のルートのみ）
      * @param {Array} registeredIds - 登録済みポイントID配列
      * @param {Object} spotManager - スポットマネージャー（オプション）
      * @returns {{isValid: boolean, message?: string}} 検証結果
      */
     validateStartEndPoints(registeredIds, spotManager = null) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute) {
+            return {
+                isValid: false,
+                message: 'ルートが選択されていません。'
+            };
+        }
+
+        const startPointId = selectedRoute.startPointId || '';
+        const endPointId = selectedRoute.endPointId || '';
+
         // 開始ポイントのチェック
-        if (this.startPointId) {
-            const isRegisteredAsPoint = registeredIds.includes(this.startPointId);
+        if (startPointId) {
+            const isRegisteredAsPoint = registeredIds.includes(startPointId);
             let isRegisteredAsSpot = false;
 
             // スポット名として登録されているかチェック
             if (spotManager) {
                 const allSpots = spotManager.getSpots();
-                isRegisteredAsSpot = allSpots.some(spot => spot.name === this.startPointId);
+                isRegisteredAsSpot = allSpots.some(spot => spot.name === startPointId);
             }
 
             if (!isRegisteredAsPoint && !isRegisteredAsSpot) {
                 return {
                     isValid: false,
-                    message: `開始ポイント "${this.startPointId}" がポイントまたはスポットとして登録されていません。先にポイント編集モードまたはスポット編集モードで登録してください。`
+                    message: `開始ポイント "${startPointId}" がポイントまたはスポットとして登録されていません。先にポイント編集モードまたはスポット編集モードで登録してください。`
                 };
             }
         }
 
         // 終了ポイントのチェック
-        if (this.endPointId) {
-            const isRegisteredAsPoint = registeredIds.includes(this.endPointId);
+        if (endPointId) {
+            const isRegisteredAsPoint = registeredIds.includes(endPointId);
             let isRegisteredAsSpot = false;
 
             // スポット名として登録されているかチェック
             if (spotManager) {
                 const allSpots = spotManager.getSpots();
-                isRegisteredAsSpot = allSpots.some(spot => spot.name === this.endPointId);
+                isRegisteredAsSpot = allSpots.some(spot => spot.name === endPointId);
             }
 
             if (!isRegisteredAsPoint && !isRegisteredAsSpot) {
                 return {
                     isValid: false,
-                    message: `終了ポイント "${this.endPointId}" がポイントまたはスポットとして登録されていません。先にポイント編集モードまたはスポット編集モードで登録してください。`
+                    message: `終了ポイント "${endPointId}" がポイントまたはスポットとして登録されていません。先にポイント編集モードまたはスポット編集モードで登録してください。`
                 };
             }
         }
 
-        if (!this.startPointId || !this.endPointId) {
+        if (!startPointId || !endPointId) {
             return {
                 isValid: false,
                 message: '開始ポイントと終了ポイントの両方を設定してください。'
@@ -220,7 +401,8 @@ export class RouteManager {
         }
 
         // 中間点が1つ以上あることをチェック
-        if (this.routePoints.length < 1) {
+        const routePoints = selectedRoute.routePoints || [];
+        if (routePoints.length < 1) {
             return {
                 isValid: false,
                 message: 'ルートを作成するには中間点が1つ以上必要です。地図上をクリックして中間点を追加してください。'
@@ -236,9 +418,10 @@ export class RouteManager {
      * @returns {string} ルートファイル名
      */
     generateRouteFilename(imageFileName) {
+        const selectedRoute = this.getSelectedRoute();
         const baseFileName = imageFileName || 'route';
-        const startPoint = this.startPointId || 'start';
-        const endPoint = this.endPointId || 'end';
+        const startPoint = (selectedRoute && selectedRoute.startPointId) || 'start';
+        const endPoint = (selectedRoute && selectedRoute.endPointId) || 'end';
         return `${baseFileName}_route_${startPoint}_to_${endPoint}.json`;
     }
 

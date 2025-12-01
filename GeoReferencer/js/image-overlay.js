@@ -1,8 +1,10 @@
 // 画像オーバーレイ機能を管理するモジュール
 import { DEFAULTS } from './constants.js';
+import { Logger } from './utils.js';
 
 export class ImageOverlay {
     constructor(mapCore) {
+        this.logger = new Logger('ImageOverlay');
         this.map = mapCore.getMap();
         this.mapCore = mapCore;
         this.imageOverlay = null;
@@ -12,7 +14,7 @@ export class ImageOverlay {
         this.isMovingImage = false;
         this.imageUpdateCallbacks = [];
         this.transformedCenter = null; // アフィン変換結果の中心位置
-        
+
         // 内部scale管理（初期値はconstantsから取得）
         this.currentScale = this.getDefaultScale();
         
@@ -73,6 +75,13 @@ export class ImageOverlay {
 
         // 画像の中心位置：アフィン変換結果があればそれを使用、なければ地図中心を使用
         const centerPos = this.transformedCenter || this.map.getCenter();
+
+        if (this.transformedCenter) {
+            this.logger.info(`📍 画像表示: ジオリファレンス済み位置 (${centerPos.lat.toFixed(6)}, ${centerPos.lng.toFixed(6)}), scale=${scale.toFixed(6)}`);
+        } else {
+            this.logger.info(`📍 画像表示: 地図中心 (${centerPos.lat.toFixed(6)}, ${centerPos.lng.toFixed(6)}), scale=${scale.toFixed(6)}`);
+        }
+
         
         // naturalWidth/naturalHeightを使用して正確なピクセル数を取得
         const imageWidth = this.currentImage.naturalWidth || this.currentImage.width;
@@ -127,7 +136,9 @@ export class ImageOverlay {
         }
         
         const bounds = L.latLngBounds(southWest, northEast);
-        
+
+        this.logger.info(`🖼️ 画像境界計算: SW=(${southWest[0].toFixed(6)}, ${southWest[1].toFixed(6)}), NE=(${northEast[0].toFixed(6)}, ${northEast[1].toFixed(6)}), scale=${scale.toFixed(6)}, サイズ=${imageWidth}x${imageHeight}`);
+
         // 画像レイヤーの境界を更新
         this.imageOverlay.setBounds(bounds);
         
@@ -169,32 +180,37 @@ export class ImageOverlay {
     loadImage(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            
+
             reader.onload = (e) => {
                 this.currentImage.onload = () => {
                     if (this.imageOverlay) {
                         this.map.removeLayer(this.imageOverlay);
                     }
-                    
+
+                    // ジオリファレンス状態をリセット
+                    this.resetTransformation();
+
                     this.imageOverlay = L.imageOverlay(e.target.result, this.getInitialBounds(), {
                         opacity: this.getDisplayOpacity(),
                         interactive: false
                     }).addTo(this.map);
-                    
+
                     // ファイル名を記録
                     this.currentImageFileName = file.name;
-                    
+
                     // 画像レイヤーが完全に読み込まれるまで少し待つ
                     setTimeout(() => {
+                        // 初期読み込み時もupdateImageDisplay()を呼んで、正しいスケールで表示
                         this.updateImageDisplay();
+                        this.logger.info(`📍 初期画像配置完了: scale=${this.getCurrentScale().toFixed(6)}`);
                         resolve();
                     }, 100);
                 };
-                
+
                 this.currentImage.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
                 this.currentImage.src = e.target.result;
             };
-            
+
             reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました'));
             reader.readAsDataURL(file);
         });
@@ -213,8 +229,19 @@ export class ImageOverlay {
         this.imageUpdateCallbacks.push(callback);
     }
 
+    // ジオリファレンス状態をリセット（画像読み込み時に呼ぶ）
+    resetTransformation() {
+        this.transformedCenter = null;
+        // 初期読み込み時のスケールを1.0に設定
+        // ジオリファレンス時にはExcelファイルのGPS座標を使用するため、
+        // 初期スケールはジオリファレンス結果に影響しない
+        this.currentScale = 1.0;
+        this.logger.info(`🔄 ジオリファレンス状態をリセットしました (scale=${this.currentScale.toFixed(6)})`);
+    }
+
     // アフィン変換結果による画像位置・スケール設定
     setTransformedPosition(centerLat, centerLng, scale) {
+        this.logger.info(`ジオリファレンス適用: 中心位置=(${centerLat.toFixed(6)}, ${centerLng.toFixed(6)}), スケール=${scale.toFixed(6)}`);
         this.transformedCenter = { lat: centerLat, lng: centerLng };
         this.setCurrentScale(scale);
         
@@ -242,9 +269,9 @@ export class ImageOverlay {
                         const southWest = [centerLat - latOffset, centerLng - lngOffset];
                         const northEast = [centerLat + latOffset, centerLng + lngOffset];
                         
-                        if (isFinite(southWest[0]) && isFinite(southWest[1]) && 
+                        if (isFinite(southWest[0]) && isFinite(southWest[1]) &&
                             isFinite(northEast[0]) && isFinite(northEast[1])) {
-                            
+
                             const bounds = L.latLngBounds(southWest, northEast);
                             this.imageOverlay.setBounds(bounds);
                             
@@ -299,10 +326,22 @@ export class ImageOverlay {
 
     getInitialBounds() {
         const center = this.map.getCenter();
-        const offset = 0.001;
-        return L.latLngBounds(
-            [center.lat - offset, center.lng - offset],
-            [center.lat + offset, center.lng + offset]
+        // 画像を地図中心に配置
+        // 位置はずらさず、スケールの変化（大→小）で視覚効果を出す
+        const offsetLat = 0;  // ずらさない
+        const offsetLng = 0;  // ずらさない
+        const imageOffset = 0.001;  // 画像サイズ
+
+        const centerLat = center.lat - offsetLat;
+        const centerLng = center.lng - offsetLng;
+
+        const bounds = L.latLngBounds(
+            [centerLat - imageOffset, centerLng - imageOffset],
+            [centerLat + imageOffset, centerLng + imageOffset]
         );
+
+        this.logger.info(`🎯 getInitialBounds呼び出し: 地図中心=(${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}), 画像境界=SW(${(centerLat - imageOffset).toFixed(6)}, ${(centerLng - imageOffset).toFixed(6)}), NE(${(centerLat + imageOffset).toFixed(6)}, ${(centerLng + imageOffset).toFixed(6)})`);
+
+        return bounds;
     }
 }

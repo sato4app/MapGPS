@@ -2,98 +2,6 @@
 import { CONFIG, CSS_CLASSES, LOG_LEVELS } from './constants.js';
 
 // ===============================================
-// バリデーション機能
-// ===============================================
-export class Validators {
-    static isValidPointIdFormat(value) {
-        if (!value || value.trim() === '') {
-            return true;
-        }
-        
-        const validPattern = /^[A-Z]-\d{2}$/;
-        return validPattern.test(value);
-    }
-
-    static formatPointId(value) {
-        if (!value || typeof value !== 'string') {
-            return value;
-        }
-        
-        const original = value.trim();
-        if (original === '') {
-            return value;
-        }
-        
-        let converted = this.convertFullWidthToHalfWidth(original);
-        converted = converted.replace(/[\s　]/g, '');
-        
-        if (converted === '') {
-            return original;
-        }
-        
-        const lastTwoDigitsPattern = /\d{2}$/;
-        const singleDigitEndPattern = /^(.*)(\d)$/;
-        const singleDigitEndMatch = converted.match(singleDigitEndPattern);
-        
-        if (singleDigitEndMatch && !singleDigitEndMatch[1].endsWith('-') && !lastTwoDigitsPattern.test(converted)) {
-            const prefix = singleDigitEndMatch[1];
-            const digit = singleDigitEndMatch[2];
-            converted = `${prefix}${digit.padStart(2, '0')}`;
-        }
-        
-        if (converted.length <= 3 && !converted.includes('-')) {
-            const shortPattern = /^([A-Z]+)(\d{1,2})$/;
-            const shortMatch = converted.match(shortPattern);
-            
-            if (shortMatch) {
-                const letters = shortMatch[1];
-                const numbers = shortMatch[2];
-                return `${letters}-${numbers}`;
-            }
-        }
-        
-        return converted;
-    }
-    
-    static convertFullWidthToHalfWidth(str) {
-        return str.replace(/[Ａ-Ｚａ-ｚ０-９－−‐―]/g, function(char) {
-            if (char >= 'Ａ' && char <= 'Ｚ') {
-                return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
-            }
-            if (char >= 'ａ' && char <= 'ｚ') {
-                const halfWidthChar = String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
-                return halfWidthChar.toUpperCase();
-            }
-            if (char >= '０' && char <= '９') {
-                return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
-            }
-            if (char === '－' || char === '−' || char === '‐' || char === '―') {
-                return '-';
-            }
-            return char;
-        }).replace(/[a-z]/g, function(char) {
-            return char.toUpperCase();
-        });
-    }
-
-    static isPngFile(file) {
-        return file && file.type.includes('png');
-    }
-
-    static isJsonFile(file) {
-        return file && file.type.includes('json');
-    }
-
-    static isValidPointData(data) {
-        return data && data.points && Array.isArray(data.points);
-    }
-
-    static isValidRouteData(data) {
-        return data && data.points && Array.isArray(data.points) && data.routeInfo;
-    }
-}
-
-// ===============================================
 // ログ機能
 // ===============================================
 export class Logger {
@@ -125,21 +33,19 @@ export class Logger {
     }
     
     warn(message, data = null) {
+        if (!this.isDebugMode) return;
+
         const formattedMessage = this.formatMessage(LOG_LEVELS.WARN, message);
         console.warn(formattedMessage, data || '');
-        
-        if (this.isDebugMode) {
-            this.logToStorage(LOG_LEVELS.WARN, message, data);
-        }
+        this.logToStorage(LOG_LEVELS.WARN, message, data);
     }
-    
+
     info(message, data = null) {
+        if (!this.isDebugMode) return;
+
         const formattedMessage = this.formatMessage(LOG_LEVELS.INFO, message);
         console.info(formattedMessage, data || '');
-        
-        if (this.isDebugMode) {
-            this.logToStorage(LOG_LEVELS.INFO, message, data);
-        }
+        this.logToStorage(LOG_LEVELS.INFO, message, data);
     }
     
     debug(message, data = null) {

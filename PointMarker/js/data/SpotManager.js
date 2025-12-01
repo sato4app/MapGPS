@@ -1,34 +1,14 @@
-import { CoordinateUtils } from '../utils/Coordinates.js';
 import { Validators } from '../utils/Validators.js';
+import { BaseManager } from '../core/BaseManager.js';
 
 /**
  * スポット管理クラス
  * 名称を持つ地図上の特定の点（スポット）の管理を行う
  */
-export class SpotManager {
+export class SpotManager extends BaseManager {
     constructor() {
+        super();
         this.spots = [];
-        this.callbacks = {};
-    }
-
-    /**
-     * コールバックを設定
-     * @param {string} event - イベント名
-     * @param {Function} callback - コールバック関数
-     */
-    setCallback(event, callback) {
-        this.callbacks[event] = callback;
-    }
-
-    /**
-     * コールバックを実行
-     * @param {string} event - イベント名
-     * @param {*} data - コールバックに渡すデータ
-     */
-    notify(event, data) {
-        if (this.callbacks[event]) {
-            this.callbacks[event](data);
-        }
     }
 
     /**
@@ -212,6 +192,20 @@ export class SpotManager {
     generateSpotFilename(imageFileName) {
         const baseFileName = imageFileName || 'spots';
         return `${baseFileName}_spots.json`;
+    }
+
+    /**
+     * スポット名で完全一致検索を行う
+     * @param {string} spotName - スポット名
+     * @returns {Object|null} 一致したスポット、見つからない場合はnull
+     */
+    findSpotByName(spotName) {
+        if (!spotName || spotName.trim() === '') {
+            return null;
+        }
+
+        const spot = this.spots.find(s => s.name === spotName);
+        return spot || null;
     }
 
     /**

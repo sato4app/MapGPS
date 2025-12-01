@@ -105,6 +105,7 @@ html, body, #map {
     width: var(--control-panel-width);
     max-height: calc(100vh - 40px);
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* レスポンシブ対応 */
@@ -169,7 +170,7 @@ html, body, #map {
 .load-file-container {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 30px; /* ボタンとテキストボックスの間を10px左に寄せる */
     margin-bottom: 0px;
 }
 
@@ -328,11 +329,22 @@ html, body, #map {
     box-sizing: border-box;
 }
 
-/* 個数表示コンテナ */
-.count-display {
+/* 標高カウント表示のラッパー */
+.elevation-count-wrapper {
     display: flex;
-    align-items: center;
-    gap: 2px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 40px;
+}
+
+/* 標高未取得ラベル */
+.elevation-count-label {
+    font-size: 11px;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-left: -20px;
+    text-align: right;
 }
 
 /* 新しいcount-group用のスタイル */
@@ -376,7 +388,8 @@ html, body, #map {
 #loadFileBtn,
 #loadRouteSpotBtn,
 #matchPointsBtn,
-#exportGeoJsonBtn {
+#exportGeoJsonBtn,
+#saveToFirebaseBtn {
     padding: 8px;
     cursor: pointer;
     display: block;
@@ -388,12 +401,27 @@ html, body, #map {
     line-height: 1.4;
 }
 
-/* 読み込みボタンの幅を84pxに固定 */
-#loadFileBtn,
+/* 各ボタンの幅を固定 */
+#loadFileBtn {
+    width: 180px !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+}
+
 #loadRouteSpotBtn {
     width: 84px !important;
     box-sizing: border-box !important;
     flex-shrink: 0 !important;
+}
+
+/* #saveToFirebaseBtn の幅は共通設定（width: 100%）を使用 */
+#saveToFirebaseBtn {
+    margin-top: -10px; /* ボタンを10px上に配置 */
+}
+
+#fetchElevationBtn {
+    width: 80px !important;
+    height: 40px !important;
 }
 
 /* ポイント数表示コンテナ */
@@ -894,7 +922,11 @@ select:focus {
 
 /* 統合されたマッチング結果コンテナ */
 .matching-results-container {
-    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 5px; /* 標高取得セクションとの間隔を詰める */
     padding: 12px;
     border: 2px solid rgba(70, 130, 180, 0.4);
     border-radius: var(--border-radius);
@@ -902,15 +934,16 @@ select:focus {
     box-shadow: 0 2px 4px var(--color-shadow);
 }
 
-/* マッチング概要セクション */
-.matching-summary {
-    margin-bottom: 10px;
+/* 画像の重ね合わせボタンのスタイル（コンテナ内） */
+.matching-results-container button {
+    width: 100%;
 }
 
 .matched-count {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: var(--spacing-medium);
 }
 
@@ -921,13 +954,17 @@ select:focus {
     white-space: nowrap;
 }
 
-/* 不一致ポイントセクション */
-.unmatched-points {
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    padding-top: 10px;
+.matched-count .count-value-group {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 4px;
+}
+
+/* 不一致ポイントセクション */
+.unmatched-points {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
     gap: var(--spacing-medium);
 }
 
@@ -943,7 +980,7 @@ select:focus {
     padding: 6px 8px;
     border: 1px solid #ccc;
     border-radius: var(--border-radius-small);
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-normal); /* ラベルと同じサイズに変更 */
     font-family: monospace;
     background-color: #f9f9f9;
     color: var(--color-dark);
@@ -1011,5 +1048,56 @@ select:focus {
     border-color: #dc3545;
     background-color: rgba(248, 215, 218, 0.95);
     color: #721c24;
+}
+
+/* 標高取得コントロールのスタイル */
+.elevation-controls {
+    margin-top: 0px; /* マッチング結果との間隔を詰める */
+    padding: 5px 5px 5px 0px; /* 左側のパディングを0にしてボタンを左に寄せる */
+    background: var(--color-overlay);
+}
+
+.elevation-controls button {
+    width: 100%;
+    margin-top: 20px; /* ボタンを30px下に配置 */
+    margin-bottom: 30px; /* ボタンとチェックボックスの間に30pxの余白 */
+}
+
+.elevation-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-medium);
+    padding-left: 30px; /* 標高取得ボタンとの間に横の余白を追加 */
+}
+
+.elevation-checkbox-item {
+    display: flex;
+    align-items: flex-end; /* チェックボックスとテキストフィールドを下端で揃える */
+    justify-content: space-between;
+    gap: var(--spacing-medium);
+}
+
+.elevation-checkbox-item label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-small);
+    font-size: var(--font-size-normal);
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.elevation-checkbox-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.count-field-wide {
+    width: 60px;
+    padding: 2px 4px;
+    font-size: 12px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    background-color: #f9f9f9;
+    color: #333;
 }
 

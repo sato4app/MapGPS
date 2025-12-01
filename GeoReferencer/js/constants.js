@@ -25,18 +25,29 @@ export const CONFIG = {
     OVERLAY_CONTROLS_Z_INDEX: 1000,
     MESSAGE_DISPLAY_DURATION: 3000, // ms
     
+    // Firebase設定
+    FIREBASE_AUTH_RETRY_LIMIT: 3,
+    FIREBASE_OPERATION_TIMEOUT: 10000, // ms
+
     // エラーメッセージ
     ERROR_MESSAGES: {
         MAP_NOT_INITIALIZED: '地図が初期化されていません。',
         INVALID_IMAGE_FORMAT: 'PNG形式の画像ファイルを選択してください。',
         MODULE_NOT_INITIALIZED: 'モジュールが初期化されていません。',
-        FILE_LOAD_FAILED: 'ファイルの読み込みに失敗しました。'
+        FILE_LOAD_FAILED: 'ファイルの読み込みに失敗しました。',
+        FIREBASE_NOT_CONNECTED: 'Firebase接続が利用できません。',
+        FIREBASE_AUTH_FAILED: 'Firebase認証に失敗しました。',
+        FIREBASE_LOAD_FAILED: 'Firebaseからのデータ読み込みに失敗しました。',
+        FIREBASE_SAVE_FAILED: 'Firebaseへのデータ保存に失敗しました。'
     },
     
     // 成功メッセージ
     SUCCESS_MESSAGES: {
         FILE_LOADED: 'ファイルが正常に読み込まれました。',
-        DATA_SAVED: 'データが正常に保存されました。'
+        DATA_SAVED: 'データが正常に保存されました。',
+        FIREBASE_CONNECTED: 'Firebaseに接続しました。',
+        FIREBASE_LOADED: 'Firebaseからデータを読み込みました。',
+        FIREBASE_SAVED: 'Firebaseにデータを保存しました。'
     },
     
     // セレクター
@@ -65,24 +76,12 @@ export const DEFAULTS = {
     ANIMATION_DURATION: 200
 };
 
-// イベント名
-export const EVENTS = {
-    DOM_CONTENT_LOADED: 'DOMContentLoaded',
-    FILE_CHANGE: 'change',
-    BUTTON_CLICK: 'click',
-    MAP_READY: 'mapready',
-    DATA_LOADED: 'dataloaded'
-};
-
 // CSS クラス名
 export const CSS_CLASSES = {
-    EDITOR_PANEL: 'editor-panel',
-    OVERLAY_CONTROLS: 'overlay-controls',
     MESSAGE_BOX: 'message-box',
     ERROR: 'error',
     WARNING: 'warning',
-    SUCCESS: 'success',
-    VISUALLY_HIDDEN: 'visually-hidden'
+    SUCCESS: 'success'
 };
 
 // ログレベル

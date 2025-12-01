@@ -1,37 +1,13 @@
-import { CoordinateUtils } from '../utils/Coordinates.js';
 import { Validators } from '../utils/Validators.js';
+import { BaseManager } from '../core/BaseManager.js';
 
 /**
  * ポイントデータの管理を行うクラス
  */
-export class PointManager {
+export class PointManager extends BaseManager {
     constructor() {
+        super();
         this.points = [];
-        this.callbacks = {
-            onChange: null,
-            onCountChange: null
-        };
-    }
-
-    /**
-     * コールバック関数を設定
-     * @param {string} event - イベント名
-     * @param {Function} callback - コールバック関数
-     */
-    setCallback(event, callback) {
-        this.callbacks[event] = callback;
-    }
-
-    /**
-     * 変更通知を発行
-     * @param {string} event - イベント名
-     * @param {any} data - イベントデータ
-     * @param {...any} args - 追加パラメータ
-     */
-    notify(event, data, ...args) {
-        if (this.callbacks[event]) {
-            this.callbacks[event](data, ...args);
-        }
     }
 
     /**
