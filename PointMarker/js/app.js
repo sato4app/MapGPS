@@ -8,6 +8,7 @@ import { LayoutManager } from './ui/LayoutManager.js';
 import { UIHelper } from './ui/UIHelper.js';
 import { ValidationManager } from './ui/ValidationManager.js';
 import { ViewportManager } from './ui/ViewportManager.js';
+import { MarkerSettingsManager } from './ui/MarkerSettingsManager.js';
 import { CoordinateUtils } from './utils/Coordinates.js';
 import { Validators } from './utils/Validators.js';
 import { ObjectDetector } from './utils/ObjectDetector.js';
@@ -34,6 +35,7 @@ export class PointMarkerApp {
         this.validationManager = new ValidationManager();
         this.dragDropHandler = new DragDropHandler();
         this.resizeHandler = new ResizeHandler();
+        this.markerSettingsManager = new MarkerSettingsManager();
 
         // ビューポート管理とFirebase同期の初期化
         this.viewportManager = new ViewportManager(
@@ -173,6 +175,19 @@ export class PointMarkerApp {
         this.spotManager.setCallback('onCanvasRedraw', () => {
             this.redrawCanvas();
         });
+
+        // マーカー設定のコールバック
+        this.markerSettingsManager.setCallback((sizes) => {
+            // Canvas Rendererにマーカーサイズを設定
+            this.canvasRenderer.setMarkerSizes(sizes);
+            // キャンバスを再描画
+            this.redrawCanvas();
+            console.log('マーカーサイズが更新されました:', sizes);
+        });
+
+        // 初期設定を読み込み
+        const initialSizes = this.markerSettingsManager.getSizes();
+        this.canvasRenderer.setMarkerSizes(initialSizes);
 
         // 入力管理のコールバック
         this.inputManager.setCallback('onPointIdChange', (data) => {
@@ -439,6 +454,14 @@ export class PointMarkerApp {
                 this.viewportManager.updateZoomButtonStates();
                 this.redrawCanvas();
             });
+        });
+
+        // 設定ボタン
+        document.getElementById('settingsBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('設定ボタンがクリックされました');
+            console.log('markerSettingsManager:', this.markerSettingsManager);
+            this.markerSettingsManager.openDialog();
         });
 
         // 開始・終了ポイント入力
@@ -804,14 +827,6 @@ export class PointMarkerApp {
         // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
         const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
         const mode = this.layoutManager.getCurrentEditingMode();
-
-        // ルート編集モードの場合、中間点上のクリックは無視（ドラッグ専用）
-        if (mode === 'route') {
-            const routePointInfo = this.routeManager.findRoutePointAt(coords.x, coords.y);
-            if (routePointInfo) {
-                return;
-            }
-        }
 
         const objectInfo = this.findObjectAtMouse(coords.x, coords.y);
 

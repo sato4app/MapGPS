@@ -122,7 +122,9 @@
                 <!-- ズーム・移動コントロール（最下部） -->
                 <div class="navigation">
                     <div class="nav-group">
-                        <div></div>
+                        <button type="button" id="settingsBtn" class="nav-btn" title="マーカーのサイズ設定">
+                            <img src="icons/mbrisetting3_99522.svg" alt="設定" class="nav-icon">
+                        </button>
                         <button type="button" id="panUpBtn" class="nav-btn" title="上に移動" disabled>
                             <img src="icons/arrow-icon-up.svg" alt="上に移動" class="nav-icon">
                         </button>
@@ -157,6 +159,70 @@
         <div id="authUserInfo">
             <span id="authIcon">🔒</span>
             <span id="authText">認証中...</span>
+        </div>
+    </div>
+
+    <!-- マーカーサイズ設定パネル -->
+    <div id="markerSettingsDialog" class="settings-dialog-overlay" style="display: none;">
+        <div class="settings-dialog">
+            <div class="settings-dialog-header">
+                <span class="settings-dialog-icon">⚙️</span>
+                <h3>マーカーサイズ設定</h3>
+            </div>
+            <div class="settings-dialog-body">
+                <p class="settings-dialog-message">各マーカーのサイズを指定してください（ピクセル単位）</p>
+
+                <div class="settings-dialog-controls">
+                    <!-- ポイントマーカー -->
+                    <div class="settings-control-group">
+                        <label for="pointSizeInput">
+                            <span class="settings-marker-preview point-marker"></span>
+                            <span class="settings-label-text">ポイント:</span>
+                        </label>
+                        <input type="range" id="pointSizeSlider" class="settings-slider" min="2" max="12" value="6" step="0.5">
+                        <input type="number" id="pointSizeInput" class="settings-input" min="2" max="12" value="6" step="0.5">
+                        <span class="settings-unit">px</span>
+                    </div>
+
+                    <!-- 選択ルート中間点 -->
+                    <div class="settings-control-group">
+                        <label for="selectedWaypointSizeInput">
+                            <span class="settings-marker-preview waypoint-marker selected"></span>
+                            <span class="settings-label-text">選択ルート中間点:</span>
+                        </label>
+                        <input type="range" id="selectedWaypointSizeSlider" class="settings-slider" min="2" max="12" value="6" step="0.5">
+                        <input type="number" id="selectedWaypointSizeInput" class="settings-input" min="2" max="12" value="6" step="0.5">
+                        <span class="settings-unit">px</span>
+                    </div>
+
+                    <!-- 非選択ルート中間点 -->
+                    <div class="settings-control-group">
+                        <label for="unselectedWaypointSizeInput">
+                            <span class="settings-marker-preview waypoint-marker unselected"></span>
+                            <span class="settings-label-text">非選択ルート中間点:</span>
+                        </label>
+                        <input type="range" id="unselectedWaypointSizeSlider" class="settings-slider" min="2" max="12" value="4" step="0.5">
+                        <input type="number" id="unselectedWaypointSizeInput" class="settings-input" min="2" max="12" value="4" step="0.5">
+                        <span class="settings-unit">px</span>
+                    </div>
+
+                    <!-- スポット -->
+                    <div class="settings-control-group">
+                        <label for="spotSizeInput">
+                            <span class="settings-marker-preview spot-marker"></span>
+                            <span class="settings-label-text">スポット:</span>
+                        </label>
+                        <input type="range" id="spotSizeSlider" class="settings-slider" min="4" max="20" value="12" step="0.5">
+                        <input type="number" id="spotSizeInput" class="settings-input" min="4" max="20" value="12" step="0.5">
+                        <span class="settings-unit">px</span>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-dialog-footer">
+                <button id="settingsResetBtn" class="settings-dialog-btn settings-dialog-btn-reset">初期値に戻す</button>
+                <button id="settingsOkBtn" class="settings-dialog-btn settings-dialog-btn-ok">OK</button>
+                <button id="settingsCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">キャンセル</button>
+            </div>
         </div>
     </div>
 

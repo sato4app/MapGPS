@@ -23,6 +23,22 @@ export class CanvasRenderer {
         this.maxScale = 5.0;
         this.zoomStep = 0.2;
         this.panStep = 50;  // ピクセル単位での移動量
+
+        // マーカーサイズ設定（デフォルト値）
+        this.markerSizes = {
+            point: 6,
+            selectedWaypoint: 6,
+            unselectedWaypoint: 4,
+            spot: 12
+        };
+    }
+
+    /**
+     * マーカーサイズを設定
+     * @param {Object} sizes - マーカーサイズのオブジェクト
+     */
+    setMarkerSizes(sizes) {
+        this.markerSizes = { ...sizes };
     }
 
     /**
@@ -89,7 +105,7 @@ export class CanvasRenderer {
 
         points.forEach((point) => {
             let color = defaultColor;
-            let radius = 6;
+            let radius = this.markerSizes.point;  // マーカーサイズ設定を使用
             let strokeWidth = 1.5;
 
             this.drawPoint(point, color, radius, strokeWidth, canvasScale);
@@ -140,7 +156,7 @@ export class CanvasRenderer {
     }
 
     /**
-     * 複数ルートの中間点を一括描画（未選択ルートは円形で小さく）
+     * 複数ルートの中間点を一括描画（未選択ルートは菱形で小さく）
      * @param {Array} allRoutes - 全ルート配列
      * @param {number} selectedRouteIndex - 選択中のルートインデックス（-1 = 未選択）
      * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
@@ -149,12 +165,12 @@ export class CanvasRenderer {
         allRoutes.forEach((route, index) => {
             const waypoints = route.routePoints || [];
             if (index === selectedRouteIndex) {
-                // 選択中のルート: 菱形、通常サイズ（radius=6）
-                this.drawRoutePoints(waypoints, canvasScale, 6);
+                // 選択中のルート: 菱形、通常サイズ（マーカーサイズ設定を使用）
+                this.drawRoutePoints(waypoints, canvasScale, this.markerSizes.selectedWaypoint);
             } else {
-                // 未選択ルート: 円形、小さいサイズ（radius=3）
+                // 未選択ルート: 菱形、小さいサイズ（マーカーサイズ設定を使用）
                 waypoints.forEach(point => {
-                    this.drawPoint(point, '#ff9500', 3, 1, canvasScale);
+                    this.drawDiamond(point.x, point.y, this.markerSizes.unselectedWaypoint, '#ff9500', '#ffffff', 1, canvasScale);
                 });
             }
         });
@@ -196,7 +212,7 @@ export class CanvasRenderer {
         const {
             fillColor = '#0066ff',    // 青色
             strokeColor = '#ffffff',   // 白色の枠線
-            size = 12,                 // 6px 半径 = 12px 一辺
+            size = this.markerSizes.spot,  // マーカーサイズ設定を使用
             strokeWidth = 1
         } = options;
 

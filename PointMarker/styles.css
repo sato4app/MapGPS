@@ -229,6 +229,17 @@ header p {
     border-color: #f39c12;
 }
 
+/* 設定ボタン専用スタイル */
+#settingsBtn {
+    background-color: white;
+    color: #7f8c8d;
+    border-color: #7f8c8d;
+}
+
+#settingsBtn:hover:not(:disabled) {
+    background-color: rgba(127, 140, 141, 0.1);
+}
+
 /* リセットボタン専用スタイル */
 #resetViewBtn {
     background-color: white;
@@ -1106,6 +1117,315 @@ header p {
     }
 
     .duplicate-dialog-btn {
+        width: 100%;
+    }
+}
+
+/* =====================================
+   Marker Settings Dialog
+   ===================================== */
+.settings-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20000;
+    backdrop-filter: blur(2px);
+}
+
+.settings-dialog {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: settingsDialogSlideIn 0.3s ease-out;
+}
+
+.settings-dialog-header {
+    background: linear-gradient(135deg, #7f8c8d 0%, #95a5a6 100%);
+    color: white;
+    padding: 20px 24px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.settings-dialog-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.settings-dialog-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.settings-dialog-body {
+    padding: 24px;
+    max-height: calc(90vh - 180px);
+    overflow-y: auto;
+}
+
+.settings-dialog-message {
+    font-size: 14px;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.settings-dialog-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.settings-control-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.settings-control-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: #2c3e50;
+    cursor: pointer;
+}
+
+.settings-label-text {
+    min-width: 140px;
+}
+
+.settings-marker-preview {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #ddd;
+    border-radius: 2px;
+    display: inline-block;
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* ポイントマーカープレビュー（赤い円） */
+.settings-marker-preview.point-marker {
+    background-color: white;
+}
+
+.settings-marker-preview.point-marker::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background-color: red;
+    border-radius: 50%;
+}
+
+/* ルート中間点プレビュー（菱形） */
+.settings-marker-preview.waypoint-marker {
+    background-color: white;
+}
+
+.settings-marker-preview.waypoint-marker::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background-color: orange;
+}
+
+.settings-marker-preview.waypoint-marker.unselected::after {
+    width: 6px;
+    height: 6px;
+    opacity: 0.6;
+}
+
+/* スポットマーカープレビュー（青い四角） */
+.settings-marker-preview.spot-marker {
+    background-color: white;
+}
+
+.settings-marker-preview.spot-marker::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background-color: blue;
+}
+
+.settings-slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #e9ecef;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.settings-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #3498db;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.settings-slider::-webkit-slider-thumb:hover {
+    background: #2980b9;
+}
+
+.settings-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #3498db;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s ease;
+}
+
+.settings-slider::-moz-range-thumb:hover {
+    background: #2980b9;
+}
+
+.settings-input {
+    width: 60px;
+    padding: 6px 8px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: right;
+    font-family: inherit;
+    transition: border-color 0.2s ease;
+}
+
+.settings-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.settings-unit {
+    font-size: 12px;
+    color: #7f8c8d;
+    min-width: 20px;
+}
+
+.settings-dialog-footer {
+    padding: 16px 24px 24px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.settings-dialog-btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.settings-dialog-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.settings-dialog-btn:active {
+    transform: translateY(0);
+}
+
+.settings-dialog-btn-reset {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.settings-dialog-btn-reset:hover {
+    background-color: #c0392b;
+}
+
+.settings-dialog-btn-ok {
+    background-color: #3498db;
+    color: white;
+}
+
+.settings-dialog-btn-ok:hover {
+    background-color: #2980b9;
+}
+
+.settings-dialog-btn-cancel {
+    background-color: #95a5a6;
+    color: white;
+}
+
+.settings-dialog-btn-cancel:hover {
+    background-color: #7f8c8d;
+}
+
+/* アニメーション */
+@keyframes settingsDialogSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .settings-dialog {
+        width: 95%;
+        max-width: none;
+    }
+
+    .settings-control-group {
+        flex-wrap: wrap;
+    }
+
+    .settings-label-text {
+        min-width: 100px;
+    }
+
+    .settings-dialog-footer {
+        flex-direction: column;
+    }
+
+    .settings-dialog-btn {
         width: 100%;
     }
 }
