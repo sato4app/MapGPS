@@ -156,6 +156,80 @@ export class RouteManager extends BaseManager {
     }
 
     /**
+     * 指定座標に最も近いルート中間点を検索（選択中のルートのみ）
+     * @param {number} x - X座標
+     * @param {number} y - Y座標
+     * @param {number} maxDistance - 最大検索距離（これを超えると検索対象外）
+     * @returns {{index: number, point: Object, distance: number} | null} 最も近い中間点情報
+     */
+    findNearestRoutePoint(x, y, maxDistance = 50) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints || selectedRoute.routePoints.length === 0) {
+            return null;
+        }
+
+        let nearestIndex = -1;
+        let nearestDistance = Infinity;
+        let nearestPoint = null;
+
+        for (let i = 0; i < selectedRoute.routePoints.length; i++) {
+            const point = selectedRoute.routePoints[i];
+            const dx = point.x - x;
+            const dy = point.y - y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < nearestDistance && distance <= maxDistance) {
+                nearestDistance = distance;
+                nearestIndex = i;
+                nearestPoint = point;
+            }
+        }
+
+        if (nearestIndex !== -1) {
+            return { index: nearestIndex, point: nearestPoint, distance: nearestDistance };
+        }
+        return null;
+    }
+
+    /**
+     * 指定矩形内のルート中間点を検索（選択中のルートのみ）
+     * @param {number} x1 - 矩形の開始点X座標
+     * @param {number} y1 - 矩形の開始点Y座標
+     * @param {number} x2 - 矩形の終了点X座標
+     * @param {number} y2 - 矩形の終了点Y座標
+     * @returns {Array<{index: number, point: Object}>} 矩形内の中間点配列（インデックス降順）
+     */
+    findRoutePointsInRectangle(x1, y1, x2, y2) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints || selectedRoute.routePoints.length === 0) {
+            return [];
+        }
+
+        const pointsInRect = [];
+
+        // 矩形の左上・右下座標を計算
+        const left = Math.min(x1, x2);
+        const right = Math.max(x1, x2);
+        const top = Math.min(y1, y2);
+        const bottom = Math.max(y1, y2);
+
+        for (let i = 0; i < selectedRoute.routePoints.length; i++) {
+            const point = selectedRoute.routePoints[i];
+
+            // 矩形内判定
+            if (point.x >= left && point.x <= right &&
+                point.y >= top && point.y <= bottom) {
+                pointsInRect.push({ index: i, point: point });
+            }
+        }
+
+        // インデックスの降順でソート（削除時に配列が崩れないように）
+        pointsInRect.sort((a, b) => b.index - a.index);
+
+        return pointsInRect;
+    }
+
+    /**
      * ルート中間点の座標を更新（選択中のルートのみ）
      * @param {number} index - 中間点の配列インデックス
      * @param {number} x - 新しいX座標
@@ -175,6 +249,61 @@ export class RouteManager extends BaseManager {
             // 更新状態をチェック
             this.checkAndUpdateModifiedState();
         }
+    }
+
+    /**
+     * ルート中間点を削除（選択中のルートのみ）
+     * @param {number} index - 削除する中間点の配列インデックス
+     * @returns {boolean} 削除成功したかどうか
+     */
+    removeRoutePoint(index) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints) {
+            return false;
+        }
+
+        if (index >= 0 && index < selectedRoute.routePoints.length) {
+            selectedRoute.routePoints.splice(index, 1);
+            this.notify('onChange');
+            this.notify('onCountChange', selectedRoute.routePoints.length);
+
+            // 更新状態をチェック
+            this.checkAndUpdateModifiedState();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 複数のルート中間点を一括削除（選択中のルートのみ）
+     * @param {Array<number>} indices - 削除する中間点のインデックス配列（降順推奨）
+     * @returns {number} 削除した中間点の数
+     */
+    removeRoutePoints(indices) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints) {
+            return 0;
+        }
+
+        let deletedCount = 0;
+
+        // インデックスを降順でソート（配列崩れ防止）
+        const sortedIndices = [...indices].sort((a, b) => b - a);
+
+        for (const index of sortedIndices) {
+            if (index >= 0 && index < selectedRoute.routePoints.length) {
+                selectedRoute.routePoints.splice(index, 1);
+                deletedCount++;
+            }
+        }
+
+        if (deletedCount > 0) {
+            this.notify('onChange');
+            this.notify('onCountChange', selectedRoute.routePoints.length);
+            this.checkAndUpdateModifiedState();
+        }
+
+        return deletedCount;
     }
 
     /**

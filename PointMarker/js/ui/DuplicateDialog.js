@@ -212,9 +212,9 @@ export class DuplicateDialog {
 
     /**
      * ダイアログを閉じる
-     * @param {string} action - ユーザーの選択
+     * @param {*} value - 返す値（アクション名、入力値など）
      */
-    closeDialog(action) {
+    closeDialog(value) {
         this.dialog.style.animation = 'duplicateDialogSlideOut 0.2s ease-in';
 
         setTimeout(() => {
@@ -222,7 +222,7 @@ export class DuplicateDialog {
             this.dialog.innerHTML = '';
 
             if (this.resolveCallback) {
-                this.resolveCallback(action);
+                this.resolveCallback(value);
                 this.resolveCallback = null;
             }
         }, 200);
@@ -282,7 +282,7 @@ export class DuplicateDialog {
             okBtn.addEventListener('click', () => {
                 const newId = input.value.trim();
                 if (newId) {
-                    this.closeDialogWithValue(newId);
+                    this.closeDialog(newId);
                 } else {
                     alert('IDを入力してください');
                 }
@@ -290,7 +290,7 @@ export class DuplicateDialog {
 
             // キャンセルボタン
             cancelBtn.addEventListener('click', () => {
-                this.closeDialogWithValue(null);
+                this.closeDialog(null);
             });
 
             // Enterキーで確定
@@ -298,10 +298,10 @@ export class DuplicateDialog {
                 if (e.key === 'Enter') {
                     const newId = input.value.trim();
                     if (newId) {
-                        this.closeDialogWithValue(newId);
+                        this.closeDialog(newId);
                     }
                 } else if (e.key === 'Escape') {
-                    this.closeDialogWithValue(null);
+                    this.closeDialog(null);
                 }
             });
 
@@ -311,21 +311,4 @@ export class DuplicateDialog {
         });
     }
 
-    /**
-     * ダイアログを閉じて値を返す
-     * @param {*} value - 返す値
-     */
-    closeDialogWithValue(value) {
-        this.dialog.style.animation = 'duplicateDialogSlideOut 0.2s ease-in';
-
-        setTimeout(() => {
-            this.overlay.style.display = 'none';
-            this.dialog.innerHTML = '';
-
-            if (this.resolveCallback) {
-                this.resolveCallback(value);
-                this.resolveCallback = null;
-            }
-        }, 200);
-    }
 }

@@ -50,6 +50,16 @@ export class CanvasRenderer {
     }
 
     /**
+     * devicePixelRatioとズームスケールによる補正を適用
+     * @param {number} value - 補正する値
+     * @param {number} canvasScale - キャンバスのスケール値
+     * @returns {number} 補正後の値
+     */
+    applyDevicePixelRatioCorrection(value, canvasScale = 1.0) {
+        return value / this.dpr / canvasScale;
+    }
+
+    /**
      * キャンバスをクリアして画像を描画
      */
     drawImage() {
@@ -79,8 +89,8 @@ export class CanvasRenderer {
     drawPoint(point, color = '#ff0000', radius = 6, strokeWidth = 1.5, canvasScale = 1.0) {
         // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
         // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
-        const adjustedRadius = radius / this.dpr / canvasScale;
-        const adjustedStrokeWidth = strokeWidth / this.dpr / canvasScale;
+        const adjustedRadius = this.applyDevicePixelRatioCorrection(radius, canvasScale);
+        const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
 
         this.ctx.fillStyle = color;
         this.ctx.strokeStyle = '#ffffff';
@@ -125,8 +135,8 @@ export class CanvasRenderer {
     drawDiamond(cx, cy, radius, fillColor = '#ff0000', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
         // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
         // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
-        const adjustedRadius = radius / this.dpr / canvasScale;
-        const adjustedStrokeWidth = strokeWidth / this.dpr / canvasScale;
+        const adjustedRadius = this.applyDevicePixelRatioCorrection(radius, canvasScale);
+        const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
 
         this.ctx.fillStyle = fillColor;
         this.ctx.strokeStyle = strokeColor;
@@ -190,8 +200,8 @@ export class CanvasRenderer {
     drawSquare(cx, cy, size, fillColor = '#ff9500', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
         // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
         // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
-        const adjustedSize = size / this.dpr / canvasScale;
-        const adjustedStrokeWidth = strokeWidth / this.dpr / canvasScale;
+        const adjustedSize = this.applyDevicePixelRatioCorrection(size, canvasScale);
+        const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
         const halfSize = adjustedSize / 2;
 
         this.ctx.fillStyle = fillColor;
@@ -346,6 +356,41 @@ export class CanvasRenderer {
         this.scale = 1.0;
         this.offsetX = 0;
         this.offsetY = 0;
+    }
+
+    /**
+     * 削除範囲指定用の長方形を描画（薄いピンク色）
+     * @param {number} x1 - 開始点X座標
+     * @param {number} y1 - 開始点Y座標
+     * @param {number} x2 - 終了点X座標
+     * @param {number} y2 - 終了点Y座標
+     */
+    drawDeletionRectangle(x1, y1, x2, y2) {
+        const ctx = this.ctx;
+        const canvasScale = this.scale;
+
+        ctx.save();
+
+        // 変換を適用
+        ctx.translate(this.offsetX, this.offsetY);
+        ctx.scale(canvasScale, canvasScale);
+
+        // 左上座標と幅・高さを計算
+        const left = Math.min(x1, x2);
+        const top = Math.min(y1, y2);
+        const width = Math.abs(x2 - x1);
+        const height = Math.abs(y2 - y1);
+
+        // 薄いピンク色の塗りつぶし長方形
+        ctx.fillStyle = 'rgba(255, 182, 193, 0.3)'; // lightpink with 30% opacity
+        ctx.fillRect(left, top, width, height);
+
+        // ピンク色の縁
+        ctx.strokeStyle = 'rgba(255, 105, 180, 0.8)'; // hotpink with 80% opacity
+        ctx.lineWidth = 2 / this.dpr / canvasScale;
+        ctx.strokeRect(left, top, width, height);
+
+        ctx.restore();
     }
 
     /**

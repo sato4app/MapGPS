@@ -312,18 +312,18 @@ export class InputManager {
     }
 
     /**
-     * 入力ボックスの最適な表示位置を計算・設定
-     * @param {HTMLInputElement} input - 入力要素
-     * @param {Object} point - ポイントオブジェクト
+     * 入力ボックスの最適な表示位置を計算・設定（ポイント・スポット共通）
+     * @param {HTMLElement} container - 入力ボックスのコンテナ
+     * @param {Object} object - オブジェクト {x, y} （ポイントまたはスポット）
      */
-    positionInputBox(container, point) {
+    positionInputBox(container, object) {
         const rect = this.canvas.getBoundingClientRect();
         const scaleX = rect.width / this.canvas.width;
         const scaleY = rect.height / this.canvas.height;
 
         // ズーム・パン変換を適用
-        const transformedX = point.x * this.scale + this.offsetX;
-        const transformedY = point.y * this.scale + this.offsetY;
+        const transformedX = object.x * this.scale + this.offsetX;
+        const transformedY = object.y * this.scale + this.offsetY;
 
         const inputX = this.findOptimalInputPosition(transformedX, transformedY, scaleX, rect.left);
         const inputY = transformedY * scaleY + rect.top - 15;
@@ -402,20 +402,59 @@ export class InputManager {
         container.style.position = 'absolute';
         container.style.zIndex = '1100';
 
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.maxLength = 10;  // 10文字程度に設定
+        const input = document.createElement('textarea');
+        input.maxLength = 250;  // 250文字まで拡張
         input.className = 'spot-name-input';
         input.placeholder = 'スポット名';
         input.value = spot.name || '';
-        
+        input.rows = 1;  // 初期は1行
+
+        // 入力幅と高さを自動調整する関数
+        const adjustInputSize = () => {
+            // 入力値が空の場合はプレースホルダーの幅を使用、それ以外は入力値の幅を使用
+            const displayText = input.value || input.placeholder;
+
+            // テキストの幅を計測するための隠し要素を作成
+            const span = document.createElement('span');
+            span.style.visibility = 'hidden';
+            span.style.position = 'absolute';
+            span.style.whiteSpace = 'nowrap';
+            span.style.fontSize = window.getComputedStyle(input).fontSize;
+            span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+            span.textContent = displayText;
+            document.body.appendChild(span);
+
+            // テキスト幅を計測（左右パディング12px = 6px × 2 のみ追加）
+            const textWidth = span.offsetWidth + 12;
+            document.body.removeChild(span);
+
+            // 幅の調整（入力値がある場合は最小限に、ない場合は80px）
+            if (input.value) {
+                // 入力値がある場合：テキスト幅に合わせる（最大300px）
+                input.style.width = Math.min(textWidth, 300) + 'px';
+            } else {
+                // 入力値がない場合（プレースホルダー表示）：80pxを初期値として使用
+                input.style.width = Math.max(80, Math.min(textWidth, 300)) + 'px';
+            }
+
+            // 高さの自動調整（scrollHeightを使用）
+            // まず高さを1pxにリセットして正確なscrollHeightを取得
+            input.style.height = '1px';
+            // scrollHeightを取得（実際に必要な高さ）
+            const scrollHeight = input.scrollHeight;
+            // 高さを設定（余白なし）
+            input.style.height = scrollHeight + 'px';
+        };
+
         container.appendChild(input);
-        
-        this.positionSpotInputBox(container, spot);
-        
+
+        this.positionInputBox(container, spot);
+
         // input時は変換処理を一切行わない
         input.addEventListener('input', (e) => {
             const value = e.target.value;
+            // 入力サイズを自動調整
+            adjustInputSize();
             // 入力中は変換処理なし、そのまま保存（表示更新なし）
             this.notify('onSpotNameChange', { index, name: value, skipFormatting: true, skipDisplay: true });
         });
@@ -427,23 +466,26 @@ export class InputManager {
             this.notify('onSpotNameChange', { index, name: value, skipFormatting: false });
             container.classList.remove('is-editing');
         });
-        
+
         // キーボードイベント（Escapeキーでスポット削除）
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.notify('onSpotRemove', { index, spot });
             }
         });
-        
+
         // フォーカス時に編集中スタイル
         input.addEventListener('focus', () => {
             container.classList.add('is-editing');
         });
-        
+
         // スポットインデックスを属性として設定
         input.setAttribute('data-spot-index', index);
-        
+
         document.body.appendChild(container);
+
+        // 初期サイズを設定（DOM追加後に実行）
+        setTimeout(() => adjustInputSize(), 0);
         this.spotInputElements.push(input);
         // 入力からコンテナへ参照
         input._container = container;
@@ -455,27 +497,6 @@ export class InputManager {
                 input.setSelectionRange(input.value.length, input.value.length);
             }, 0);
         }
-    }
-
-    /**
-     * スポット入力ボックスの最適な表示位置を計算・設定
-     * @param {HTMLElement} container - コンテナ要素
-     * @param {Object} spot - スポットオブジェクト
-     */
-    positionSpotInputBox(container, spot) {
-        const rect = this.canvas.getBoundingClientRect();
-        const scaleX = rect.width / this.canvas.width;
-        const scaleY = rect.height / this.canvas.height;
-
-        // ズーム・パン変換を適用
-        const transformedX = spot.x * this.scale + this.offsetX;
-        const transformedY = spot.y * this.scale + this.offsetY;
-
-        const inputX = this.findOptimalInputPosition(transformedX, transformedY, scaleX, rect.left);
-        const inputY = transformedY * scaleY + rect.top - 15;
-
-        container.style.left = inputX + 'px';
-        container.style.top = inputY + 'px';
     }
 
     /**
@@ -670,7 +691,7 @@ export class InputManager {
                 const spot = spots[spotIndex];
 
                 if (spot) {
-                    this.positionSpotInputBox(container, spot);
+                    this.positionInputBox(container, spot);
                 }
             });
         }

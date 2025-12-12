@@ -10,6 +10,12 @@ export class DragDropHandler {
         this.draggedObjectIndex = -1;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
+
+        // ドラッグ移動判定用
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.hasMoved = false;
+        this.DRAG_THRESHOLD = 3; // 3px以上移動したらドラッグ扱い
     }
 
     /**
@@ -26,6 +32,11 @@ export class DragDropHandler {
         this.draggedObjectIndex = objectIndex;
         this.dragOffsetX = mouseX - object.x;
         this.dragOffsetY = mouseY - object.y;
+
+        // ドラッグ開始座標を保存
+        this.dragStartX = mouseX;
+        this.dragStartY = mouseY;
+        this.hasMoved = false;
     }
 
     /**
@@ -39,6 +50,17 @@ export class DragDropHandler {
      */
     updateDrag(mouseX, mouseY, pointManager, spotManager, routeManager) {
         if (!this.isDragging) return false;
+
+        // 移動距離を計算
+        if (!this.hasMoved) {
+            const dx = mouseX - this.dragStartX;
+            const dy = mouseY - this.dragStartY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > this.DRAG_THRESHOLD) {
+                this.hasMoved = true;
+            }
+        }
 
         const newX = mouseX - this.dragOffsetX;
         const newY = mouseY - this.dragOffsetY;
@@ -68,14 +90,15 @@ export class DragDropHandler {
      * @param {Function} onPointDragEndCallback - ポイントドラッグ終了時のコールバック（オプション）
      * @param {Function} onSpotDragEndCallback - スポットドラッグ終了時のコールバック（オプション）
      * @param {Function} onRoutePointDragEndCallback - ルート中間点ドラッグ終了時のコールバック（オプション）
-     * @returns {boolean} ドラッグが終了されたかどうか
+     * @returns {{wasDragging: boolean, hasMoved: boolean}} ドラッグ情報
      */
     endDrag(inputManager, pointManager, onPointDragEndCallback, onSpotDragEndCallback, onRoutePointDragEndCallback) {
-        if (!this.isDragging) return false;
+        if (!this.isDragging) return { wasDragging: false, hasMoved: false };
 
         const wasDragging = true;
         const draggedIndex = this.draggedObjectIndex;
         const draggedType = this.draggedObjectType;
+        const hasMoved = this.hasMoved; // reset()前に保存
 
         // ポイント移動後に入力ボックスを再描画
         if (this.draggedObjectType === 'point') {
@@ -100,7 +123,7 @@ export class DragDropHandler {
         }
 
         this.reset();
-        return wasDragging;
+        return { wasDragging, hasMoved };
     }
 
     /**
@@ -112,6 +135,9 @@ export class DragDropHandler {
         this.draggedObjectIndex = -1;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.hasMoved = false;
     }
 
     /**
@@ -132,5 +158,13 @@ export class DragDropHandler {
             type: this.draggedObjectType,
             index: this.draggedObjectIndex
         };
+    }
+
+    /**
+     * 実際にドラッグ移動が行われたかを取得
+     * @returns {boolean} 閾値以上移動したかどうか
+     */
+    hasDragged() {
+        return this.hasMoved;
     }
 }

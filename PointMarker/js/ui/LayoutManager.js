@@ -38,8 +38,6 @@ export class LayoutManager {
      * イベントリスナーを初期化
      */
     initializeEventListeners() {
-        // レイアウト選択機能は削除されました（オーバーレイ固定）
-
         const editingModeRadios = document.querySelectorAll('input[name="editingMode"]');
         editingModeRadios.forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -92,8 +90,6 @@ export class LayoutManager {
     updateLayoutDisplay() {
         const mainContent = document.querySelector('.main-content');
         mainContent.setAttribute('data-layout', this.currentLayout);
-
-        // レイアウト選択ラジオボタンは削除されました（オーバーレイ固定）
     }
 
     /**

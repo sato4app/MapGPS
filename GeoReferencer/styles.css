@@ -291,7 +291,7 @@ html, body, #map {
     width: 40px;
     padding: 2px 4px;
     font-size: 12px;
-    text-align: center;
+    text-align: right;
     border: 1px solid #ccc;
     border-radius: 3px;
     background-color: #f9f9f9;
@@ -321,7 +321,7 @@ html, body, #map {
     width: 40px;
     padding: 2px 4px;
     font-size: 12px;
-    text-align: center;
+    text-align: right;
     border: 1px solid #ccc;
     border-radius: 3px;
     background-color: #f9f9f9;
