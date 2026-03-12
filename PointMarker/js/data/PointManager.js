@@ -15,17 +15,18 @@ export class PointManager extends BaseManager {
      * @param {number} x - X座標
      * @param {number} y - Y座標
      * @param {string} id - ポイントID
+     * @param {boolean} skipRedrawInput - 入力ボックスの再描画をスキップするかどうか (デフォルト: false)
      * @returns {Object} 追加されたポイント
      */
-    addPoint(x, y, id = '') {
-        const point = { 
-            x: Math.round(x), 
+    addPoint(x, y, id = '', skipRedrawInput = false) {
+        const point = {
+            x: Math.round(x),
             y: Math.round(y),
             id
         };
-        
+
         this.points.push(point);
-        this.notify('onChange', this.points);
+        this.notify('onChange', this.points, skipRedrawInput);
         this.notify('onCountChange', this.getUserPointCount());
         return point;
     }

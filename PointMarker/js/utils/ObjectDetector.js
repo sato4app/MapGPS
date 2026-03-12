@@ -11,7 +11,19 @@ export class ObjectDetector {
      * @returns {{type: string, index: number, object: Object} | null} 検出されたオブジェクト情報
      */
     static findObjectAt(x, y, managers, mode = null) {
-        const { pointManager, spotManager, routeManager } = managers;
+        const { pointManager, spotManager, routeManager, areaManager } = managers;
+
+        // エリア編集モード時は頂点を優先チェック
+        if (mode === 'area' && areaManager) {
+            const vertexInfo = areaManager.findVertexAt(x, y, 10);
+            if (vertexInfo) {
+                return {
+                    type: 'vertex',
+                    index: vertexInfo.index,
+                    object: vertexInfo.point
+                };
+            }
+        }
 
         // ルート編集モード時は中間点を優先チェック
         if (mode === 'route' && routeManager) {

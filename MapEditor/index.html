@@ -1,22 +1,25 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ルート・スポットを位置編集し、GeoJSONファイルに出力</title>
-    <link rel="icon" href="data:image/svg+xml,
+    <link rel="icon"
+        href="data:image/svg+xml,
             <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗾</text></svg>" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
     <div id="map"></div>
-    
+
     <div class="control-panel">
         <div class="control-section">
             <label>
                 <input type="radio" name="mode" value="geojson" checked>
-                <span class="selected">ファイルの入出力(GeoJSON)</span>
+                <span class="selected">ファイル・データベース入出力</span>
             </label>
             <label>
                 <input type="radio" name="mode" value="route">
@@ -26,38 +29,62 @@
                 <input type="radio" name="mode" value="spot">
                 <span>スポットの位置編集</span>
             </label>
+            <label>
+                <input type="radio" name="mode" value="area">
+                <span>エリアの位置編集</span>
+            </label>
         </div>
-        
-        <div class="geojson-panel" id="geojsonPanel">
-            <div class="geojson-title">GeoJSONファイルの入出力</div>
 
-            <div class="geojson-controls">
-                <div class="geojson-left">
-                    <label for="fileInput" class="file-input-label">読み込み</label>
-                    <input type="file" id="fileInput" accept=".geojson" />
-                    <button id="exportBtn">出力</button>
+        <div id="fileIoContainer">
+            <div class="stats-panel">
+                <div class="stats-title">読み込んだ情報の件数</div>
+                <div class="stats-grid">
+                    <div class="stats-col-left">
+                        <div class="stats-row">
+                            <span>ファイル</span>
+                            <input type="text" class="stats-input" id="fileCount" readonly>
+                        </div>
+                        <div class="stats-row">
+                            <span>ポイントGPS</span>
+                            <input type="text" class="stats-input" id="pointCount" readonly>
+                        </div>
+                    </div>
+                    <div class="stats-col-right">
+                        <div class="stats-row">
+                            <span>ポイント</span>
+                            <input type="text" class="stats-input" id="waypointCountDisplay" readonly>
+                            <span>点</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>ルート</span>
+                            <input type="text" class="stats-input" id="routeCount" readonly>
+                            <span>本</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>スポット</span>
+                            <input type="text" class="stats-input" id="spotCount" readonly>
+                            <span>個</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>エリア</span>
+                            <input type="text" class="stats-input" id="statsAreaCount" readonly>
+                            <span>件</span>
+                        </div>
+                    </div>
                 </div>
+            </div>
 
-                <div class="geojson-right">
-                    <div class="stats-row">
-                        <span>ファイル</span>
-                        <input type="text" class="stats-input" id="fileCount" readonly>
-                    </div>
-                    <div class="stats-row">
-                        <span>ポイント</span>
-                        <input type="text" class="stats-input" id="pointCount" readonly>
-                        <span>点</span>
-                    </div>
-                    <div class="stats-row">
-                        <span>ルート</span>
-                        <input type="text" class="stats-input" id="routeCount" readonly>
-                        <span>本</span>
-                    </div>
-                    <div class="stats-row">
-                        <span>スポット</span>
-                        <input type="text" class="stats-input" id="spotCount" readonly>
-                        <span>個</span>
-                    </div>
+            <div class="io-controls">
+                <div class="io-row">
+                    <label for="fileInput" class="file-input-label">ポイントGPS(Excel)の読み込み</label>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" />
+                </div>
+                <div class="io-row">
+                    <label for="geoJsonInput" class="file-input-label" id="loadDbBtn">ファイル(GeoJSON)の読み込み</label>
+                    <input type="file" id="geoJsonInput" accept=".geojson" style="display: none;" />
+                </div>
+                <div class="io-row">
+                    <button id="exportBtn">ファイル(GeoJSON)への出力</button>
                 </div>
             </div>
         </div>
@@ -128,9 +155,86 @@
                 <button class="spot-btn" id="deleteSpotBtn">削除</button>
             </div>
         </div>
+
+        <div class="area-panel" id="areaPanel" style="display: none;">
+            <div class="area-title">エリアの位置編集</div>
+
+            <div class="area-count">
+                <span class="area-label">件数:</span>
+                <input type="text" class="area-count-input" id="areaCountDisplay" readonly value="0">
+            </div>
+
+            <div class="area-selector">
+                <span class="area-label">選択:</span>
+                <select class="area-dropdown" id="areaSelect">
+                    <option value="">選択してください</option>
+                </select>
+            </div>
+
+            <div class="area-name">
+                <span class="area-label">名称:</span>
+                <input type="text" class="area-name-input" id="selectedAreaName">
+            </div>
+
+            <div class="area-info">
+                <span class="area-label">頂点:</span>
+                <input type="text" class="area-vertex-count-input" id="selectedAreaVertexCount" readonly>
+                <span class="area-label">点</span>
+                <span class="area-label area-info-spacer">面積:</span>
+                <input type="text" class="area-estimated-area-input" id="selectedAreaEstimatedArea" readonly>
+                <span class="area-label">㎡</span>
+            </div>
+
+            <div class="area-buttons">
+                <button class="area-btn" id="addAreaBtn">エリア追加</button>
+                <button class="area-btn" id="moveAreaBtn">エリア移動</button>
+                <button class="area-btn" id="deleteAreaBtn">エリア削除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GeoJSON読み込み種別選択モーダル -->
+    <div id="geoJsonImportModal" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-title">読み込む種別を選択</div>
+            <div class="modal-row">
+                <label class="modal-check-label">
+                    <input type="checkbox" id="importPoint" checked>
+                    <span>ポイント</span>
+                </label>
+                <span id="importPointCount" class="modal-count">0点</span>
+            </div>
+            <div class="modal-row">
+                <label class="modal-check-label">
+                    <input type="checkbox" id="importRoute" checked>
+                    <span>ルート</span>
+                </label>
+                <span id="importRouteCount" class="modal-count">0本</span>
+            </div>
+            <div class="modal-row">
+                <label class="modal-check-label">
+                    <input type="checkbox" id="importSpot" checked>
+                    <span>スポット</span>
+                </label>
+                <span id="importSpotCount" class="modal-count">0個</span>
+            </div>
+            <div class="modal-row">
+                <label class="modal-check-label">
+                    <input type="checkbox" id="importArea" checked>
+                    <span>エリア</span>
+                </label>
+                <span id="importAreaCount" class="modal-count">0件</span>
+            </div>
+            <div class="modal-actions">
+                <button id="importConfirmBtn" class="modal-btn modal-btn-primary">読み込む</button>
+                <button id="importCancelBtn" class="modal-btn">キャンセル</button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
+
 </html>

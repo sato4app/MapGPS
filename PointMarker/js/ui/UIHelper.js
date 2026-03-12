@@ -20,7 +20,7 @@ export class UIHelper {
      * @param {number} spotIndex - スポットのインデックス
      */
     static focusInputForSpot(spotIndex) {
-        const inputElement = document.querySelector(`input[data-spot-index="${spotIndex}"]`);
+        const inputElement = document.querySelector(`textarea[data-spot-index="${spotIndex}"]`);
         if (inputElement) {
             inputElement.focus();
             // カーソルを末尾に設定

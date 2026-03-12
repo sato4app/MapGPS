@@ -17,13 +17,13 @@ export class GPSData {
     async loadGeoJsonFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            
+
             reader.onload = (e) => {
                 try {
                     const geoJsonData = JSON.parse(e.target.result);
                     const processedData = this.processGeoJsonData(geoJsonData);
                     this.gpsPoints = processedData;
-                    
+
                     this.logger.info(`GeoJSON読み込み完了: GPSポイント ${processedData.length}件`);
                     resolve(processedData);
                 } catch (error) {
@@ -31,13 +31,13 @@ export class GPSData {
                     reject(new Error('GeoJSONデータの処理に失敗しました: ' + error.message));
                 }
             };
-            
+
             reader.onerror = () => {
                 const error = new Error('ファイルの読み込みに失敗しました');
                 this.logger.error('ファイル読み込みエラー', error);
                 reject(error);
             };
-            
+
             reader.readAsText(file);
         });
     }
@@ -45,7 +45,7 @@ export class GPSData {
     // GeoJSONデータ処理
     processGeoJsonData(geoJsonData) {
         const processedData = [];
-        
+
         try {
             if (geoJsonData.type === 'FeatureCollection' && geoJsonData.features) {
                 // FeatureCollection形式の場合
@@ -84,9 +84,9 @@ export class GPSData {
                     processedData.push(point);
                 }
             }
-            
+
             return processedData;
-            
+
         } catch (error) {
             this.logger.error('GeoJSONデータ処理エラー', error);
             throw new Error('GeoJSONデータの形式が正しくありません');
@@ -98,7 +98,7 @@ export class GPSData {
         try {
             this.map = map;
             this.clearMarkersFromMap();
-            
+
             if (!this.gpsPoints || this.gpsPoints.length === 0) {
                 this.logger.warn('表示するGPSポイントがありません');
                 return;
@@ -107,11 +107,11 @@ export class GPSData {
             this.gpsPoints.forEach((point, index) => {
                 const marker = mathUtils.createCustomMarker([point.lat, point.lng], 'gps-point').addTo(map);
                 marker.options.title = point.pointId;
-                
+
                 // ポップアップを設定
                 const popupContent = CoordinateDisplay.createGpsPopupContent(point);
                 marker.bindPopup(popupContent);
-                
+
                 // マーカーを保存
                 this.gpsMarkers.push({
                     marker: marker,
@@ -119,7 +119,7 @@ export class GPSData {
                     index: index
                 });
             });
-            
+
         } catch (error) {
             this.logger.error('GPS ポイント表示エラー', error);
             errorHandler.handle(error, 'GPSポイントの表示に失敗しました。', 'GPS ポイント表示');
@@ -152,6 +152,48 @@ export class GPSData {
             this.gpsPoints = validatedData;
         } catch (error) {
             this.logger.error('Excel GPSポイント設定エラー', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 新しいポイントデータを既存データにマージ（重複チェックあり）
+     * @param {Array} newPoints - 新しいポイントデータ配列
+     * @returns {number} 追加されたポイント数
+     */
+    mergePoints(newPoints) {
+        try {
+            let addedCount = 0;
+            // 既存データがない場合はそのまま設定
+            if (!this.gpsPoints) {
+                this.gpsPoints = [];
+            }
+
+            const currentPoints = [...this.gpsPoints];
+            const EPSILON = 0.0000001; // 座標比較用の許容誤差
+
+            newPoints.forEach(newPoint => {
+                // 重複チェック: ポイントID と 座標(lat, lng) が一致する場合
+                const isDuplicate = currentPoints.some(existing => {
+                    if (existing.pointId !== newPoint.pointId) return false;
+
+                    const latDiff = Math.abs(existing.lat - newPoint.lat);
+                    const lngDiff = Math.abs(existing.lng - newPoint.lng);
+
+                    return latDiff < EPSILON && lngDiff < EPSILON;
+                });
+
+                if (!isDuplicate) {
+                    currentPoints.push(newPoint);
+                    addedCount++;
+                }
+            });
+
+            this.gpsPoints = currentPoints;
+            return addedCount;
+
+        } catch (error) {
+            this.logger.error('GPSポイントマージエラー', error);
             throw error;
         }
     }

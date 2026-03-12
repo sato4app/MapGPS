@@ -9,7 +9,9 @@ export class MarkerSettingsManager {
             point: 6,
             selectedWaypoint: 6,
             unselectedWaypoint: 4,
-            spot: 12
+            unselectedWaypoint: 4,
+            spot: 12,
+            areaVertex: 6
         };
 
         // 現在のマーカーサイズ
@@ -46,15 +48,31 @@ export class MarkerSettingsManager {
             point: document.getElementById('pointSizeInput'),
             selectedWaypoint: document.getElementById('selectedWaypointSizeInput'),
             unselectedWaypoint: document.getElementById('unselectedWaypointSizeInput'),
-            spot: document.getElementById('spotSizeInput')
+            unselectedWaypoint: document.getElementById('unselectedWaypointSizeInput'),
+            spot: document.getElementById('spotSizeInput'),
+            areaVertex: document.getElementById('areaVertexSizeInput')
         };
 
         this.sliders = {
             point: document.getElementById('pointSizeSlider'),
             selectedWaypoint: document.getElementById('selectedWaypointSizeSlider'),
             unselectedWaypoint: document.getElementById('unselectedWaypointSizeSlider'),
-            spot: document.getElementById('spotSizeSlider')
+            unselectedWaypoint: document.getElementById('unselectedWaypointSizeSlider'),
+            spot: document.getElementById('spotSizeSlider'),
+            areaVertex: document.getElementById('areaVertexSizeSlider')
         };
+
+        // タブ要素
+        this.tabs = document.querySelectorAll('.settings-tab-btn');
+        this.tabContents = document.querySelectorAll('.settings-tab-content');
+
+        // データベース操作ボタン
+        this.databaseLoadBtn = document.getElementById('databaseLoadBtn');
+        this.databaseExportBtn = document.getElementById('databaseExportBtn');
+        this.databaseCancelBtn = document.getElementById('databaseCancelBtn');
+
+        // フッター要素
+        this.dialogFooter = this.dialog.querySelector('.settings-dialog-footer');
 
         // ボタン要素の取得
         this.okBtn = document.getElementById('settingsOkBtn');
@@ -96,7 +114,17 @@ export class MarkerSettingsManager {
         this.setupSliderSync('point');
         this.setupSliderSync('selectedWaypoint');
         this.setupSliderSync('unselectedWaypoint');
+        this.setupSliderSync('unselectedWaypoint');
         this.setupSliderSync('spot');
+        this.setupSliderSync('areaVertex');
+
+        // タブ切り替え
+        this.tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+                this.switchTab(targetTab);
+            });
+        });
 
         // オーバーレイクリックで閉じる
         this.overlay.addEventListener('click', (e) => {
@@ -111,6 +139,13 @@ export class MarkerSettingsManager {
                 this.closeDialog();
             }
         });
+
+        // データベースタブのキャンセルボタン
+        if (this.databaseCancelBtn) {
+            this.databaseCancelBtn.addEventListener('click', () => {
+                this.closeDialog();
+            });
+        }
     }
 
     /**
@@ -136,6 +171,50 @@ export class MarkerSettingsManager {
     }
 
     /**
+     * タブを切り替える
+     * @param {string} tabId - タブID ('marker-settings' | 'database-settings')
+     */
+    switchTab(tabId) {
+        // ボタンのアクティブ状態を更新
+        this.tabs.forEach(tab => {
+            if (tab.dataset.tab === tabId) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+
+        // コンテンツの表示状態を更新
+        this.tabContents.forEach(content => {
+            if (content.id === `tab-${tabId}`) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+
+        // フッターの表示切り替え
+        if (tabId === 'database-settings') {
+            this.dialogFooter.style.display = 'none';
+        } else {
+            this.dialogFooter.style.display = 'flex';
+        }
+    }
+
+    /**
+     * データベース操作のリスナーを設定
+     * @param {Object} callbacks - { onLoad: Function, onExport: Function }
+     */
+    setupDatabaseListeners(callbacks) {
+        if (this.databaseLoadBtn && callbacks.onLoad) {
+            this.databaseLoadBtn.addEventListener('click', callbacks.onLoad);
+        }
+        if (this.databaseExportBtn && callbacks.onExport) {
+            this.databaseExportBtn.addEventListener('click', callbacks.onExport);
+        }
+    }
+
+    /**
      * ダイアログを開く
      */
     openDialog() {
@@ -157,6 +236,9 @@ export class MarkerSettingsManager {
         this.inputs.spot.value = this.currentSizes.spot.toFixed(1);
         this.sliders.spot.value = this.currentSizes.spot;
 
+        this.inputs.areaVertex.value = this.currentSizes.areaVertex.toFixed(1);
+        this.sliders.areaVertex.value = this.currentSizes.areaVertex;
+
         // ダイアログを表示
         this.dialog.style.display = 'flex';
     }
@@ -177,7 +259,9 @@ export class MarkerSettingsManager {
             point: parseFloat(this.inputs.point.value),
             selectedWaypoint: parseFloat(this.inputs.selectedWaypoint.value),
             unselectedWaypoint: parseFloat(this.inputs.unselectedWaypoint.value),
-            spot: parseFloat(this.inputs.spot.value)
+            unselectedWaypoint: parseFloat(this.inputs.unselectedWaypoint.value),
+            spot: parseFloat(this.inputs.spot.value),
+            areaVertex: parseFloat(this.inputs.areaVertex.value)
         };
 
         // バリデーション
@@ -205,6 +289,15 @@ export class MarkerSettingsManager {
      * サイズのバリデーション
      */
     validateSizes(sizes) {
+        // 各値が存在し、数値であることを確認
+        if (typeof sizes.point !== 'number' ||
+            typeof sizes.selectedWaypoint !== 'number' ||
+            typeof sizes.unselectedWaypoint !== 'number' ||
+            typeof sizes.spot !== 'number' ||
+            typeof sizes.areaVertex !== 'number') {
+            return false;
+        }
+
         // ポイント: 2-12px
         if (sizes.point < 2 || sizes.point > 12) return false;
 
@@ -216,6 +309,9 @@ export class MarkerSettingsManager {
 
         // スポット: 4-20px
         if (sizes.spot < 4 || sizes.spot > 20) return false;
+
+        // エリア頂点: 2-12px
+        if (sizes.areaVertex < 2 || sizes.areaVertex > 12) return false;
 
         return true;
     }
@@ -240,11 +336,15 @@ export class MarkerSettingsManager {
             if (saved) {
                 const parsed = JSON.parse(saved);
 
+                // デフォルト値とマージして、新しい設定項目（areaVertex等）が欠落しないようにする
+                const merged = { ...this.defaultSizes, ...parsed };
+
                 // バリデーション
-                if (this.validateSizes(parsed)) {
-                    this.currentSizes = parsed;
+                if (this.validateSizes(merged)) {
+                    this.currentSizes = merged;
                 } else {
                     console.warn('保存されたマーカーサイズ設定が無効です。デフォルト値を使用します。');
+                    // 無効な場合はデフォルト値を使用（currentSizesは既にコンストラクタでデフォルト値で初期化されている）
                 }
             }
         } catch (error) {
@@ -294,5 +394,8 @@ export class MarkerSettingsManager {
 
         this.inputs.spot.value = this.defaultSizes.spot.toFixed(1);
         this.sliders.spot.value = this.defaultSizes.spot;
+
+        this.inputs.areaVertex.value = this.defaultSizes.areaVertex.toFixed(1);
+        this.sliders.areaVertex.value = this.defaultSizes.areaVertex;
     }
 }

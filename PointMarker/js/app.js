@@ -2,6 +2,7 @@ import { CanvasRenderer } from './core/Canvas.js';
 import { PointManager } from './data/PointManager.js';
 import { RouteManager } from './data/RouteManager.js';
 import { SpotManager } from './data/SpotManager.js';
+import { AreaManager } from './data/AreaManager.js';
 import { FileHandler } from './data/FileHandler.js';
 import { InputManager } from './ui/InputManager.js';
 import { LayoutManager } from './ui/LayoutManager.js';
@@ -15,6 +16,9 @@ import { ObjectDetector } from './utils/ObjectDetector.js';
 import { DragDropHandler } from './utils/DragDropHandler.js';
 import { ResizeHandler } from './utils/ResizeHandler.js';
 import { FirebaseSyncManager } from './firebase/FirebaseSyncManager.js';
+import { CanvasEventHandler } from './ui/CanvasEventHandler.js';
+import { RouteUIManager } from './ui/RouteUIManager.js';
+import { AreaUIManager } from './ui/AreaUIManager.js';
 
 /**
  * PointMarkerアプリケーションのメインクラス
@@ -29,10 +33,15 @@ export class PointMarkerApp {
         this.pointManager = new PointManager();
         this.routeManager = new RouteManager();
         this.spotManager = new SpotManager();
+        this.areaManager = new AreaManager();
         this.fileHandler = new FileHandler();
         this.inputManager = new InputManager(this.canvas);
         this.layoutManager = new LayoutManager();
         this.validationManager = new ValidationManager();
+
+        this.canvasEventHandler = new CanvasEventHandler(this);
+        this.routeUIManager = new RouteUIManager(this);
+        this.areaUIManager = new AreaUIManager(this);
         this.dragDropHandler = new DragDropHandler();
         this.resizeHandler = new ResizeHandler();
         this.markerSettingsManager = new MarkerSettingsManager();
@@ -48,6 +57,7 @@ export class PointMarkerApp {
             this.pointManager,
             this.spotManager,
             this.routeManager,
+            this.areaManager,
             this.fileHandler
         );
 
@@ -65,18 +75,8 @@ export class PointMarkerApp {
         // ファイルピッカーのアクティブ状態管理（重複呼び出し防止）
         this.isFilePickerActive = false;
 
-        // スポットドラッグ開始時の座標保存（Firebase更新用）
-        this.spotDragStartCoords = null;
+        // CanvasEventHandlerの初期化 (済み)
 
-        // ドラッグ操作完了フラグ（clickイベント抑制用）
-        this.justFinishedDragging = false;
-
-        // 右クリックドラッグ状態（中間点削除用）
-        this.isRightDragging = false;
-        this.rightDragStartX = 0;
-        this.rightDragStartY = 0;
-        this.rightDragCurrentX = 0;
-        this.rightDragCurrentY = 0;
 
         this.initializeCallbacks();
         this.initializeEventListeners();
@@ -94,7 +94,7 @@ export class PointMarkerApp {
                 this.inputManager.redrawInputBoxes(points);
             }
         });
-        
+
         this.pointManager.setCallback('onCountChange', (count) => {
             document.getElementById('pointCount').textContent = count;
         });
@@ -103,11 +103,11 @@ export class PointMarkerApp {
         this.routeManager.setCallback('onChange', () => {
             this.redrawCanvas();
         });
-        
+
         this.routeManager.setCallback('onCountChange', (count) => {
             document.getElementById('waypointCount').textContent = count;
         });
-        
+
         this.routeManager.setCallback('onStartEndChange', (data) => {
             document.getElementById('startPointInput').value = data.start;
             document.getElementById('endPointInput').value = data.end;
@@ -145,7 +145,7 @@ export class PointMarkerApp {
 
         // ルート一覧変更時のコールバック
         this.routeManager.setCallback('onRouteListChange', (routes) => {
-            this.updateRouteDropdown(routes);
+            this.routeUIManager.updateRouteDropdown(routes);
         });
 
         // ルート選択変更時のコールバック
@@ -157,11 +157,20 @@ export class PointMarkerApp {
             }
             // 開始・終了ポイントがスポット名の場合、常に表示するように設定
             this.updateAlwaysVisibleSpotNames();
+
+            // ルート選択時はポイントID表示チェックボックスを強制的にオンにする
+            if (index >= 0) {
+                const checkbox = document.getElementById('showPointIdsCheckbox');
+                if (checkbox && !checkbox.checked) {
+                    checkbox.checked = true;
+                    this.handlePointIdVisibilityChange(true);
+                }
+            }
         });
 
         // ルート更新状態変更時のコールバック
         this.routeManager.setCallback('onModifiedStateChange', (data) => {
-            this.updateRouteDropdown(this.routeManager.getAllRoutes());
+            this.routeUIManager.updateRouteDropdown(this.routeManager.getAllRoutes());
         });
 
         // ルート未選択時のコールバック
@@ -176,7 +185,7 @@ export class PointMarkerApp {
                 this.inputManager.redrawSpotInputBoxes(spots || this.spotManager.getSpots());
             }
         });
-        
+
         this.spotManager.setCallback('onCountChange', (count) => {
             document.getElementById('spotCount').textContent = count;
         });
@@ -184,6 +193,37 @@ export class PointMarkerApp {
         // キャンバスのみの再描画用コールバック（入力ボックス再生成なし）
         this.spotManager.setCallback('onCanvasRedraw', () => {
             this.redrawCanvas();
+        });
+
+        // エリア管理のコールバック
+        this.areaManager.setCallback('onChange', () => {
+            this.redrawCanvas();
+        });
+
+        this.areaManager.setCallback('onCountChange', (count) => {
+            const el = document.getElementById('vertexCount');
+            if (el) el.textContent = count;
+        });
+
+        this.areaManager.setCallback('onAreaListChange', (areas) => {
+            this.areaUIManager.updateAreaDropdown(areas);
+        });
+
+        this.areaManager.setCallback('onSelectionChange', (index) => {
+            const dropdown = document.getElementById('areaSelectDropdown');
+            if (dropdown) {
+                dropdown.value = index >= 0 ? index.toString() : '';
+            }
+            // 入力フィールドも更新
+            this.areaUIManager.updateAreaNameInput();
+        });
+
+        this.areaManager.setCallback('onModifiedStateChange', (data) => {
+            this.areaUIManager.updateAreaDropdown(this.areaManager.getAllAreas());
+        });
+
+        this.areaManager.setCallback('onNoAreaSelected', (message) => {
+            UIHelper.showMessage(message);
         });
 
         // マーカー設定のコールバック
@@ -201,21 +241,17 @@ export class PointMarkerApp {
 
         // 入力管理のコールバック
         this.inputManager.setCallback('onPointIdChange', (data) => {
-            // blur時にIDが空白の場合はポイントを削除
+            // blur時にIDが空白の場合はポイントを削除して終了
             if (!data.skipFormatting && data.id.trim() === '') {
-                // Firebaseからも削除するため、削除前に座標を取得
                 const points = this.pointManager.getPoints();
                 if (data.index >= 0 && data.index < points.length) {
-                    const point = points[data.index];
-                    // Firebase削除処理（非同期だが待たない）
-                    this.firebaseSyncManager.deletePointFromFirebase(point.x, point.y);
+                    // 画面から削除
+                    this.pointManager.removePoint(data.index);
                 }
-                // 画面から削除
-                this.pointManager.removePoint(data.index);
                 return;
             }
 
-            // まずフォーマット処理を実行（blur時もinput時も）
+            // フォーマット処理を実行（blur時もinput時も）
             this.pointManager.updatePointId(data.index, data.id, data.skipFormatting, true);
 
             // blur時のみ、フォーマット後のIDで重複チェックを実行
@@ -250,9 +286,6 @@ export class PointMarkerApp {
                         inputElement.style.borderWidth = '';
                         inputElement.title = '';
                     }
-
-                    // 【リアルタイムFirebase更新】blur時、重複がなく、空白でない場合にFirebase更新
-                    this.firebaseSyncManager.updatePointToFirebase(data.index);
                 }
             }
 
@@ -265,13 +298,13 @@ export class PointMarkerApp {
                 }
             }
         });
-        
+
         this.inputManager.setCallback('onPointRemove', (data) => {
             if (this.layoutManager.getCurrentEditingMode() === 'point') {
                 this.pointManager.removePoint(data.index);
             }
         });
-        
+
         // スポット名変更のコールバック
         this.inputManager.setCallback('onSpotNameChange', (data) => {
             // blur時にスポット名が空白の場合はスポットを削除
@@ -279,23 +312,14 @@ export class PointMarkerApp {
                 // Firebaseからも削除するため、削除前に座標を取得
                 const spots = this.spotManager.getSpots();
                 if (data.index >= 0 && data.index < spots.length) {
-                    const spot = spots[data.index];
-                    // Firebase削除処理（非同期だが待たない）
-                    this.firebaseSyncManager.deleteSpotFromFirebase(spot.x, spot.y);
+                    // 画面から削除
+                    this.spotManager.removeSpot(data.index);
+                    return;
                 }
-                // 画面から削除
-                this.spotManager.removeSpot(data.index);
-                return;
             }
 
             // フォーマット処理を実行（blur時のみ、input時はスキップ）
             this.spotManager.updateSpotName(data.index, data.name, !!data.skipFormatting, !!data.skipDisplay);
-
-            // blur時のみ、フォーマット後のスポット名でFirebase更新
-            if (!data.skipFormatting && data.name.trim() !== '') {
-                // 【リアルタイムFirebase更新】スポット名変更完了時にFirebase更新
-                this.firebaseSyncManager.updateSpotToFirebase(data.index);
-            }
 
             // 入力中の場合は表示更新をスキップ（入力ボックスの値はそのまま維持）
             if (!data.skipDisplay) {
@@ -306,18 +330,15 @@ export class PointMarkerApp {
                 }
             }
         });
-        
+
         this.inputManager.setCallback('onSpotRemove', (data) => {
             if (this.layoutManager.getCurrentEditingMode() === 'spot') {
                 // Firebaseからも削除するため、削除前に座標を取得
                 const spots = this.spotManager.getSpots();
                 if (data.index >= 0 && data.index < spots.length) {
-                    const spot = spots[data.index];
-                    // Firebase削除処理（非同期だが待たない）
-                    this.firebaseSyncManager.deleteSpotFromFirebase(spot.x, spot.y);
+                    // 画面から削除
+                    this.spotManager.removeSpot(data.index);
                 }
-                // 画面から削除
-                this.spotManager.removeSpot(data.index);
             }
         });
 
@@ -329,13 +350,19 @@ export class PointMarkerApp {
                 }, 300);
             }
         });
-        
+
         this.layoutManager.setCallback('onModeChange', (mode) => {
             this.inputManager.setEditMode(mode);
             const pointIdCheckbox = document.getElementById('showPointIdsCheckbox');
             const spotNameCheckbox = document.getElementById('showSpotNamesCheckbox');
 
-            if (mode === 'route') {
+            if (mode === 'area') {
+                // エリア編集モードに切り替えた時、ポイントID表示を維持（または必要に応じて変更）
+                if (pointIdCheckbox) {
+                    pointIdCheckbox.checked = true;
+                    this.handlePointIdVisibilityChange(true);
+                }
+            } else if (mode === 'route') {
                 // ルート編集モードに切り替えた時、既存の開始・終了ポイントを強調表示
                 const startEndPoints = this.routeManager.getStartEndPoints();
                 const highlightIds = [];
@@ -405,23 +432,39 @@ export class PointMarkerApp {
      */
     initializeEventListeners() {
         // 画像選択
-        const imageInputBtn = document.getElementById('imageInputBtn');
-        imageInputBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            await this.handleImageSelection();
-        });
+        // Stage 1: 画像読み込み
+        const stage1ImageBtn = document.getElementById('stage1ImageBtn');
+        if (stage1ImageBtn) {
+            stage1ImageBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await this.handleImageSelection();
+            });
+        }
 
-        // キャンバスクリック
-        this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+        // JSON読み込み
+        const loadJsonBtn = document.getElementById('loadJsonBtn');
+        if (loadJsonBtn) {
+            loadJsonBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await this.handleInput();
+            });
+        }
 
-        // キャンバス右クリック（コンテキストメニュー）
-        this.canvas.addEventListener('contextmenu', (e) => this.handleCanvasContextMenu(e));
+        // JSON保存
+        const saveJsonBtn = document.getElementById('saveJsonBtn');
+        if (saveJsonBtn) {
+            saveJsonBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await this.handleOutput();
+            });
+        }
 
-        // マウス移動（ホバー検出・ドラッグ処理）
-        this.canvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
-        this.canvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
-        this.canvas.addEventListener('mouseup', (e) => this.handleCanvasMouseUp(e));
-        
+        // キャンバスイベント
+        this.canvas.addEventListener('mousedown', (e) => this.canvasEventHandler.handleCanvasMouseDown(e));
+        this.canvas.addEventListener('mousemove', (e) => this.canvasEventHandler.handleCanvasMouseMove(e));
+        this.canvas.addEventListener('mouseup', (e) => this.canvasEventHandler.handleCanvasMouseUp(e));
+        this.canvas.addEventListener('click', (e) => this.canvasEventHandler.handleCanvasClick(e));
+        this.canvas.addEventListener('contextmenu', (e) => this.canvasEventHandler.handleCanvasContextMenu(e));
 
 
         // ズーム・パンコントロール
@@ -477,6 +520,45 @@ export class PointMarkerApp {
             this.markerSettingsManager.openDialog();
         });
 
+        // データベース操作のリスナー設定
+        this.markerSettingsManager.setupDatabaseListeners({
+            onLoad: async (e) => {
+                e.preventDefault();
+                // 読み込み時にFirebaseへ接続（未接続の場合のみ）
+                try {
+                    if (window.connectFirebase) {
+                        await window.connectFirebase();
+                    }
+                } catch (error) {
+                    return; // 接続失敗時は処理中断
+                }
+                // FirebaseSyncManager側でデータがある場合のみ確認が入るので、ここは直接呼び出す
+                await this.firebaseSyncManager.loadFromFirebase((points, routes, spots) => {
+                    // 読み込み完了時の処理
+                    this.redrawCanvas();
+                    this.markerSettingsManager.closeDialog();
+                });
+            },
+            onExport: async (e) => {
+                e.preventDefault();
+                // 保存確認
+                if (!confirm('現在のデータをデータベースに上書き保存しますか？')) {
+                    return;
+                }
+                // 保存時にFirebaseへ接続（未接続の場合のみ）
+                try {
+                    if (window.connectFirebase) {
+                        await window.connectFirebase();
+                    }
+                } catch (error) {
+                    return; // 接続失敗時は処理中断
+                }
+                await this.firebaseSyncManager.saveAllToFirebase();
+                // 保存後はダイアログを閉じる
+                this.markerSettingsManager.closeDialog();
+            }
+        });
+
         // 開始・終了ポイント入力
         const startPointInput = document.getElementById('startPointInput');
         const endPointInput = document.getElementById('endPointInput');
@@ -486,7 +568,7 @@ export class PointMarkerApp {
             if (e.target.hasAttribute('readonly')) {
                 const confirmed = confirm('開始ポイントを変更しますか？\n変更すると中間点がクリアされます。');
                 if (confirmed) {
-                    this.handleRoutePointEditRequest('start');
+                    this.routeUIManager.handleRoutePointEditRequest('start');
                 }
             }
         });
@@ -495,7 +577,7 @@ export class PointMarkerApp {
             if (e.target.hasAttribute('readonly')) {
                 const confirmed = confirm('終了ポイントを変更しますか？\n変更すると中間点がクリアされます。');
                 if (confirmed) {
-                    this.handleRoutePointEditRequest('end');
+                    this.routeUIManager.handleRoutePointEditRequest('end');
                 }
             }
         });
@@ -504,14 +586,14 @@ export class PointMarkerApp {
         startPointInput.addEventListener('blur', (e) => {
             const inputValue = e.target.value.trim();
             const previousValue = this.routeManager.getStartEndPoints().start;
-            const newValue = this.handleRoutePointBlur(inputValue, 'start', previousValue);
+            const newValue = this.routeUIManager.handleRoutePointBlur(inputValue, 'start', previousValue);
             e.target.value = newValue;
         });
 
         endPointInput.addEventListener('blur', (e) => {
             const inputValue = e.target.value.trim();
             const previousValue = this.routeManager.getStartEndPoints().end;
-            const newValue = this.handleRoutePointBlur(inputValue, 'end', previousValue);
+            const newValue = this.routeUIManager.handleRoutePointBlur(inputValue, 'end', previousValue);
             e.target.value = newValue;
         });
 
@@ -544,13 +626,77 @@ export class PointMarkerApp {
         // ルート操作ボタン
         document.getElementById('addRouteBtn').addEventListener('click', (e) => {
             e.preventDefault();
-            this.handleAddRoute();
+            this.routeUIManager.handleAddRoute();
         });
 
         document.getElementById('deleteRouteBtn').addEventListener('click', (e) => {
             e.preventDefault();
-            this.handleDeleteRoute();
+            this.routeUIManager.handleDeleteRoute();
         });
+
+        // エリア選択ドロップダウン
+        const areaDropdown = document.getElementById('areaSelectDropdown');
+        if (areaDropdown) {
+            areaDropdown.addEventListener('change', (e) => {
+                const selectedIndex = e.target.value === '' ? -1 : parseInt(e.target.value);
+                this.areaManager.selectArea(selectedIndex);
+
+                if (selectedIndex >= 0) {
+                    const areas = this.areaManager.getAllAreas();
+                    const selectedArea = areas[selectedIndex];
+                    if (selectedArea) {
+                        UIHelper.showMessage(`エリア "${selectedArea.areaName}" を選択しました`, 'info');
+                    }
+                } else {
+                    UIHelper.showMessage('エリア選択を解除しました', 'info');
+                }
+
+                // 入力フィールドの更新は updateAreaDropdown 経由または setCallback('onSelectionChange') で行われるが、
+                // ここでも念のため更新を呼ぶか、Managerの通知に任せる。
+                // 今回はManagerの onSelectionChange コールバックで updateSelectDropdown が呼ばれ、
+                // そこから updateAreaNameInput を呼ぶように修正したほうがきれいだが、
+                // 既存実装では onSelectionChange -> dropdown.value更新のみ。
+                // なので、コールバック側を修正する。
+            });
+        }
+
+        // エリア操作ボタン
+        const addAreaBtn = document.getElementById('addAreaBtn');
+        if (addAreaBtn) {
+            addAreaBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.areaUIManager.handleAddArea();
+            });
+        }
+
+        const deleteAreaBtn = document.getElementById('deleteAreaBtn');
+        if (deleteAreaBtn) {
+            deleteAreaBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.areaUIManager.handleDeleteArea();
+            });
+        }
+
+        const renameAreaBtn = document.getElementById('renameAreaBtn');
+        if (renameAreaBtn) {
+            renameAreaBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.areaUIManager.handleRenameArea();
+            });
+        }
+
+        // エリア名入力フィールド
+        const areaNameInput = document.getElementById('areaNameInput');
+        if (areaNameInput) {
+            // changeイベント（Enter押下またはフォーカスアウト時）
+            areaNameInput.addEventListener('change', (e) => {
+                this.areaUIManager.handleAreaNameChange(e.target.value);
+            });
+            // フォーカス時に全選択
+            areaNameInput.addEventListener('focus', (e) => {
+                e.target.select();
+            });
+        }
 
         // ポイントID表示切り替えチェックボックス
         document.getElementById('showPointIdsCheckbox').addEventListener('change', (e) => {
@@ -559,7 +705,7 @@ export class PointMarkerApp {
 
         // スポット名表示切り替えチェックボックス
         document.getElementById('showSpotNamesCheckbox').addEventListener('change', (e) => {
-            this.handleSpotNameVisibilityChange(e.target.checked);
+            this.handleSpotNameVisibilityChange(e.target.checked, true);
         });
 
         // ウィンドウリサイズ
@@ -576,7 +722,23 @@ export class PointMarkerApp {
      * 基本コントロールを有効化
      */
     enableBasicControls() {
-        // 初期状態では画像読み込み前なので無効化
+        // 初期状態: Stage 1のみ表示
+        this.setUIStage(1);
+    }
+
+    /**
+     * UIのステージを設定
+     * @param {number} stage - 1: 画像読み込み, 2: 入力, 3: 出力
+     */
+    setUIStage(stage) {
+        const stage1 = document.getElementById('stage1-container');
+        const fileOps = document.getElementById('file-operations-container');
+
+        if (stage1 && fileOps) {
+            stage1.style.display = stage === 1 ? 'block' : 'none';
+            // Stage 2以降はファイル操作ボタンを表示
+            fileOps.style.display = stage >= 2 ? 'flex' : 'none';
+        }
     }
 
     /**
@@ -606,7 +768,7 @@ export class PointMarkerApp {
         try {
             this.isFilePickerActive = true;
             const result = await this.fileHandler.selectImage();
-            await this.processLoadedImage(result.image, result.fileName);
+            await this.processLoadedImage(result.image, result.fileName, result.fullFileName);
         } catch (error) {
             if (error.message !== 'ファイル選択がキャンセルされました') {
                 alert('画像選択中にエラーが発生しました: ' + error.message);
@@ -621,7 +783,7 @@ export class PointMarkerApp {
      * @param {HTMLImageElement} image - 読み込まれた画像
      * @param {string} fileName - ファイル名
      */
-    async processLoadedImage(image, fileName) {
+    async processLoadedImage(image, fileName, fullFileName = '') {
         this.currentImage = image;
         this.canvasRenderer.setImage(image);
         this.canvasRenderer.setupCanvas(this.layoutManager.getCurrentLayout());
@@ -630,92 +792,196 @@ export class PointMarkerApp {
         this.layoutManager.setDefaultPointMode();
         UIHelper.showMessage(`画像「${fileName}」を読み込みました`);
 
+        // ファイル名表示を更新
+        const filenameDisplay = document.getElementById('imageFilenameDisplay');
+        if (filenameDisplay) {
+            filenameDisplay.textContent = fullFileName || `${fileName}.png`; // fallback
+            filenameDisplay.style.display = 'block';
+        }
+
         // FirebaseSyncManagerに画像とキャンバスを設定
         this.firebaseSyncManager.setImageAndCanvas(image, this.canvas);
 
-        // Firebaseから自動的にデータを読み込み
-        await this.firebaseSyncManager.loadFromFirebase((loadedPoints, loadedRoutes, loadedSpots) => {
-            // UIを更新
-            this.inputManager.redrawInputBoxes(this.pointManager.getPoints());
-            this.inputManager.redrawSpotInputBoxes(this.spotManager.getSpots());
-            this.viewportManager.updatePopupPositions();
-            this.redrawCanvas();
+        // Stage 2へ移行
+        this.setUIStage(2);
+    }
 
-            // ポイント数・スポット数を更新
-            document.getElementById('pointCount').textContent = loadedPoints;
-            document.getElementById('spotCount').textContent = loadedSpots;
+    /**
+     * データ入力処理
+     */
+    async handleInput() {
+        try {
+            const file = await this.fileHandler.selectJsonFile();
+            const result = await this.fileHandler.importProjectData(
+                {
+                    pointManager: this.pointManager,
+                    routeManager: this.routeManager,
+                    spotManager: this.spotManager,
+                    areaManager: this.areaManager
+                },
+                file,
+                this.canvas.width, this.canvas.height, // 現在のキャンバスサイズ
+                this.currentImage.width, this.currentImage.height // 元画像サイズ
+            );
 
-            // 中間点数は選択されたルートのものを表示（初期状態は0）
-            document.getElementById('waypointCount').textContent = 0;
+            this.redrawAndSyncUI(result.pointsCount, result.routesCount, result.spotsCount);
+            const loadParts = [];
+            if (result.pointsCount > 0) loadParts.push(`ポイント: ${result.pointsCount}`);
+            if (result.routesCount > 0) loadParts.push(`ルート: ${result.routesCount}`);
+            if (result.spotsCount > 0) loadParts.push(`スポット: ${result.spotsCount}`);
+            if (result.areasCount > 0) loadParts.push(`エリア: ${result.areasCount}`);
+            const loadDetail = loadParts.length > 0 ? ` (${loadParts.join(', ')})` : '';
+            UIHelper.showMessage(`ファイルからデータを読み込みました${loadDetail}`);
+
+            // Stage 2へ移行 (読み込み直後と同じ状態)
+            this.setUIStage(2);
+
+        } catch (error) {
+            console.error('入力エラー:', error);
+            if (error.message !== 'ファイル選択がキャンセルされました') {
+                UIHelper.showError('データの読み込みに失敗しました: ' + error.message);
+            }
+        }
+    }
+
+    /**
+     * 保存対象選択ダイアログを表示し、選択結果を返す
+     * @param {{points:number, routes:number, spots:number, areas:number}} counts - 各データの件数
+     * @returns {Promise<{points:boolean, routes:boolean, spots:boolean, areas:boolean}|null>}
+     */
+    showSaveSelectionDialog(counts) {
+        return new Promise((resolve) => {
+            const dialog = document.getElementById('saveSelectionDialog');
+            const okBtn = document.getElementById('saveSelectionOkBtn');
+            const cancelBtn = document.getElementById('saveSelectionCancelBtn');
+
+            // 件数表示と、0件の場合はチェックをオフ
+            const items = [
+                { cbId: 'savePoints', countId: 'savePointsCount', count: counts.points, unit: '点' },
+                { cbId: 'saveRoutes', countId: 'saveRoutesCount', count: counts.routes, unit: '本' },
+                { cbId: 'saveSpots',  countId: 'saveSpotsCount',  count: counts.spots,  unit: '個' },
+                { cbId: 'saveAreas',  countId: 'saveAreasCount',  count: counts.areas,  unit: '件' }
+            ];
+            items.forEach(({ cbId, countId, count, unit }) => {
+                const cb = document.getElementById(cbId);
+                cb.checked = count > 0;
+                document.getElementById(countId).textContent = `${count}${unit}`;
+            });
+
+            dialog.style.display = 'flex';
+
+            const cleanup = () => {
+                dialog.style.display = 'none';
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+            };
+
+            const onOk = () => {
+                cleanup();
+                resolve({
+                    points: document.getElementById('savePoints').checked,
+                    routes: document.getElementById('saveRoutes').checked,
+                    spots: document.getElementById('saveSpots').checked,
+                    areas: document.getElementById('saveAreas').checked
+                });
+            };
+
+            const onCancel = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
         });
     }
 
     /**
-     * 指定座標上のオブジェクト（ポイント/スポット）を検出
-     * @param {number} mouseX - マウスX座標
-     * @param {number} mouseY - マウスY座標
-     * @returns {{type: string, index: number} | null} 検出されたオブジェクト情報
+     * データ出力処理
      */
-    findObjectAtMouse(mouseX, mouseY) {
-        const managers = {
-            pointManager: this.pointManager,
-            spotManager: this.spotManager,
-            routeManager: null // ルート中間点は別途チェック
-        };
-        const result = ObjectDetector.findObjectAt(mouseX, mouseY, managers);
-        return result ? { type: result.type, index: result.index } : null;
+    async handleOutput() {
+        try {
+            const projectId = this.fileHandler.getCurrentImageFileName() || 'project_data';
+
+            // ファイル名生成ロジック（画像ファイル略称：区切り文字の前まで）
+            const abbrMatch = projectId.match(/^[^-_ ]+/);
+            const abbr = abbrMatch ? abbrMatch[0] : projectId;
+
+            // 各データの件数を事前に計算
+            const counts = {
+                points: this.pointManager.getPoints().filter(p => p.id && p.id.trim() !== '').length,
+                routes: this.routeManager.getAllRoutes().length,
+                spots:  this.spotManager.getSpots().filter(s => s.name && s.name.trim() !== '').length,
+                areas:  this.areaManager.getAllAreas().filter(a => a.areaName && a.areaName.trim() !== '').length
+            };
+
+            // 保存対象選択ダイアログを表示（件数を渡す）
+            const saveOptions = await this.showSaveSelectionDialog(counts);
+            if (!saveOptions) return; // キャンセル
+
+            // 選択対象のみカウント（ファイル名用）
+            const pointCount = saveOptions.points ? counts.points : 0;
+            const routeCount = saveOptions.routes ? counts.routes : 0;
+            const spotCount  = saveOptions.spots  ? counts.spots  : 0;
+            const areaCount  = saveOptions.areas  ? counts.areas  : 0;
+
+            // ファイル名構築
+            const now = new Date();
+            const dateSuffix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+            let filename = abbr;
+            if (pointCount > 0) filename += `_P${pointCount}`;
+            if (routeCount > 0) filename += `_R${routeCount}`;
+            if (spotCount > 0) filename += `_S${spotCount}`;
+            if (areaCount > 0) filename += `_A${areaCount}`;
+            filename += `-${dateSuffix}.json`;
+
+            await this.fileHandler.exportProjectData(
+                {
+                    pointManager: this.pointManager,
+                    routeManager: this.routeManager,
+                    spotManager: this.spotManager,
+                    areaManager: this.areaManager
+                },
+                this.fileHandler.getCurrentImageFileName() + '.png',
+                this.canvas.width, this.canvas.height,
+                this.currentImage.width, this.currentImage.height,
+                filename,
+                saveOptions
+            );
+
+            // 出力が完了したら、入力ボタン（Stage 2）を表示
+            this.setUIStage(2);
+
+        } catch (error) {
+            console.error('出力エラー:', error);
+            if (error.message !== 'ファイル保存がキャンセルされました') {
+                UIHelper.showError('データの保存に失敗しました: ' + error.message);
+            }
+        }
     }
 
-
-
     /**
-     * キャンバスマウス移動処理
-     * @param {MouseEvent} event - マウスイベント
+     * UI同期と再描画
      */
-    handleCanvasMouseMove(event) {
-        if (!this.currentImage) return;
+    redrawAndSyncUI(pointCount, routeCount, spotCount) {
+        // UIを更新
+        this.inputManager.redrawInputBoxes(this.pointManager.getPoints());
+        this.inputManager.redrawSpotInputBoxes(this.spotManager.getSpots());
+        this.viewportManager.updatePopupPositions();
+        this.redrawCanvas();
 
-        // ズーム・パン情報を取得
-        const scale = this.canvasRenderer.getScale();
-        const offset = this.canvasRenderer.getOffset();
+        // ポイント数・スポット数を更新
+        if (pointCount !== undefined) document.getElementById('pointCount').textContent = pointCount;
+        if (spotCount !== undefined) document.getElementById('spotCount').textContent = spotCount;
 
-        // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
-        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
+        // 中間点数は初期化
+        document.getElementById('waypointCount').textContent = 0;
 
-        // 右クリックドラッグ中の処理（削除矩形の描画）
-        if (this.isRightDragging) {
-            this.rightDragCurrentX = coords.x;
-            this.rightDragCurrentY = coords.y;
+        // ルートドロップダウン更新
+        this.routeUIManager.updateRouteDropdown(this.routeManager.getAllRoutes());
 
-            // キャンバス再描画 + 削除矩形の描画
-            this.redrawCanvas();
-
-            // 削除範囲の長方形を描画（ドラッグ開始点と終了点を角とする）
-            this.canvasRenderer.drawDeletionRectangle(
-                this.rightDragStartX,
-                this.rightDragStartY,
-                this.rightDragCurrentX,
-                this.rightDragCurrentY
-            );
-            return;
-        }
-
-        // ドラッグ中の処理
-        if (this.dragDropHandler.updateDrag(coords.x, coords.y, this.pointManager, this.spotManager, this.routeManager)) {
-            this.redrawCanvas();
-            return;
-        }
-
-        // ホバー処理
-        const mode = this.layoutManager.getCurrentEditingMode();
-        let hasObject = this.findObjectAtMouse(coords.x, coords.y) !== null;
-
-        // ルート編集モード時は中間点もホバー対象
-        if (mode === 'route' && !hasObject) {
-            hasObject = this.routeManager.findRoutePointAt(coords.x, coords.y) !== null;
-        }
-
-        this.updateCursor(hasObject);
+        // エリアドロップダウン更新
+        this.areaUIManager.updateAreaDropdown(this.areaManager.getAllAreas());
     }
 
     /**
@@ -725,391 +991,6 @@ export class PointMarkerApp {
     updateCursor(hasObject) {
         // カーソルは常にcrosshairで固定
         this.canvas.style.cursor = 'crosshair';
-    }
-
-    /**
-     * キャンバスマウスダウン処理
-     * @param {MouseEvent} event - マウスイベント
-     */
-    handleCanvasMouseDown(event) {
-        if (!this.currentImage) return;
-
-        // ズーム・パン情報を取得
-        const scale = this.canvasRenderer.getScale();
-        const offset = this.canvasRenderer.getOffset();
-
-        // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
-        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
-        const mode = this.layoutManager.getCurrentEditingMode();
-
-        // 右クリック（button === 2）の場合、削除範囲ドラッグ開始
-        if (event.button === 2 && mode === 'route') {
-            this.isRightDragging = true;
-            this.rightDragStartX = coords.x;
-            this.rightDragStartY = coords.y;
-            this.rightDragCurrentX = coords.x;
-            this.rightDragCurrentY = coords.y;
-            event.preventDefault();
-            return;
-        }
-
-        // ルート編集モードの場合、中間点ドラッグを優先チェック
-        if (mode === 'route') {
-            const routePointInfo = this.routeManager.findRoutePointAt(coords.x, coords.y);
-            if (routePointInfo) {
-                const selectedRoute = this.routeManager.getSelectedRoute();
-                // ルートが選択されていない場合
-                if (!selectedRoute) {
-                    UIHelper.showWarning('ルートが選択されていません。ルートを選択または追加してください');
-                    event.preventDefault();
-                    return;
-                }
-                // 開始・終了ポイントが設定済みの場合のみドラッグ可能
-                if (selectedRoute.startPointId && selectedRoute.endPointId) {
-                    this.dragDropHandler.startDrag(
-                        'routePoint',
-                        routePointInfo.index,
-                        coords.x,
-                        coords.y,
-                        routePointInfo.point
-                    );
-                    event.preventDefault();
-                } else {
-                    UIHelper.showWarning('開始ポイントと終了ポイントを先に選択してください');
-                    event.preventDefault();
-                }
-                return;
-            }
-        }
-
-        // ポイント・スポットのドラッグ処理
-        const objectInfo = this.findObjectAtMouse(coords.x, coords.y);
-        if (!objectInfo) return;
-
-        // 適切なモードでのドラッグ開始をチェック
-        const canDrag = (objectInfo.type === 'point' && mode === 'point') ||
-                        (objectInfo.type === 'spot' && mode === 'spot');
-
-        if (canDrag) {
-            const object = objectInfo.type === 'point'
-                ? this.pointManager.getPoints()[objectInfo.index]
-                : this.spotManager.getSpots()[objectInfo.index];
-
-            // スポットドラッグ開始時に元の座標を保存（Firebase更新用）
-            if (objectInfo.type === 'spot') {
-                this.spotDragStartCoords = {
-                    x: object.x,
-                    y: object.y
-                };
-            }
-
-            this.dragDropHandler.startDrag(
-                objectInfo.type,
-                objectInfo.index,
-                coords.x,
-                coords.y,
-                object
-            );
-
-            event.preventDefault();
-        }
-    }
-
-    /**
-     * キャンバスマウスアップ処理
-     * @param {MouseEvent} event - マウスイベント
-     */
-    async handleCanvasMouseUp(event) {
-        // 右クリックドラッグ終了時の処理
-        if (this.isRightDragging) {
-            // ドラッグ距離を計算（3px以上移動していたらドラッグ扱い）
-            const dragDistance = Math.sqrt(
-                Math.pow(this.rightDragCurrentX - this.rightDragStartX, 2) +
-                Math.pow(this.rightDragCurrentY - this.rightDragStartY, 2)
-            );
-
-            // 右クリックドラッグ状態をリセット
-            this.isRightDragging = false;
-            this.redrawCanvas(); // 矩形を消す
-
-            if (dragDistance >= 3) {
-                // ドラッグ扱い：矩形内の中間点を検索
-                const pointsInRect = this.routeManager.findRoutePointsInRectangle(
-                    this.rightDragStartX,
-                    this.rightDragStartY,
-                    this.rightDragCurrentX,
-                    this.rightDragCurrentY
-                );
-
-                // 中間点が見つかった場合、確認後に削除
-                if (pointsInRect.length > 0) {
-                    const confirmed = confirm(`${pointsInRect.length}個のルート中間点を削除しますか？`);
-
-                    if (confirmed) {
-                        // 削除実行
-                        const indices = pointsInRect.map(p => p.index);
-                        const deletedCount = this.routeManager.removeRoutePoints(indices);
-
-                        // Firebase自動保存
-                        await this.handleSaveRoute();
-
-                        UIHelper.showMessage(`${deletedCount}個のルート中間点を削除しました`);
-                    } else {
-                        // キャンセル時はメッセージのみ表示
-                        UIHelper.showMessage('削除をキャンセルしました');
-                    }
-                } else {
-                    UIHelper.showWarning('削除対象の中間点が見つかりませんでした');
-                }
-            }
-
-            event.preventDefault();
-            return;
-        }
-
-        // ポイントドラッグ終了時のコールバック
-        const onPointDragEnd = (pointIndex) => {
-            // 【リアルタイムFirebase更新】ポイント移動完了時にFirebase更新
-            this.firebaseSyncManager.updatePointToFirebase(pointIndex);
-        };
-
-        // スポットドラッグ終了時のコールバック
-        const onSpotDragEnd = async (spotIndex) => {
-            // 【リアルタイムFirebase更新】スポット移動完了時にFirebase更新
-            // 移動前の座標のデータを削除してから、新しい座標で追加
-            if (this.spotDragStartCoords) {
-                const spots = this.spotManager.getSpots();
-                if (spotIndex >= 0 && spotIndex < spots.length) {
-                    const currentSpot = spots[spotIndex];
-                    // 座標が変わった場合のみ、古いデータを削除
-                    if (this.spotDragStartCoords.x !== currentSpot.x ||
-                        this.spotDragStartCoords.y !== currentSpot.y) {
-                        await this.firebaseSyncManager.deleteSpotFromFirebase(this.spotDragStartCoords.x, this.spotDragStartCoords.y);
-                    }
-                }
-                this.spotDragStartCoords = null; // リセット
-            }
-            // 新しい座標で更新/追加
-            await this.firebaseSyncManager.updateSpotToFirebase(spotIndex);
-        };
-
-        // ルート中間点ドラッグ終了時のコールバック
-        const onRoutePointDragEnd = async (routePointIndex) => {
-            // 中間点移動後、自動保存
-            await this.handleSaveRoute();
-        };
-
-        const dragInfo = this.dragDropHandler.endDrag(this.inputManager, this.pointManager, onPointDragEnd, onSpotDragEnd, onRoutePointDragEnd);
-
-        // ドラッグ操作だった場合、clickイベントの発火を防止
-        if (dragInfo.wasDragging && dragInfo.hasMoved) {
-            this.justFinishedDragging = true;
-            event.preventDefault();
-        }
-    }
-
-    /**
-     * キャンバスクリック処理
-     * @param {MouseEvent} event - マウスイベント
-     */
-    handleCanvasClick(event) {
-        // ドラッグ直後の場合はクリック処理をスキップ
-        if (this.justFinishedDragging) {
-            this.justFinishedDragging = false;
-            return;
-        }
-
-        // ドラッグ中の場合はクリック処理をスキップ
-        if (!this.currentImage || this.dragDropHandler.isDraggingObject()) return;
-
-        // ズーム・パン情報を取得
-        const scale = this.canvasRenderer.getScale();
-        const offset = this.canvasRenderer.getOffset();
-
-        // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
-        const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
-        const mode = this.layoutManager.getCurrentEditingMode();
-
-        const objectInfo = this.findObjectAtMouse(coords.x, coords.y);
-
-        // ルート編集モードの場合の処理
-        if (mode === 'route') {
-            // ポイントまたはスポットをクリックした場合
-            if (objectInfo && (objectInfo.type === 'point' || objectInfo.type === 'spot')) {
-                this.handleRoutePointSelection(objectInfo);
-                return;
-            }
-            // 開始・終了ポイントが設定済みの場合のみ中間点を追加
-            const selectedRoute = this.routeManager.getSelectedRoute();
-            // ルートが選択されていない場合
-            if (!selectedRoute) {
-                UIHelper.showWarning('ルートが選択されていません。ルートを選択または追加してください');
-                return;
-            }
-            if (selectedRoute.startPointId && selectedRoute.endPointId) {
-                this.handleNewObjectCreation(coords, mode);
-            } else {
-                UIHelper.showWarning('開始ポイントと終了ポイントを先に選択してください');
-            }
-            return;
-        }
-
-        // 既存オブジェクトクリック時の処理
-        if (objectInfo) {
-            this.handleExistingObjectClick(objectInfo, mode);
-            return;
-        }
-
-        // 新規オブジェクト作成
-        this.handleNewObjectCreation(coords, mode);
-    }
-
-    /**
-     * キャンバス右クリック処理（中間点削除）
-     * @param {MouseEvent} event - マウスイベント
-     */
-    async handleCanvasContextMenu(event) {
-        // デフォルトのコンテキストメニューを抑制
-        event.preventDefault();
-
-        if (!this.currentImage) return;
-
-        const mode = this.layoutManager.getCurrentEditingMode();
-
-        // ルート編集モードの場合のみ処理
-        if (mode === 'route') {
-            // ズーム・パン情報を取得
-            const scale = this.canvasRenderer.getScale();
-            const offset = this.canvasRenderer.getOffset();
-
-            // マウス座標をキャンバス座標に変換（ズーム・パン逆変換適用）
-            const coords = CoordinateUtils.mouseToCanvas(event, this.canvas, scale, offset.x, offset.y);
-
-            // 最も近い中間点を検索（最大50px以内）
-            const nearestInfo = this.routeManager.findNearestRoutePoint(coords.x, coords.y, 50);
-
-            if (nearestInfo) {
-                // 中間点を削除
-                const deleted = this.routeManager.removeRoutePoint(nearestInfo.index);
-
-                if (deleted) {
-                    // Firebase自動保存
-                    await this.handleSaveRoute();
-
-                    // 削除成功メッセージ
-                    UIHelper.showMessage('ルート中間点を削除しました');
-                }
-            } else {
-                UIHelper.showWarning('近くに中間点が見つかりませんでした');
-            }
-        }
-    }
-
-    /**
-     * 既存オブジェクトクリック時の処理
-     * @param {Object} objectInfo - オブジェクト情報
-     * @param {string} mode - 編集モード
-     */
-    handleExistingObjectClick(objectInfo, mode) {
-        if (objectInfo.type === 'point' && mode === 'point') {
-            UIHelper.focusInputForPoint(objectInfo.index);
-        } else if (objectInfo.type === 'spot' && mode === 'spot') {
-            UIHelper.focusInputForSpot(objectInfo.index);
-        }
-    }
-
-    /**
-     * ルート編集モードでポイント/スポット選択時の処理
-     * @param {Object} objectInfo - オブジェクト情報
-     */
-    handleRoutePointSelection(objectInfo) {
-        const selectedRoute = this.routeManager.getSelectedRoute();
-        if (!selectedRoute) {
-            UIHelper.showWarning('先にルートを選択または追加してください');
-            return;
-        }
-
-        let selectedName = '';
-
-        // ポイントIDまたはスポット名を取得
-        if (objectInfo.type === 'point') {
-            const points = this.pointManager.getPoints();
-            const point = points[objectInfo.index];
-            selectedName = point.id || '';
-            if (!selectedName) {
-                UIHelper.showWarning('このポイントにはIDが設定されていません');
-                return;
-            }
-        } else if (objectInfo.type === 'spot') {
-            const spots = this.spotManager.getSpots();
-            const spot = spots[objectInfo.index];
-            selectedName = spot.name || '';
-            if (!selectedName) {
-                UIHelper.showWarning('このスポットには名前が設定されていません');
-                return;
-            }
-        }
-
-        // 開始ポイントが未設定の場合は開始ポイントに設定
-        if (!selectedRoute.startPointId) {
-            this.routeManager.setStartPoint(selectedName, true);
-            UIHelper.showMessage(`開始ポイントを "${selectedName}" に設定しました。終了ポイントを画像上で選択してください`);
-        }
-        // 開始ポイントは設定済みで終了ポイントが未設定の場合は終了ポイントに設定
-        else if (!selectedRoute.endPointId) {
-            this.routeManager.setEndPoint(selectedName, true);
-            UIHelper.showMessage(`終了ポイントを "${selectedName}" に設定しました`);
-            // 両方設定完了したので入力フィールドをreadonly（変更不可）にする
-            this.setRouteInputsEditable(false);
-        }
-        // 両方設定済みの場合は何もしない（中間点追加モード）
-        else {
-            // 中間点追加モードでは、ポイント/スポットクリックでは開始・終了ポイントを変更しない
-            return;
-        }
-    }
-
-    /**
-     * 新規オブジェクト作成処理
-     * @param {Object} coords - 座標
-     * @param {string} mode - 編集モード
-     */
-    async handleNewObjectCreation(coords, mode) {
-        switch (mode) {
-            case 'route':
-                this.routeManager.addRoutePoint(coords.x, coords.y);
-                // 中間点追加後、自動保存
-                await this.handleSaveRoute();
-                break;
-            case 'point':
-                this.createNewPoint(coords);
-                break;
-            case 'spot':
-                this.createNewSpot(coords);
-                break;
-        }
-    }
-
-    /**
-     * 新規ポイント作成
-     * @param {Object} coords - 座標
-     */
-    createNewPoint(coords) {
-        this.pointManager.removeTrailingEmptyUserPoints();
-        this.pointManager.addPoint(coords.x, coords.y);
-        const newIndex = this.pointManager.getPoints().length - 1;
-        setTimeout(() => UIHelper.focusInputForPoint(newIndex), 30);
-    }
-
-    /**
-     * 新規スポット作成
-     * @param {Object} coords - 座標
-     */
-    createNewSpot(coords) {
-        this.spotManager.removeTrailingEmptySpots();
-        this.spotManager.addSpot(coords.x, coords.y);
-        const newIndex = this.spotManager.getSpots().length - 1;
-        setTimeout(() => UIHelper.focusInputForSpot(newIndex), 30);
     }
 
     /**
@@ -1139,32 +1020,17 @@ export class PointMarkerApp {
         this.inputManager.setAlwaysVisibleSpotNames(alwaysVisibleSpotNames);
     }
 
-    /**
-     * ルート選択ドロップダウンを更新
-     * @param {Array} routes - ルート配列
-     */
-    updateRouteDropdown(routes) {
-        const dropdown = document.getElementById('routeSelectDropdown');
-        if (!dropdown) return;
 
-        // 現在の選択を保持
-        const currentSelectedIndex = this.routeManager.selectedRouteIndex;
 
-        // 既存のオプションをクリア（最初の「-- ルートを選択 --」以外）
-        dropdown.innerHTML = '<option value="">-- ルートを選択 --</option>';
 
-        // ルートを追加
-        routes.forEach((route, index) => {
-            const option = document.createElement('option');
-            option.value = index.toString();
-            const routeName = route.routeName || `${route.startPointId} ～ ${route.endPointId}`;
-            option.textContent = routeName;
-            dropdown.appendChild(option);
-        });
 
-        // 選択を復元
-        dropdown.value = currentSelectedIndex >= 0 ? currentSelectedIndex.toString() : '';
-    }
+
+
+
+
+
+
+
 
     /**
      * キャンバスを再描画
@@ -1177,241 +1043,28 @@ export class PointMarkerApp {
             this.pointManager.getPoints(),
             this.routeManager.getRoutePoints(),
             this.spotManager.getSpots(),
+            this.areaManager.getAllAreas(), // エリアデータを渡す
             {
                 showRouteMode: mode === 'route',
                 startPointId: routePoints.start,
                 endPointId: routePoints.end,
                 allRoutes: this.routeManager.getAllRoutes(),
-                selectedRouteIndex: this.routeManager.selectedRouteIndex
+                selectedRouteIndex: this.routeManager.selectedRouteIndex,
+                selectedAreaIndex: this.areaManager.selectedAreaIndex, // エリア選択状態
+                showAreaEditMode: mode === 'area' // エリア編集モード
             }
         );
     }
 
-    /**
-     * ルートポイント（開始・終了）のblur処理を統合処理
-     * @param {string} inputValue - 入力値
-     * @param {string} pointType - ポイントタイプ ('start' or 'end')
-     * @param {string} previousValue - 前回の値
-     * @returns {string} 設定された値
-     */
-    handleRoutePointBlur(inputValue, pointType, previousValue) {
-        const isStartPoint = pointType === 'start';
-        const setPointMethod = isStartPoint ? 'setStartPoint' : 'setEndPoint';
-        const pointLabel = isStartPoint ? '開始ポイント' : '終了ポイント';
-
-        // 入力値が空でない場合のみ処理
-        if (inputValue !== '') {
-            // まず元の入力値でスポット名の部分一致検索
-            const matchingSpots = this.spotManager.findSpotsByPartialName(inputValue);
-
-            if (matchingSpots.length === 1) {
-                // 1件のみ該当する場合、そのスポット名を設定（フォーマット処理も適用）
-                const formattedSpotName = Validators.formatPointId(matchingSpots[0].name);
-                this.routeManager[setPointMethod](formattedSpotName);
-            } else if (matchingSpots.length > 1) {
-                // 複数件該当する場合、ポイントIDとしてフォーマット処理を試みる
-                // （警告は表示せず、バリデーション時にピンク背景で表示）
-                this.routeManager[setPointMethod](inputValue);
-            } else {
-                // スポット名が該当しない場合、ポイントIDとしてフォーマット処理
-                this.routeManager[setPointMethod](inputValue);
-            }
-        } else {
-            // 空の場合はそのまま設定
-            this.routeManager[setPointMethod](inputValue);
-        }
-
-        const newValue = isStartPoint
-            ? this.routeManager.getStartEndPoints().start
-            : this.routeManager.getStartEndPoints().end;
-
-        // 開始・終了ポイント両方の検証フィードバック（複数一致したスポット名を取得）
-        const matchingSpots = ValidationManager.updateBothRoutePointsValidation(this.routeManager, this.pointManager, this.spotManager);
-
-        // 複数一致したスポット名をエラー状態として設定
-        const allMatchingSpotNames = [...matchingSpots.start, ...matchingSpots.end];
-        this.inputManager.setErrorSpotNames(allMatchingSpotNames);
-
-        // 値が変更された場合の処理（ブランクも含む）
-        if (previousValue !== newValue) {
-            this.checkRoutePointChange(previousValue, newValue, pointLabel);
-            // ポイントID表示チェックボックスをオンにする
-            const checkbox = document.getElementById('showPointIdsCheckbox');
-            if (!checkbox.checked) {
-                checkbox.checked = true;
-                this.handlePointIdVisibilityChange(true);
-            }
-        }
-
-        // 開始・終了ポイントがスポット名の場合、常に表示するように設定
-        this.updateAlwaysVisibleSpotNames();
-
-        return newValue;
-    }
 
 
-    /**
-     * ルートポイント変更チェック
-     * @param {string} previousValue - 編集前の値
-     * @param {string} newValue - 編集後の値
-     * @param {string} pointType - ポイントタイプ（'開始ポイント' or '終了ポイント'）
-     */
-    checkRoutePointChange(previousValue, newValue, pointType) {
-        // 値が変更され、かつ中間点が存在する場合
-        if (previousValue !== newValue && this.routeManager.getRoutePoints().length > 0) {
-            const waypointCount = this.routeManager.getRoutePoints().length;
-            const message = `${pointType}が変更されました（${previousValue || '(空)'} → ${newValue || '(空)'}）。\n\n` +
-                `ルート上の中間点（${waypointCount}個）をクリアしますか？`;
-
-            if (confirm(message)) {
-                this.routeManager.clearRoutePoints();
-                UIHelper.showMessage(`${waypointCount}個の中間点をクリアしました`);
-            }
-        }
-    }
 
 
-    /**
-     * 新しいルートを追加
-     */
-    handleAddRoute() {
-        const newRoute = {
-            routeName: `ルート${this.routeManager.getAllRoutes().length + 1}`,
-            startPointId: '',
-            endPointId: '',
-            routePoints: []
-        };
-        this.routeManager.addRoute(newRoute);
-        // 追加したルートを自動選択
-        const newIndex = this.routeManager.getAllRoutes().length - 1;
-        this.routeManager.selectRoute(newIndex);
 
-        // 開始・終了ポイント入力フィールドを編集可能にする
-        this.setRouteInputsEditable(true);
 
-        // ポイントID表示チェックボックスを自動的にONにする
-        const pointIdCheckbox = document.getElementById('showPointIdsCheckbox');
-        if (pointIdCheckbox && !pointIdCheckbox.checked) {
-            pointIdCheckbox.checked = true;
-            this.handlePointIdVisibilityChange(true);
-        }
 
-        UIHelper.showMessage('新しいルートを追加しました。開始ポイントを画像上で選択してください');
-    }
 
-    /**
-     * すべてのルートを保存（Firebase）
-     */
-    async handleSaveRoute() {
-        // Firebaseマネージャーの存在確認
-        if (!window.firestoreManager) {
-            UIHelper.showError('Firebase接続が利用できません');
-            return;
-        }
 
-        const selectedRoute = this.routeManager.getSelectedRoute();
-        if (!selectedRoute) {
-            UIHelper.showError('ルートが選択されていません');
-            return;
-        }
-
-        // 開始・終了ポイントが設定されているか確認
-        if (!selectedRoute.startPointId || !selectedRoute.endPointId) {
-            UIHelper.showError('開始ポイントと終了ポイントを設定してください');
-            return;
-        }
-
-        // 中間点が1件以上設定されているか確認
-        if (!selectedRoute.routePoints || selectedRoute.routePoints.length === 0) {
-            UIHelper.showError('中間点を1件以上設定してください');
-            return;
-        }
-
-        try {
-            // プロジェクトIDを画像ファイル名から取得
-            const projectId = this.fileHandler.getCurrentImageFileName();
-            if (!projectId) {
-                UIHelper.showError('画像ファイル名を取得できません');
-                return;
-            }
-
-            // すべてのルートを保存
-            const allRoutes = this.routeManager.getAllRoutes();
-            let savedCount = 0;
-            let updatedCount = 0;
-            let addedCount = 0;
-            const savedRouteNames = [];
-
-            for (const route of allRoutes) {
-                // 開始・終了ポイント、中間点が設定されていないルートはスキップ
-                if (!route.startPointId || !route.endPointId ||
-                    !route.routePoints || route.routePoints.length === 0) {
-                    continue;
-                }
-
-                // キャンバス座標を画像座標に変換
-                const waypoints = route.routePoints.map(point => {
-                    const imageCoords = CoordinateUtils.canvasToImage(
-                        point.x, point.y,
-                        this.canvas.width, this.canvas.height,
-                        this.currentImage.width, this.currentImage.height
-                    );
-                    return { x: imageCoords.x, y: imageCoords.y };
-                });
-
-                // Firebaseに保存するルートデータ
-                const routeData = {
-                    routeName: route.routeName || `${route.startPointId} ～ ${route.endPointId}`,
-                    startPoint: route.startPointId,
-                    endPoint: route.endPointId,
-                    waypoints: waypoints
-                };
-
-                // 更新されたルートかどうかを記録
-                const wasModified = route.isModified;
-
-                // FirestoreIDがあれば更新、なければ新規追加
-                if (route.firestoreId) {
-                    // 既存ルートを更新
-                    await window.firestoreManager.updateRoute(projectId, route.firestoreId, routeData);
-                    updatedCount++;
-                } else {
-                    // 新規ルートを追加
-                    const result = await window.firestoreManager.addRoute(projectId, routeData);
-                    if (result.status === 'success') {
-                        // FirestoreIDを保存
-                        route.firestoreId = result.firestoreId;
-                        addedCount++;
-                    } else if (result.status === 'duplicate') {
-                        // 重複している場合は既存のFirestoreIDを保存
-                        route.firestoreId = result.existing.firestoreId;
-                        // 既存ルートを更新
-                        await window.firestoreManager.updateRoute(projectId, route.firestoreId, routeData);
-                        updatedCount++;
-                    }
-                }
-
-                // 更新フラグをクリア
-                route.isModified = false;
-                savedCount++;
-
-                // 更新されたルートのみ一覧に追加
-                if (wasModified) {
-                    savedRouteNames.push(routeData.routeName);
-                }
-            }
-
-            // 開始・終了ポイント入力フィールドを読み取り専用にする
-            this.setRouteInputsEditable(false);
-
-            // UI更新
-            this.routeManager.notify('onModifiedStateChange', { isModified: false });
-            this.routeManager.notify('onRouteListChange', allRoutes);
-
-        } catch (error) {
-            UIHelper.showError('ルート保存中にエラーが発生しました: ' + error.message);
-        }
-    }
 
     /**
      * 選択中のルートを削除
@@ -1431,7 +1084,6 @@ export class PointMarkerApp {
                 // Firebaseから削除
                 if (selectedRoute.firestoreId) {
                     const projectId = this.fileHandler.getCurrentImageFileName();
-                    await window.firestoreManager.deleteRoute(projectId, selectedRoute.firestoreId);
                 }
 
                 // RouteManagerから削除
@@ -1507,10 +1159,10 @@ export class PointMarkerApp {
      * スポット名表示/非表示切り替え処理
      * @param {boolean} visible - 表示するかどうか
      */
-    handleSpotNameVisibilityChange(visible) {
+    handleSpotNameVisibilityChange(visible, isUserAction = false) {
         // スポットデータを取得して渡す
         const spots = this.spotManager.getSpots();
-        this.inputManager.setSpotNameVisibility(visible, spots);
+        this.inputManager.setSpotNameVisibility(visible, spots, isUserAction);
     }
 
     /**

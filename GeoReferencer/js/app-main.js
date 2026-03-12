@@ -4,17 +4,13 @@ import { ImageOverlay } from './image-overlay.js';
 import { GPSData } from './gps-data.js';
 import { Georeferencing } from './georeferencing.js';
 import { RouteSpotHandler } from './route-spot-handler.js';
+import { AreaHandler } from './area-handler.js';
 import { CoordinateDisplay } from './coordinate-display.js';
 import { UIHandlers } from './ui-handlers.js';
 import { FileHandler } from './file-handler.js';
+import { DataImporter } from './data-importer.js';
 import { CONFIG, DEFAULTS } from './constants.js';
 import { Logger, errorHandler } from './utils.js';
-
-// Firebase関連
-import { firebaseConfig } from './firebase/firebase.config.js';
-import { FirebaseClient } from './firebase/FirebaseClient.js';
-import { AuthManager } from './firebase/AuthManager.js';
-import { FirestoreDataManager } from './firebase/FirestoreDataManager.js';
 
 // 標高取得
 import { ElevationFetcher } from './elevation-fetcher.js';
@@ -27,6 +23,7 @@ class GeoReferencerApp {
         this.gpsData = null;
         this.georeferencing = null;
         this.routeSpotHandler = null;
+        this.areaHandler = null;
         this.coordinateDisplay = null;
         this.uiHandlers = null;
         this.fileHandler = null;
@@ -35,12 +32,6 @@ class GeoReferencerApp {
 
         // PNG画像ファイル名を記録
         this.currentPngFileName = null;
-
-        // Firebase関連
-        this.firebaseClient = null;
-        this.authManager = null;
-        this.firestoreManager = null;
-        this.currentProjectId = null; // PNG画像ファイル名(拡張子なし)
 
         // 標高取得
         this.elevationFetcher = null;
@@ -51,9 +42,6 @@ class GeoReferencerApp {
     async init() {
         try {
             this.logger.info('アプリケーション初期化開始');
-
-            // Firebase初期化
-            await this.initializeFirebase();
 
             // コアモジュール初期化
             this.mapCore = new MapCore();
@@ -75,42 +63,6 @@ class GeoReferencerApp {
         }
     }
 
-    async initializeFirebase() {
-        try {
-            this.logger.info('Firebase初期化開始');
-
-            // FirebaseClient初期化
-            this.firebaseClient = new FirebaseClient(firebaseConfig);
-            await this.firebaseClient.initialize();
-
-            // AuthManager初期化
-            this.authManager = new AuthManager(this.firebaseClient);
-
-            // 匿名認証
-            const user = await this.authManager.signInAnonymously();
-            this.logger.info('Firebase匿名認証成功', user.uid);
-
-            // FirestoreDataManager初期化（Firestoreインスタンスを渡す）
-            this.firestoreManager = new FirestoreDataManager(this.firebaseClient.getFirestore(), user.uid);
-
-            // ElevationFetcher初期化
-            this.elevationFetcher = new ElevationFetcher(this.firestoreManager);
-
-            // デバッグ用にグローバルスコープに公開
-            window.firebaseClient = this.firebaseClient;
-            window.authManager = this.authManager;
-            window.firestoreManager = this.firestoreManager;
-            window.elevationFetcher = this.elevationFetcher;
-
-            this.logger.info('Firebase初期化完了');
-
-        } catch (error) {
-            this.logger.error('Firebase初期化エラー', error);
-            // Firebase初期化失敗は警告のみで続行
-            errorHandler.handle(error, 'Firebaseの初期化に失敗しました。一部機能が制限されます。', 'Firebase初期化', 'warning');
-        }
-    }
-
     async initializeModules() {
         try {
             // 地図が初期化されていることを確認
@@ -123,17 +75,23 @@ class GeoReferencerApp {
             this.gpsData = new GPSData();
             this.georeferencing = new Georeferencing(this.mapCore, this.imageOverlay, this.gpsData);
             this.routeSpotHandler = new RouteSpotHandler(this.mapCore, this.imageOverlay);
+            this.areaHandler = new AreaHandler(this.mapCore, this.imageOverlay);
             this.coordinateDisplay = new CoordinateDisplay(this.mapCore, this.imageOverlay);
             this.uiHandlers = new UIHandlers();
             this.fileHandler = new FileHandler();
+            this.dataImporter = new DataImporter(this);
+            this.elevationFetcher = new ElevationFetcher();
 
             // CoordinateDisplayインスタンスをGeoreferencingに注入
             this.georeferencing.setCoordinateDisplay(this.coordinateDisplay);
-            
+
             // RouteSpotHandlerインスタンスをGeoreferencingに注入
             this.georeferencing.setRouteSpotHandler(this.routeSpotHandler);
 
-            
+            // AreaHandlerインスタンスをGeoreferencingに注入
+            this.georeferencing.setAreaHandler(this.areaHandler);
+
+
         } catch (error) {
             this.logger.error('モジュール初期化エラー', error);
             throw error;
@@ -142,39 +100,55 @@ class GeoReferencerApp {
 
     setupEventHandlers() {
         try {
-            // ポイントGPS読み込みボタン
+            // 読み込みボタン（汎用）
             const loadFileBtn = document.getElementById('loadFileBtn');
             const gpsExcelInput = document.getElementById('gpsExcelInput');
+            const imageInput = document.getElementById('imageInput');
+            const jsonInput = document.getElementById('jsonInput');
 
             if (loadFileBtn) {
                 loadFileBtn.addEventListener('click', () => {
-                    if (gpsExcelInput) gpsExcelInput.click();
+                    // ラジオボタンの選択状態を取得
+                    const selectedRadio = document.querySelector('input[name="loadType"]:checked');
+                    if (!selectedRadio) return;
+
+                    const loadType = selectedRadio.value;
+                    if (loadType === 'gps' && gpsExcelInput) {
+                        gpsExcelInput.click();
+                    } else if (loadType === 'png' && imageInput) {
+                        imageInput.click();
+                    } else if (loadType === 'json' && jsonInput) {
+                        if (!this.currentPngFileName) {
+                            alert('対応するPNG画像が読み込まれていません。\nJSONファイルを読み込むには、先に画像を読み込んでください。');
+                            return;
+                        }
+                        jsonInput.click();
+                    }
                 });
             }
 
             // GPS Excelファイル入力
             if (gpsExcelInput) {
                 gpsExcelInput.addEventListener('change', (event) => {
-                    this.handleGpsExcelLoad(event);
-                    this.recordFileDirectory(event.target.files[0]);
-                });
-            }
-
-            // PNG画像読み込みボタン
-            const loadPngBtn = document.getElementById('loadPngBtn');
-            const imageInput = document.getElementById('imageInput');
-
-            if (loadPngBtn) {
-                loadPngBtn.addEventListener('click', () => {
-                    if (imageInput) imageInput.click();
+                    this.dataImporter.handleGpsExcelLoad(event);
+                    this.fileHandler.recordFileDirectory(event.target.files[0]);
                 });
             }
 
             // PNG画像ファイル入力
             if (imageInput) {
                 imageInput.addEventListener('change', (event) => {
-                    this.handlePngLoad(event);
-                    this.recordFileDirectory(event.target.files[0]);
+                    this.dataImporter.handlePngLoad(event);
+                    this.fileHandler.recordFileDirectory(event.target.files[0]);
+                });
+            }
+
+            // JSONファイル入力 (New)
+            if (jsonInput) {
+                jsonInput.addEventListener('change', (event) => {
+                    this.dataImporter.handleJsonLoad(event); // 既存の汎用JSON読み込みを使用
+                    // ファイル名は特に表示しない? 必要なら追加
+                    this.fileHandler.recordFileDirectory(event.target.files[0]);
                 });
             }
 
@@ -186,15 +160,15 @@ class GeoReferencerApp {
                 });
             }
 
-            // Firebase保存ボタン (Phase 3実装)
-            const saveToFirebaseBtn = document.getElementById('saveToFirebaseBtn');
-            if (saveToFirebaseBtn) {
-                saveToFirebaseBtn.addEventListener('click', () => {
-                    this.handleSaveToFirebase();
+            // GeoJSON保存ボタン (旧Firebase保存)
+            const saveGeoJsonBtn = document.getElementById('saveGeoJsonBtn');
+            if (saveGeoJsonBtn) {
+                saveGeoJsonBtn.addEventListener('click', () => {
+                    this.handleExportGeoJson();
                 });
             }
 
-            // 標高取得ボタン (Phase 4実装)
+            // 標高取得ボタン
             const fetchElevationBtn = document.getElementById('fetchElevationBtn');
             if (fetchElevationBtn) {
                 fetchElevationBtn.addEventListener('click', () => {
@@ -208,374 +182,47 @@ class GeoReferencerApp {
         }
     }
 
-    async handleGpsExcelLoad(event) {
-        try {
-            // 既存データがある場合は確認
-            const existingCount = this.gpsData?.getPoints()?.length || 0;
-            if (existingCount > 0) {
-                const shouldClear = window.confirm(
-                    `既存の${existingCount}個のポイントをクリアして、新しく読み込みます。`
-                );
-                if (!shouldClear) {
-                    // ファイル入力をリセット
-                    event.target.value = '';
-                    return;
-                }
-            }
 
-            const file = event.target.files[0];
-            if (!file) {
-                // ファイル選択がキャンセルされた場合
-                // 既存データは保持(一時保存不要)
-                return;
-            }
-
-            this.logger.info('GPS Excelファイル読み込み開始', file.name);
-
-            // 既存データをクリア
-            if (existingCount > 0) {
-                this.gpsData.gpsPoints = [];
-                this.gpsData.clearMarkersFromMap();
-            }
-
-            // GPSDataクラスのExcel読み込み機能を使用
-            const rawData = await this.fileHandler.loadExcelFile(file);
-
-            // Excel データを検証・変換
-            const validatedData = this.fileHandler.validateAndConvertExcelData(rawData);
-
-            if (validatedData.length === 0) {
-                throw new Error('有効なGPSポイントデータが見つかりませんでした。');
-            }
-
-            // GPSDataに変換されたデータを設定
-            this.gpsData.setPointsFromExcelData(validatedData);
-
-            // 地図上にGPSポイントを表示
-            if (this.mapCore && this.mapCore.getMap()) {
-                this.gpsData.displayPointsOnMap(this.mapCore.getMap());
-            }
-
-            // GPS ポイント数を更新
-            this.uiHandlers.updateGpsPointCount(this.gpsData);
-
-            this.logger.info(`GPS Excelファイル読み込み完了: ${validatedData.length}ポイント`);
-
-            // 成功メッセージを表示
-            this.showMessage(`${validatedData.length}個のポイントGPSを読み込みました`);
-
-        } catch (error) {
-            this.logger.error('GPS Excel読み込みエラー', error);
-            errorHandler.handle(error, error.message, 'GPS Excel読み込み');
-        } finally {
-            // 同じファイルを再選択できるようにファイル入力をリセット
-            event.target.value = '';
-        }
-    }
-
-    async handlePngLoad(event) {
-        try {
-            // 既存データがある場合は確認
-            if (this.currentPngFileName) {
-                const shouldClear = window.confirm(
-                    `既存の画像およびそのデータをクリアして、新しく読み込みます。`
-                );
-                if (!shouldClear) {
-                    // ファイル入力をリセット
-                    event.target.value = '';
-                    return;
-                }
-            }
-
-            const file = event.target.files[0];
-            if (!file) {
-                // ファイル選択がキャンセルされた場合
-                return;
-            }
-
-            // 既存データをクリア(画面上のみ、Firebaseは削除しない)
-            if (this.currentPngFileName) {
-                // 画像クリア
-                if (this.imageOverlay) {
-                    // Leaflet ImageOverlayを地図から削除
-                    if (this.imageOverlay.imageOverlay && this.mapCore && this.mapCore.getMap()) {
-                        this.mapCore.getMap().removeLayer(this.imageOverlay.imageOverlay);
-                    }
-                    // ImageOverlayの内部状態をクリア
-                    this.imageOverlay.imageOverlay = null;
-                    this.imageOverlay.currentImage = new Image(); // 新しいImageオブジェクトを作成
-                    this.imageOverlay.currentImageFileName = null;
-                    this.imageOverlay.resetTransformation();
-                }
-
-                // ポイント・ルート・スポットクリア
-                if (this.routeSpotHandler) {
-                    this.routeSpotHandler.pointData = [];
-                    this.routeSpotHandler.routeData = [];
-                    this.routeSpotHandler.spotData = [];
-                    this.routeSpotHandler.clearAllMarkers();
-                }
-
-                this.currentPngFileName = null;
-                this.currentProjectId = null;
-            }
-
-            // PNGファイル名を記録（拡張子を除去）
-            this.currentPngFileName = file.name.replace(/\.[^/.]+$/, '');
-            this.currentProjectId = this.currentPngFileName; // FirebaseのprojectIdとして使用
-            this.logger.info('PNGファイル:', this.currentPngFileName);
-            this.logger.info('ProjectID:', this.currentProjectId);
-
-            // PNG画像を読み込み
-            if (this.imageOverlay) {
-                await this.imageOverlay.loadImage(file);
-            }
-
-            // Firebaseから画像座標データを自動読み込み
-            await this.loadFromFirebase();
-
-            // 成功メッセージを表示
-            this.showMessage(`PNG画像ファイルを読み込みました:\n${file.name}`);
-
-        } catch (error) {
-            this.logger.error('PNG読み込みエラー', error);
-            errorHandler.handle(error, 'PNG画像の読み込みに失敗しました。', 'PNG読み込み');
-        } finally {
-            // 同じファイルを再選択できるようにファイル入力をリセット
-            event.target.value = '';
-        }
-    }
-
-    async loadFromFirebase() {
-        try {
-            // Firebase接続確認
-            if (!this.firestoreManager) {
-                this.logger.warn('Firebase未接続のため、画像座標データの自動読み込みをスキップします');
-                return;
-            }
-
-            // ProjectID確認
-            if (!this.currentProjectId) {
-                this.logger.warn('ProjectIDが設定されていません');
-                return;
-            }
-
-            this.logger.info('Firebaseから画像座標データ読み込み開始:', this.currentProjectId);
-
-            // プロジェクトの存在確認
-            const projectMeta = await this.firestoreManager.getProjectMetadata(this.currentProjectId);
-            if (!projectMeta) {
-                this.logger.info('Firebaseにプロジェクトが見つかりません:', this.currentProjectId);
-                this.showMessage('新規プロジェクトです');
-                return;
-            }
-
-            // points読み込み
-            const points = await this.firestoreManager.getPoints(this.currentProjectId);
-            this.logger.info(`Firebaseからポイント読み込み: ${points.length}件`);
-
-            // routes読み込み
-            const routes = await this.firestoreManager.getRoutes(this.currentProjectId);
-            this.logger.info(`Firebaseからルート読み込み: ${routes.length}件`);
-
-            // spots読み込み
-            const spots = await this.firestoreManager.getSpots(this.currentProjectId);
-            this.logger.info(`Firebaseからスポット読み込み: ${spots.length}件`);
-
-            // RouteSpotHandlerにデータをロード
-            if (this.routeSpotHandler) {
-                await this.routeSpotHandler.loadFromFirebaseData(points, routes, spots, this.imageOverlay);
-            }
-
-            // UI更新
-            this.uiHandlers.updateRouteSpotCount(this.routeSpotHandler);
-
-            this.logger.info('Firebaseからの画像座標データ読み込み完了');
-
-        } catch (error) {
-            this.logger.error('Firebase読み込みエラー', error);
-            // エラーは警告として表示（致命的ではない）
-            this.showMessage('Firebaseからのデータ読み込みに失敗しました');
-        }
-    }
-
-    async handlePointCoordJsonLoad(event) {
-        try {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            this.logger.info('ポイント(座標)JSONファイル読み込み開始', file.name);
-            
-            // JSONファイルを読み込んでポイント座標情報を処理
-            const text = await file.text();
-            const data = JSON.parse(text);
-            
-            // ポイントJSONデータを保存
-            this.pointJsonData = data;
-            this.georeferencing.setPointJsonData(data);
-            
-            // imageX, imageYを持つポイントを画像上に表示
-            if (this.imageOverlay && data) {
-                // 既存のマーカーをクリア
-                this.georeferencing.clearImageCoordinateMarkers('georeference-point');
-                
-                this.imageCoordinateMarkers = await this.coordinateDisplay.displayImageCoordinates(data, 'points', this.imageCoordinateMarkers);
-                
-                // GeoreferencingクラスにもmarkerInfoを渡す
-                this.imageCoordinateMarkers.forEach(markerInfo => {
-                    this.georeferencing.addImageCoordinateMarker(markerInfo);
-                });
-                
-                this.logger.info(`ポイントマーカー登録完了: ${this.imageCoordinateMarkers.length}個`);
-            }
-            
-            // ポイント座標数を更新
-            this.uiHandlers.updatePointCoordCount(this.pointJsonData);
-            
-            this.logger.info('ポイント(座標)JSON読み込み完了', data);
-            
-        } catch (error) {
-            this.logger.error('ポイント(座標)JSON読み込みエラー', error);
-            errorHandler.handle(error, 'ポイント(座標)JSONファイルの読み込みに失敗しました。', 'ポイント(座標)JSON読み込み');
-        }
-    }
-
-    async handleRouteSpotJsonLoad(event) {
-        try {
-            const files = Array.from(event.target.files);
-            if (!files.length) return;
-
-            // RouteSpotHandlerに処理を委譲（自動判定するため、selectedRouteSpotTypeは不要）
-            await this.routeSpotHandler.handleRouteSpotJsonLoad(files, null);
-            
-            // ルート・スポット数を更新
-            this.uiHandlers.updateRouteSpotCount(this.routeSpotHandler);
-            
-        } catch (error) {
-            this.logger.error('ルート・スポット(座標)JSON読み込みエラー', error);
-            errorHandler.handle(error, 'ルート・スポット(座標)JSONファイルの読み込みに失敗しました。', 'ルート・スポット(座標)JSON読み込み');
-        }
-    }
-
-    async handleMultiJsonLoad(event) {
-        try {
-            const files = Array.from(event.target.files);
-            if (!files.length) return;
-
-            this.logger.info(`複数JSONファイル読み込み開始: ${files.length}ファイル`);
-            
-            let pointsProcessed = 0;
-            let routesProcessed = 0;
-            let spotsProcessed = 0;
-            
-            // 最初にポイントデータのマーカーをクリア（一度だけ）
-            let shouldClearMarkers = true;
-            
-            // 各ファイルを処理
-            for (const file of files) {
-                try {
-                    const text = await file.text();
-                    const data = JSON.parse(text);
-                    
-                    this.logger.info(`JSONファイル処理開始: ${file.name}`);
-                    
-                    // RouteSpotHandlerの自動判定を使用してファイル内容を判定
-                    const detectedType = this.routeSpotHandler.detectJsonType(data);
-                    
-                    if (detectedType === 'route') {
-                        // ルートデータの場合
-                        await this.routeSpotHandler.handleRouteSpotJsonLoad([file], null);
-                        routesProcessed++;
-                        
-                    } else if (detectedType === 'spot') {
-                        // スポットデータの場合
-                        await this.routeSpotHandler.handleRouteSpotJsonLoad([file], null);
-                        if (data.spots && Array.isArray(data.spots)) {
-                            spotsProcessed += data.spots.length;
-                        } else {
-                            spotsProcessed++;
-                        }
-                        
-                    } else if (detectedType === 'point') {
-                        // ポイントデータの場合
-                        this.pointJsonData = data;
-                        this.georeferencing.setPointJsonData(data);
-                        
-                        // 画像上にポイント座標を表示
-                        if (this.imageOverlay && data.points) {
-                            // 最初のポイントファイル処理時のみマーカーをクリア
-                            if (shouldClearMarkers) {
-                                this.georeferencing.clearImageCoordinateMarkers('georeference-point');
-                                this.imageCoordinateMarkers = []; // マーカー配列もクリア
-                                shouldClearMarkers = false;
-                            }
-                            
-                            this.imageCoordinateMarkers = await this.coordinateDisplay.displayImageCoordinates(data, 'points', this.imageCoordinateMarkers);
-                            
-                            // GeoreferencingクラスにもmarkerInfoを渡す
-                            this.imageCoordinateMarkers.forEach(markerInfo => {
-                                this.georeferencing.addImageCoordinateMarker(markerInfo);
-                            });
-                            
-                            this.logger.info(`ポイント: ${this.imageCoordinateMarkers.length}個`);
-                        }
-                        
-                        pointsProcessed++;
-                        
-                    } else {
-                        this.logger.warn(`未知のJSONファイル形式: ${file.name}`);
-                    }
-                    
-                } catch (fileError) {
-                    this.logger.error(`ファイル処理エラー: ${file.name}`, fileError);
-                    // 個別ファイルのエラーは警告として処理し、他のファイルの処理を続行
-                }
-            }
-            
-            // UIを更新
-            if (this.pointJsonData) {
-                this.uiHandlers.updatePointCoordCount(this.pointJsonData);
-            }
-            this.uiHandlers.updateRouteSpotCount(this.routeSpotHandler);
-
-            this.logger.info(`複数JSONファイル読み込み完了 - ポイント: ${pointsProcessed}, ルート: ${routesProcessed}, スポット: ${spotsProcessed}`);
-
-            // 成功メッセージを表示
-            this.showMessage(`画像内座標（${files.length} ファイル）を読み込みました`);
-            
-        } catch (error) {
-            this.logger.error('複数JSON読み込みエラー', error);
-            errorHandler.handle(error, '複数JSONファイルの読み込みに失敗しました。', '複数JSON読み込み');
-        }
-    }
 
     async handleMatchPoints() {
         try {
             this.logger.info('画像重ね合わせ処理開始');
-            
+
             // 1. 画像ファイルの読み込みと準備チェック
             if (!this.imageOverlay || !this.imageOverlay.currentImage || !this.imageOverlay.currentImage.src) {
                 throw new Error('PNG画像が読み込まれていません。');
             }
 
             if (!this.gpsData || !this.gpsData.getPoints() || this.gpsData.getPoints().length === 0) {
-                throw new Error('GPS座標データが読み込まれていません。');
+                // GPSデータがなくても実行できるようにする？
+                // プロンプトでは「ラジオボタン「JSONファイル」を選択して...PNG画像上に配置して」とある。
+                // ジオリファレンスにはGPSデータ（コントロールポイント）が必要。
+                // もし「JSONファイル」がコントロールポイントを含むならOKだが...
+                // ここでは既存のチェックを維持するが、GPSデータ必須のエラーが出るかもしれない。
+                // しかし、正規のフローでは「ポイントGPS」を読み込んでから実行するはず。
+                if (!this.pointJsonData && (!this.gpsData.getPoints() || this.gpsData.getPoints().length === 0)) {
+                    throw new Error('GPS座標データまたはポイントJSONデータが読み込まれていません。');
+                }
             }
 
             // 2. 初期表示境界の設定
-            
+
             // 3-10. Georeferencingクラスに処理を委譲
             await this.georeferencing.executeGeoreferencing();
             this.georeferencing.setupGeoreferencingUI();
             const result = await this.georeferencing.performGeoreferencingCalculations();
-            
+
             // 結果を表示
             this.uiHandlers.updateMatchResults(result);
 
-            // Firebase保存ボタンと標高取得ボタンを有効化
-            const saveToFirebaseBtn = document.getElementById('saveToFirebaseBtn');
-            if (saveToFirebaseBtn) {
-                saveToFirebaseBtn.disabled = false;
+            // GeoJSON保存ボタンと標高取得ボタンを有効化
+            const saveGeoJsonBtn = document.getElementById('saveGeoJsonBtn');
+            const saveGeoJsonNote = document.getElementById('saveGeoJsonNote');
+            if (saveGeoJsonBtn) {
+                saveGeoJsonBtn.disabled = false;
+                if (saveGeoJsonNote) {
+                    saveGeoJsonNote.style.display = 'block';
+                }
             }
 
             const fetchElevationBtn = document.getElementById('fetchElevationBtn');
@@ -590,7 +237,7 @@ class GeoReferencerApp {
             this.showMessage(`${result.matchedCount}個のポイントにてジオリファレンスを行いました`);
 
             // 標高未取得件数を更新（ジオリファレンス後のルート中間点とスポットの件数を表示）
-            await this.updateElevationCounts();
+            this.updateElevationCounts();
 
         } catch (error) {
             this.logger.error('画像重ね合わせエラー', error);
@@ -598,231 +245,7 @@ class GeoReferencerApp {
         }
     }
 
-    async handleSaveToFirebase() {
-        try {
-            this.logger.info('Firebase保存処理開始');
 
-            // Firebase接続確認
-            if (!this.firestoreManager) {
-                throw new Error(CONFIG.ERROR_MESSAGES.FIREBASE_NOT_CONNECTED);
-            }
-
-            // ProjectID確認
-            if (!this.currentProjectId) {
-                throw new Error('PNG画像を先に読み込んでください。');
-            }
-
-            // ジオリファレンス実行確認
-            if (!this.georeferencing || !this.georeferencing.currentTransformation) {
-                throw new Error('ジオリファレンスを先に実行してください。');
-            }
-
-            // GPS変換済みデータを収集
-            const gpsData = await this.collectGpsDataForFirebase();
-
-            if (gpsData.gpsPoints.length === 0 && gpsData.gpsRoutes.length === 0 && gpsData.gpsSpots.length === 0) {
-                throw new Error('保存対象のデータがありません。');
-            }
-
-            // 標高未取得地点の確認
-            const elevationStats = this.getElevationStats();
-            const missingCount = elevationStats.routes.missing + elevationStats.spots.missing;
-
-            if (missingCount > 0) {
-                // 確認ダイアログを表示
-                const shouldSave = window.confirm(
-                    '標高を未取得の地点がありますが、データベースに格納しますか。'
-                );
-                if (!shouldSave) {
-                    // キャンセルの場合は処理を中断
-                    return;
-                }
-            }
-
-            // 既存のGPS変換済みデータを削除（上書き保存）
-            await this.firestoreManager.deleteAllGpsData(this.currentProjectId);
-
-            // gpsPointsを保存
-            for (const gpsPoint of gpsData.gpsPoints) {
-                await this.firestoreManager.addGpsPoint(this.currentProjectId, gpsPoint);
-            }
-
-            // gpsRoutesを保存
-            for (const gpsRoute of gpsData.gpsRoutes) {
-                await this.firestoreManager.addGpsRoute(this.currentProjectId, gpsRoute);
-            }
-
-            // gpsSpotsを保存
-            for (const gpsSpot of gpsData.gpsSpots) {
-                await this.firestoreManager.addGpsSpot(this.currentProjectId, gpsSpot);
-            }
-
-            // 標高カウントを更新
-            await this.updateElevationCounts();
-
-            // 成功メッセージ表示
-            const totalCount = gpsData.gpsPoints.length + gpsData.gpsRoutes.length + gpsData.gpsSpots.length;
-            this.showMessage(`GPS変換済みデータをFirebaseに保存しました:\nポイント: ${gpsData.gpsPoints.length}件\nルート: ${gpsData.gpsRoutes.length}件\nスポット: ${gpsData.gpsSpots.length}件`);
-
-            this.logger.info('Firebase保存完了', {
-                projectId: this.currentProjectId,
-                gpsPoints: gpsData.gpsPoints.length,
-                gpsRoutes: gpsData.gpsRoutes.length,
-                gpsSpots: gpsData.gpsSpots.length
-            });
-
-        } catch (error) {
-            this.logger.error('Firebase保存エラー', error);
-            errorHandler.handle(error, error.message, 'Firebase保存');
-        }
-    }
-
-    async handleFetchElevation() {
-        try {
-            this.logger.info('標高取得処理開始');
-
-            // Firebase接続確認
-            if (!this.elevationFetcher) {
-                throw new Error('標高取得機能が初期化されていません。');
-            }
-
-            // ProjectID確認
-            if (!this.currentProjectId) {
-                throw new Error('PNG画像を先に読み込んでください。');
-            }
-
-            // チェックボックスの状態を確認
-            const routeCheckbox = document.getElementById('elevationRouteCheckbox');
-            const spotCheckbox = document.getElementById('elevationSpotCheckbox');
-
-            const fetchRoutes = routeCheckbox && routeCheckbox.checked;
-            const fetchSpots = spotCheckbox && spotCheckbox.checked;
-
-            if (!fetchRoutes && !fetchSpots) {
-                this.showMessage('標高取得対象を選択してください');
-                return;
-            }
-
-            let totalFetched = 0;
-            let totalFailed = 0;
-
-            // ルート中間点の標高取得
-            if (fetchRoutes) {
-                this.showMessage('ルート中間点の標高を取得中...');
-
-                if (this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
-                    const result = await this.elevationFetcher.fetchAndSetRouteMarkersElevation(
-                        this.routeSpotHandler.routeMarkers,
-                        (current, total) => {
-                            // 進捗表示
-                            this.updateElevationProgress('route', current, total);
-                        }
-                    );
-
-                    totalFetched += result.fetched;
-                    totalFailed += result.failed;
-
-                    this.logger.info('ルート中間点の標高取得完了', result);
-                } else {
-                    this.logger.warn('ルートマーカーが存在しません');
-                }
-            }
-
-            // スポットの標高取得
-            if (fetchSpots) {
-                this.showMessage('スポットの標高を取得中...');
-
-                if (this.routeSpotHandler && this.routeSpotHandler.spotMarkers) {
-                    const result = await this.elevationFetcher.fetchAndSetSpotMarkersElevation(
-                        this.routeSpotHandler.spotMarkers,
-                        (current, total) => {
-                            // 進捗表示
-                            this.updateElevationProgress('spot', current, total);
-                        }
-                    );
-
-                    totalFetched += result.fetched;
-                    totalFailed += result.failed;
-
-                    this.logger.info('スポットの標高取得完了', result);
-                } else {
-                    this.logger.warn('スポットマーカーが存在しません');
-                }
-            }
-
-            // 標高カウントを更新
-            await this.updateElevationCounts();
-
-            // 成功メッセージ表示
-            this.showMessage(`標高取得完了:\n成功: ${totalFetched}件\n失敗: ${totalFailed}件`);
-
-            this.logger.info('標高取得処理完了', { fetched: totalFetched, failed: totalFailed });
-
-        } catch (error) {
-            this.logger.error('標高取得エラー', error);
-            errorHandler.handle(error, error.message, '標高取得');
-        }
-    }
-
-    updateElevationProgress(type, current, total) {
-        const fieldId = type === 'route' ? 'elevationRouteCount' : 'elevationSpotCount';
-        const field = document.getElementById(fieldId);
-
-        if (field) {
-            const remaining = total - current;
-            field.value = `${remaining}`;
-        }
-    }
-
-    async updateElevationCounts() {
-        try {
-            // メモリ上のマーカーから標高統計を計算
-            const stats = {
-                routes: { missing: 0, total: 0 },
-                spots: { missing: 0, total: 0 }
-            };
-
-            // ルートマーカーのカウント
-            if (this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
-                stats.routes.total = this.routeSpotHandler.routeMarkers.length;
-                for (const marker of this.routeSpotHandler.routeMarkers) {
-                    const meta = marker.__meta;
-                    if (!meta || meta.elevation === undefined || meta.elevation === null) {
-                        stats.routes.missing++;
-                    }
-                }
-            }
-
-            // スポットマーカーのカウント
-            if (this.routeSpotHandler && this.routeSpotHandler.spotMarkers) {
-                const latestSpots = this.getLatestSpots(this.routeSpotHandler.spotMarkers);
-                stats.spots.total = latestSpots.length;
-                for (const marker of latestSpots) {
-                    const meta = marker.__meta;
-                    if (!meta || meta.elevation === undefined || meta.elevation === null) {
-                        stats.spots.missing++;
-                    }
-                }
-            }
-
-            // ルート中間点のカウント更新（未取得件数のみ表示）
-            const routeCountField = document.getElementById('elevationRouteCount');
-            if (routeCountField) {
-                routeCountField.value = `${stats.routes.missing}`;
-            }
-
-            // スポットのカウント更新（未取得件数のみ表示）
-            const spotCountField = document.getElementById('elevationSpotCount');
-            if (spotCountField) {
-                spotCountField.value = `${stats.spots.missing}`;
-            }
-
-            this.logger.info('標高カウント更新', stats);
-
-        } catch (error) {
-            this.logger.error('標高カウント更新エラー', error);
-        }
-    }
 
     async handleExportGeoJson() {
         try {
@@ -835,15 +258,15 @@ class GeoReferencerApp {
 
             // ジオリファレンス済みデータを収集
             const geoJsonData = await this.collectGeoreferencedData();
-            
+
             if (!geoJsonData.features || geoJsonData.features.length === 0) {
                 throw new Error('出力対象のデータがありません。ジオリファレンスを実行してください。');
             }
-            
+
             // ファイルとして保存
-            const geoJsonFileName = this.getGeoJsonFileName();
+            const geoJsonFileName = this.getGeoJsonFileName(geoJsonData);
             const result = await this.fileHandler.saveDataWithUserChoice(geoJsonData, geoJsonFileName);
-            
+
             if (result.success) {
                 this.logger.info(`GeoJSON保存成功: ${result.filename}`);
 
@@ -854,197 +277,259 @@ class GeoReferencerApp {
             }
 
             this.logger.info(`GeoJSON出力完了: ${geoJsonData.features.length}件`);
-            
+
         } catch (error) {
             this.logger.error('GeoJSON出力エラー', error);
             errorHandler.handle(error, error.message, 'GeoJSON出力');
         }
     }
 
-    async collectGpsDataForFirebase() {
+    /**
+     * 国土地理院APIから標高データを取得（Firebase依存なし）
+     */
+    async handleFetchElevation() {
+        if (!this.elevationFetcher) {
+            this.showMessage('標高取得機能が初期化されていません。', 'error');
+            return;
+        }
+
+        const fetchElevationBtn = document.getElementById('fetchElevationBtn');
+        if (fetchElevationBtn) fetchElevationBtn.disabled = true;
+
         try {
-            const gpsPoints = [];
-            const gpsRoutes = [];
-            const gpsSpots = [];
+            this.logger.info('標高データ取得開始');
+            this.showMessage('標高データの取得を開始します...');
 
-            // 1. ポイントGPS（Excelから読み込まれたGPSデータ）を収集
-            if (this.gpsData && this.georeferencing) {
-                const matchResult = this.georeferencing.matchPointJsonWithGPS(this.gpsData.getPoints());
+            const progressContainer = document.getElementById('elevationProgressContainer');
+            const progressBar = document.getElementById('elevationProgressBar');
+            const progressText = document.getElementById('elevationProgressText');
 
-                for (const pair of matchResult.matchedPairs) {
-                    const elevation = pair.gpsPoint.elevation && pair.gpsPoint.elevation > 0 ? pair.gpsPoint.elevation : null;
+            // チェックボックスの状態を取得
+            const isPointChecked = document.getElementById('elevationPointCheckbox')?.checked;
+            const isRouteChecked = document.getElementById('elevationRouteCheckbox')?.checked;
+            const isSpotChecked = document.getElementById('elevationSpotCheckbox')?.checked;
+            const isAreaChecked = document.getElementById('elevationAreaVertexCheckbox')?.checked;
 
-                    gpsPoints.push({
-                        id: pair.gpsPoint.pointId,
-                        name: pair.gpsPoint.name || pair.gpsPoint.location || '',
-                        coordinates: [
-                            this.roundCoordinate(pair.gpsPoint.lng),
-                            this.roundCoordinate(pair.gpsPoint.lat),
-                            elevation
-                        ],
-                        source: 'GPS_Excel',
-                        description: pair.gpsPoint.description || '緊急ポイント（Excel管理GPS値）'
-                    });
+
+            if (progressContainer) progressContainer.style.display = 'block';
+
+            let totalFetched = 0;
+            let totalFailed = 0;
+
+            // 進捗更新用ヘルパー
+            const updateProgress = (current, total, prefix) => {
+                if (progressBar) {
+                    const params = new URLSearchParams(window.location.search);
+                    const isDebug = params.has('debug');
+                    if (isDebug) console.log(`${prefix}: ${current}/${total}`);
+
+                    // 全体の進捗は個別の処理で管理が難しいため、ここでは簡易的な表示に留めるか、
+                    // あるいは各フェーズごとにバーをリセットして表示する
+                    const percentage = Math.round((current / total) * 100);
+                    progressBar.style.width = `${percentage}%`;
+                    progressBar.textContent = `${percentage}%`;
                 }
-            }
-
-            // 2. ルート中間点（ジオリファレンス変換済み）を収集
-            if (this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
-                this.logger.info(`🔍 ルートマーカー数: ${this.routeSpotHandler.routeMarkers.length}`);
-                const routeGroupMap = new Map();
-
-                for (const marker of this.routeSpotHandler.routeMarkers) {
-                    const meta = marker.__meta;
-                    this.logger.info(`🔍 ルートマーカー meta.origin: ${meta?.origin}, meta.routeId: ${meta?.routeId}`);
-                    // ジオリファレンス後のマーカーは origin='firebase' または 'image' のどちらもあり得る
-                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase')) {
-                        const routeId = meta.routeId || 'unknown_route';
-
-                        if (!routeGroupMap.has(routeId)) {
-                            routeGroupMap.set(routeId, []);
-                        }
-                        routeGroupMap.get(routeId).push(marker);
-                    }
+                if (progressText) {
+                    progressText.textContent = `${prefix}の標高を取得中: ${current} / ${total}`;
                 }
-                this.logger.info(`🔍 ルートグループ数: ${routeGroupMap.size}`);
-
-                // 各ルートグループごとに処理
-                for (const [routeId, markers] of routeGroupMap) {
-                    let startPoint = 'unknown_start';
-                    let endPoint = 'unknown_end';
-
-                    if (this.routeSpotHandler.routeData) {
-                        const routeData = this.routeSpotHandler.routeData.find(route =>
-                            (route.routeId === routeId) ||
-                            (route.name === routeId) ||
-                            (route.fileName && route.fileName.replace('.json', '') === routeId)
-                        );
-
-                        if (routeData) {
-                            startPoint = (routeData.startPoint && routeData.startPoint.id) ||
-                                        (routeData.routeInfo && routeData.routeInfo.startPoint) ||
-                                        'unknown_start';
-                            endPoint = (routeData.endPoint && routeData.endPoint.id) ||
-                                      (routeData.routeInfo && routeData.routeInfo.endPoint) ||
-                                      'unknown_end';
-                        }
-                    }
-
-                    const waypoints = markers.map(marker => {
-                        const latLng = marker.getLatLng();
-                        const meta = marker.__meta;
-                        // マーカーに設定された標高値を取得（標高取得ボタンで設定）
-                        const elevation = (meta && meta.elevation !== undefined) ? meta.elevation : null;
-
-                        return {
-                            coordinates: [
-                                this.roundCoordinate(latLng.lng),
-                                this.roundCoordinate(latLng.lat),
-                                elevation
-                            ]
-                        };
-                    });
-
-                    gpsRoutes.push({
-                        routeName: `${startPoint} → ${endPoint}`,
-                        startPoint: startPoint,
-                        endPoint: endPoint,
-                        waypoints: waypoints,
-                        description: 'ルート中間点（画像変換）'
-                    });
-                }
-            }
-
-            // 3. スポット（ジオリファレンス変換済み）を収集
-            if (this.routeSpotHandler && this.routeSpotHandler.spotMarkers) {
-                this.logger.info(`🔍 スポットマーカー数: ${this.routeSpotHandler.spotMarkers.length}`);
-                const latestSpots = this.getLatestSpots(this.routeSpotHandler.spotMarkers);
-                this.logger.info(`🔍 最新スポット数: ${latestSpots.length}`);
-
-                for (const marker of latestSpots) {
-                    const meta = marker.__meta;
-                    this.logger.info(`🔍 スポットマーカー meta.origin: ${meta?.origin}, meta.spotId: ${meta?.spotId}`);
-                    // ジオリファレンス後のマーカーは origin='firebase' または 'image' のどちらもあり得る
-                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase')) {
-                        const latLng = marker.getLatLng();
-                        const spotName = meta.spotId || `spot_${Date.now()}`;
-                        // マーカーに設定された標高値を取得（標高取得ボタンで設定）
-                        const elevation = (meta && meta.elevation !== undefined) ? meta.elevation : null;
-
-                        gpsSpots.push({
-                            name: spotName,
-                            coordinates: [
-                                this.roundCoordinate(latLng.lng),
-                                this.roundCoordinate(latLng.lat),
-                                elevation
-                            ],
-                            category: '',
-                            description: 'スポット（画像変換）'
-                        });
-                    }
-                }
-                this.logger.info(`🔍 収集したスポット数: ${gpsSpots.length}`);
-            }
-
-            this.logger.info(`📊 収集結果: ポイント=${gpsPoints.length}, ルート=${gpsRoutes.length}, スポット=${gpsSpots.length}`);
-
-            return {
-                gpsPoints,
-                gpsRoutes,
-                gpsSpots
             };
 
+            // 1. ポイント（画像上のポイント）
+            if (isPointChecked && this.routeSpotHandler && this.routeSpotHandler.pointData && this.georeferencing) {
+                this.logger.info('ポイントの標高取得開始');
+                const result = await this.elevationFetcher.fetchAndSetPointsElevation(
+                    this.routeSpotHandler.pointData,
+                    this.georeferencing,
+                    (c, t) => { updateProgress(c, t, 'ポイント'); this.updateElevationCounts(); }
+                );
+                totalFetched += result.fetched;
+                totalFailed += result.failed;
+            }
+
+            // 2. ルートマーカー（中間点含む）
+            if (isRouteChecked && this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
+                this.logger.info('ルートマーカーの標高取得開始');
+                const result = await this.elevationFetcher.fetchAndSetRouteMarkersElevation(
+                    this.routeSpotHandler.routeMarkers,
+                    (c, t) => { updateProgress(c, t, 'ルート中間点'); this.updateElevationCounts(); }
+                );
+                totalFetched += result.fetched;
+                totalFailed += result.failed;
+            }
+
+            // 3. スポットマーカー
+            if (isSpotChecked && this.routeSpotHandler && this.routeSpotHandler.spotMarkers) {
+                this.logger.info('スポットマーカーの標高取得開始');
+                const result = await this.elevationFetcher.fetchAndSetSpotMarkersElevation(
+                    this.routeSpotHandler.spotMarkers,
+                    (c, t) => { updateProgress(c, t, 'スポット'); this.updateElevationCounts(); }
+                );
+                totalFetched += result.fetched;
+                totalFailed += result.failed;
+            }
+
+            // 4. Combined JSON形式の座標マーカー（imageCoordinateMarkersにwaypoint/spot/pointJSONが入っている場合）
+            if (this.imageCoordinateMarkers && this.imageCoordinateMarkers.length > 0) {
+                const waypointInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'waypoint');
+                const spotInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'spot');
+                const pointInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'pointJSON');
+
+                // 4a. ポイント（pointJSON型）
+                if (isPointChecked && pointInfos.length > 0 && this.routeSpotHandler.pointData.length === 0) {
+                    this.logger.info(`Combined ポイントの標高取得開始: ${pointInfos.length}件`);
+                    let cnt = 0;
+                    for (const markerInfo of pointInfos) {
+                        if (markerInfo.data.elevation !== undefined && markerInfo.data.elevation !== null) {
+                            cnt++;
+                            updateProgress(cnt, pointInfos.length, 'ポイント');
+                            continue;
+                        }
+                        const latLng = markerInfo.marker.getLatLng();
+                        const elevation = await this.elevationFetcher.fetchElevation(latLng.lng, latLng.lat);
+                        if (elevation !== null) {
+                            markerInfo.data.elevation = elevation;
+                            totalFetched++;
+                        } else {
+                            totalFailed++;
+                        }
+                        cnt++;
+                        updateProgress(cnt, pointInfos.length, 'ポイント');
+                        this.updateElevationCounts();
+                        await this.elevationFetcher.delay(this.elevationFetcher.DELAY_MS);
+                    }
+                }
+
+                // 4b. ルート中間点
+                if (isRouteChecked && waypointInfos.length > 0 && this.routeSpotHandler.routeMarkers.length === 0) {
+                    this.logger.info(`Combined ルート中間点の標高取得開始: ${waypointInfos.length}件`);
+                    let cnt = 0;
+                    for (const markerInfo of waypointInfos) {
+                        if (markerInfo.data.elevation !== undefined && markerInfo.data.elevation !== null) {
+                            cnt++;
+                            updateProgress(cnt, waypointInfos.length, 'ルート中間点');
+                            continue;
+                        }
+                        const latLng = markerInfo.marker.getLatLng();
+                        const elevation = await this.elevationFetcher.fetchElevation(latLng.lng, latLng.lat);
+                        if (elevation !== null) {
+                            markerInfo.data.elevation = elevation;
+                            totalFetched++;
+                        } else {
+                            totalFailed++;
+                        }
+                        cnt++;
+                        updateProgress(cnt, waypointInfos.length, 'ルート中間点');
+                        this.updateElevationCounts();
+                        await this.elevationFetcher.delay(this.elevationFetcher.DELAY_MS);
+                    }
+                }
+
+                // 4c. スポット
+                if (isSpotChecked && spotInfos.length > 0 && this.routeSpotHandler.spotMarkers.length === 0) {
+                    this.logger.info(`Combined スポットの標高取得開始: ${spotInfos.length}件`);
+                    let cnt = 0;
+                    for (const markerInfo of spotInfos) {
+                        if (markerInfo.data.elevation !== undefined && markerInfo.data.elevation !== null) {
+                            cnt++;
+                            updateProgress(cnt, spotInfos.length, 'スポット');
+                            continue;
+                        }
+                        const latLng = markerInfo.marker.getLatLng();
+                        const elevation = await this.elevationFetcher.fetchElevation(latLng.lng, latLng.lat);
+                        if (elevation !== null) {
+                            markerInfo.data.elevation = elevation;
+                            totalFetched++;
+                        } else {
+                            totalFailed++;
+                        }
+                        cnt++;
+                        updateProgress(cnt, spotInfos.length, 'スポット');
+                        this.updateElevationCounts();
+                        await this.elevationFetcher.delay(this.elevationFetcher.DELAY_MS);
+                    }
+                }
+            }
+
+            // 5. エリア頂点
+            if (isAreaChecked && this.areaHandler) {
+                this.logger.info('エリア頂点の標高取得開始');
+                const result = await this.elevationFetcher.fetchAndSetAreaVerticesElevation(
+                    this.areaHandler,
+                    (c, t) => { updateProgress(c, t, 'エリア'); this.updateElevationCounts(); }
+                );
+                totalFetched += result.fetched;
+                totalFailed += result.failed;
+            }
+
+            this.logger.info(`標高取得完了: 成功=${totalFetched}, 失敗=${totalFailed}`);
+            this.showMessage(`標高データの取得が完了しました (取得: ${totalFetched}, 失敗: ${totalFailed})`);
+
+            // 統計を更新
+            this.updateElevationCounts();
+
         } catch (error) {
-            this.logger.error('GPS変換済みデータ収集エラー', error);
-            throw new Error('GPS変換済みデータの収集に失敗しました。');
+            this.logger.error('標高データ取得エラー', error);
+            this.showMessage(`標高データの取得中にエラーが発生しました: ${error.message}`, 'error');
+        } finally {
+            if (fetchElevationBtn) fetchElevationBtn.disabled = false;
+            if (document.getElementById('elevationProgressContainer')) {
+                setTimeout(() => {
+                    document.getElementById('elevationProgressContainer').style.display = 'none';
+                }, 3000);
+            }
         }
     }
+
+
 
     async collectGeoreferencedData() {
         try {
             const features = [];
 
-            // 1. ポイントGPS（Excelから読み込まれたGPSデータ）を収集
-            if (this.gpsData && this.georeferencing) {
-                const matchResult = this.georeferencing.matchPointJsonWithGPS(this.gpsData.getPoints());
+            // 1. ポイント（画像座標をジオリファレンス変換）を収集
+            if (this.routeSpotHandler && this.routeSpotHandler.pointData && this.georeferencing && this.georeferencing.currentTransformation) {
+                const points = this.routeSpotHandler.pointData;
+                for (const point of points) {
+                    const pointId = point.Id || point.id || point.pointId;
+                    // 画像座標をアフィン変換でGPS座標に変換
+                    const transformedLatLng = this.georeferencing.transformImageCoordsToGps(point.x, point.y, this.georeferencing.currentTransformation);
 
-                for (const pair of matchResult.matchedPairs) {
-                    const elevation = pair.gpsPoint.elevation;
+                    if (transformedLatLng) {
+                        const lat = Array.isArray(transformedLatLng) ? transformedLatLng[0] : transformedLatLng.lat;
+                        const lng = Array.isArray(transformedLatLng) ? transformedLatLng[1] : transformedLatLng.lng;
+                        const elevation = point.elevation;
 
-                    // 標高が正の値でない場合は標高を除外
-                    let coordinates;
-                    if (elevation && elevation > 0) {
-                        coordinates = [this.roundCoordinate(pair.gpsPoint.lng), this.roundCoordinate(pair.gpsPoint.lat), elevation];
-                    } else {
-                        coordinates = [this.roundCoordinate(pair.gpsPoint.lng), this.roundCoordinate(pair.gpsPoint.lat)];
-                    }
-
-                    features.push({
-                        type: 'Feature',
-                        properties: {
-                            id: pair.gpsPoint.pointId,
-                            name: pair.gpsPoint.name || pair.gpsPoint.location,
-                            type: 'ポイントGPS',
-                            source: 'GPS_Excel',
-                            description: '緊急ポイント（Excel管理GPS値）',
-                            notes: ''
-                        },
-                        geometry: {
-                            type: 'Point',
-                            coordinates: coordinates
+                        let coordinates = [this.roundCoordinate(lng), this.roundCoordinate(lat)];
+                        if (elevation !== undefined && elevation !== null) {
+                            coordinates.push(this.roundCoordinate(elevation));
                         }
-                    });
+
+                        features.push({
+                            type: 'Feature',
+                            properties: {
+                                id: pointId,
+                                name: point.name || pointId,
+                                type: 'point',
+                                source: 'image_transformed',
+                                description: '画像ポイント（GPS変換済）'
+                            },
+                            geometry: {
+                                type: 'Point',
+                                coordinates: coordinates
+                            }
+                        });
+                    }
                 }
             }
 
-            // 2. ルート中間点（ジオリファレンス変換済み）を収集
+            // 2. ルート（ジオリファレンス変換済み）を収集
             if (this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
                 // ルートデータから開始・終了ポイント情報を取得
                 const routeGroupMap = new Map();
 
                 for (const marker of this.routeSpotHandler.routeMarkers) {
                     const meta = marker.__meta;
-                    if (meta && meta.origin === 'image') {
+                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase')) { // firebase origin means loaded from external
                         const routeId = meta.routeId || 'unknown_route';
 
                         if (!routeGroupMap.has(routeId)) {
@@ -1069,36 +554,48 @@ class GeoReferencerApp {
 
                         if (routeData) {
                             startPoint = (routeData.startPoint && routeData.startPoint.id) ||
-                                        (routeData.routeInfo && routeData.routeInfo.startPoint) ||
-                                        'unknown_start';
+                                (routeData.routeInfo && routeData.routeInfo.startPoint) ||
+                                'unknown_start';
                             endPoint = (routeData.endPoint && routeData.endPoint.id) ||
-                                      (routeData.routeInfo && routeData.routeInfo.endPoint) ||
-                                      'unknown_end';
+                                (routeData.routeInfo && routeData.routeInfo.endPoint) ||
+                                'unknown_end';
                         }
                     }
 
                     const fullRouteId = `route_${startPoint}_to_${endPoint}`;
+                    const lineCoordinates = [];
 
                     // マーカーを順番に処理
                     markers.forEach((marker, index) => {
                         const latLng = marker.getLatLng();
                         const waypointName = `waypoint_${String(index + 1).padStart(2, '0')}`;
+                        const elevation = marker.__meta && marker.__meta.elevation;
 
-                        features.push({
-                            type: 'Feature',
-                            properties: {
-                                id: `${fullRouteId}_${waypointName}`,
-                                name: waypointName,
-                                type: 'route_waypoint',
-                                source: 'image_transformed',
-                                route_id: fullRouteId,
-                                description: 'ルート中間点'
-                            },
-                            geometry: {
-                                type: 'Point',
-                                coordinates: [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)]
-                            }
-                        });
+                        let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                        if (elevation !== undefined && elevation !== null) {
+                            coords.push(this.roundCoordinate(elevation));
+                        }
+                        lineCoordinates.push(coords);
+
+                        // 中間点もPointとして出力したければここに追加可能だが、LineStringにする
+                    });
+
+                    // LineStringとして出力
+                    features.push({
+                        type: 'Feature',
+                        properties: {
+                            id: fullRouteId,
+                            name: `${startPoint} ～ ${endPoint}`,
+                            type: 'route',
+                            startPoint: startPoint,
+                            endPoint: endPoint,
+                            source: 'image_transformed',
+                            description: 'ルート（GPS変換済）'
+                        },
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: lineCoordinates
+                        }
                     });
                 }
             }
@@ -1110,9 +607,15 @@ class GeoReferencerApp {
 
                 for (const marker of latestSpots) {
                     const meta = marker.__meta;
-                    if (meta && meta.origin === 'image') {
+                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase')) {
                         const latLng = marker.getLatLng();
                         const spotName = meta.spotId || `spot${String(spotCounter).padStart(2, '0')}`;
+                        const elevation = meta.elevation;
+
+                        let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                        if (elevation !== undefined && elevation !== null) {
+                            coords.push(this.roundCoordinate(elevation));
+                        }
 
                         features.push({
                             type: 'Feature',
@@ -1121,14 +624,169 @@ class GeoReferencerApp {
                                 name: spotName,
                                 type: 'spot',
                                 source: 'image_transformed',
-                                description: 'スポット'
+                                description: 'スポット（GPS変換済）'
                             },
                             geometry: {
                                 type: 'Point',
-                                coordinates: [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)]
+                                coordinates: coords
                             }
                         });
                         spotCounter++;
+                    }
+                }
+            }
+
+            // 4. Combined JSON形式のデータ（imageCoordinateMarkers）を収集
+            // （routeSpotHandler の個別形式データが空の場合のみ - 重複回避）
+            if (this.imageCoordinateMarkers && this.imageCoordinateMarkers.length > 0) {
+                const waypointInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'waypoint');
+                const spotInfosCombined = this.imageCoordinateMarkers.filter(m => m.data?.type === 'spot');
+                const pointInfosCombined = this.imageCoordinateMarkers.filter(m => m.data?.type === 'pointJSON');
+
+                // 4a. ポイント（pointJSON型）
+                if (pointInfosCombined.length > 0 && (!this.routeSpotHandler.pointData || this.routeSpotHandler.pointData.length === 0)) {
+                    for (const markerInfo of pointInfosCombined) {
+                        const latLng = markerInfo.marker.getLatLng();
+                        const elevation = markerInfo.data.elevation;
+                        let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                        if (elevation !== undefined && elevation !== null) {
+                            coords.push(this.roundCoordinate(elevation));
+                        }
+                        features.push({
+                            type: 'Feature',
+                            properties: {
+                                id: markerInfo.data.id || markerInfo.data.name || 'unknown',
+                                name: markerInfo.data.name || markerInfo.data.id || '名称未設定',
+                                type: 'point',
+                                source: 'image_transformed',
+                                description: '画像ポイント（GPS変換済）'
+                            },
+                            geometry: {
+                                type: 'Point',
+                                coordinates: coords
+                            }
+                        });
+                    }
+                }
+
+                // 4b. ルート中間点（waypoint型）→ ルート名でグループ化してLineStringとして出力
+                if (waypointInfos.length > 0 && (!this.routeSpotHandler.routeMarkers || this.routeSpotHandler.routeMarkers.length === 0)) {
+                    const routeGroups = new Map();
+                    for (const markerInfo of waypointInfos) {
+                        const routeName = markerInfo.data.name || 'unknown_route';
+                        if (!routeGroups.has(routeName)) {
+                            routeGroups.set(routeName, []);
+                        }
+                        routeGroups.get(routeName).push(markerInfo);
+                    }
+                    for (const [, markerInfos] of routeGroups) {
+                        const lineCoordinates = [];
+                        for (const markerInfo of markerInfos) {
+                            const latLng = markerInfo.marker.getLatLng();
+                            const elevation = markerInfo.data.elevation;
+                            let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                            if (elevation !== undefined && elevation !== null) {
+                                coords.push(this.roundCoordinate(elevation));
+                            }
+                            lineCoordinates.push(coords);
+                        }
+                        if (lineCoordinates.length > 0) {
+                            const firstData = markerInfos[0].data;
+                            const spStart = firstData.startPoint || 'unknown_start';
+                            const spEnd = firstData.endPoint || 'unknown_end';
+                            const routeId = `route_${spStart}_to_${spEnd}`;
+                            features.push({
+                                type: 'Feature',
+                                properties: {
+                                    id: routeId,
+                                    name: `${spStart} ～ ${spEnd}`,
+                                    type: 'route',
+                                    startPoint: spStart,
+                                    endPoint: spEnd,
+                                    source: 'image_transformed',
+                                    description: 'ルート（GPS変換済）'
+                                },
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: lineCoordinates
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // 4c. スポット（spot型）
+                if (spotInfosCombined.length > 0 && (!this.routeSpotHandler.spotMarkers || this.routeSpotHandler.spotMarkers.length === 0)) {
+                    let spotCounter = 1;
+                    for (const markerInfo of spotInfosCombined) {
+                        const latLng = markerInfo.marker.getLatLng();
+                        const elevation = markerInfo.data.elevation;
+                        const spotName = markerInfo.data.name || markerInfo.data.id || `spot${String(spotCounter).padStart(2, '0')}`;
+                        let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                        if (elevation !== undefined && elevation !== null) {
+                            coords.push(this.roundCoordinate(elevation));
+                        }
+                        features.push({
+                            type: 'Feature',
+                            properties: {
+                                id: spotName,
+                                name: spotName,
+                                type: 'spot',
+                                source: 'image_transformed',
+                                description: 'スポット（GPS変換済）'
+                            },
+                            geometry: {
+                                type: 'Point',
+                                coordinates: coords
+                            }
+                        });
+                        spotCounter++;
+                    }
+                }
+            }
+
+            // 5. エリア（ジオリファレンス変換済み）を収集
+            if (this.areaHandler && this.georeferencing && this.georeferencing.currentTransformation) {
+                const areas = this.areaHandler.getUpToDateAreas();
+                for (const area of areas) {
+                    const latLngs = this.areaHandler.calculateAreaLatLngs(area);
+
+                    if (latLngs && latLngs.length > 0) {
+                        const coordinates = latLngs.map((latLng, index) => {
+                            const lat = Array.isArray(latLng) ? latLng[0] : latLng.lat;
+                            const lng = Array.isArray(latLng) ? latLng[1] : latLng.lng;
+                            const vertex = area.vertices && area.vertices[index];
+                            const elevation = vertex ? vertex.elevation : undefined;
+                            let coord = [this.roundCoordinate(lng), this.roundCoordinate(lat)];
+                            if (elevation !== undefined && elevation !== null) {
+                                coord.push(this.roundCoordinate(elevation));
+                            }
+                            return coord;
+                        });
+
+                        // 閉じる必要がある
+                        if (coordinates.length > 0) {
+                            const first = coordinates[0];
+                            const last = coordinates[coordinates.length - 1];
+                            if (first[0] !== last[0] || first[1] !== last[1]) {
+                                coordinates.push([...first]);
+                            }
+
+                            features.push({
+                                type: 'Feature',
+                                properties: {
+                                    id: area.id || `area_${Date.now()}`,
+                                    name: area.name || '名称未設定エリア',
+                                    type: 'area',
+                                    source: 'image_transformed',
+                                    description: 'エリア（GPS変換済）'
+                                },
+                                geometry: {
+                                    type: 'Polygon',
+                                    coordinates: [coordinates]
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -1146,14 +804,73 @@ class GeoReferencerApp {
 
     /**
      * GeoJSONファイル名を生成
+     * @param {Object} geoJsonData - GeoJSONデータ（features配列を含む）
      * @returns {string} GeoJSONファイル名
      */
-    getGeoJsonFileName() {
-        if (this.currentPngFileName) {
-            return `${this.currentPngFileName}-GPS`;
+    getGeoJsonFileName(geoJsonData) {
+        // 日付フォーマット YYYYMMDD
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}${mm}${dd}`;
+
+        // PNG画像ファイル名から略称を取得（先頭から区切り文字の前まで）
+        const abbreviation = this.currentPngFileName.split(/[-_\s.]/)[0];
+
+        // featuresからポイント・ルート・スポット・エリアの件数を集計
+        const features = (geoJsonData && geoJsonData.features) || [];
+        const pointCount = features.filter(f => f.properties?.type === 'point').length;
+        const routeCount = features.filter(f => f.properties?.type === 'route').length;
+        const spotCount  = features.filter(f => f.properties?.type === 'spot').length;
+        const areaCount  = features.filter(f => f.properties?.type === 'area').length;
+
+        // 件数が1以上の項目のみ含める（0の場合は省略）
+        const parts = [];
+        if (pointCount > 0) parts.push(`P${pointCount}`);
+        if (routeCount > 0) parts.push(`R${routeCount}`);
+        if (spotCount  > 0) parts.push(`S${spotCount}`);
+        if (areaCount  > 0) parts.push(`A${areaCount}`);
+
+        const countStr = parts.join('_');
+        return countStr
+            ? `${abbreviation}-GPS-${countStr}-${dateStr}`
+            : `${abbreviation}-GPS-${dateStr}`;
+    }
+
+    /**
+     * 標高未取得件数を各UIフィールドに反映する
+     */
+    updateElevationCounts() {
+        try {
+            const stats = this.getElevationStats();
+
+            const pointCountField = document.getElementById('elevationPointCount');
+            if (pointCountField) pointCountField.value = stats.points.missing;
+
+            const routeCountField = document.getElementById('elevationRouteCount');
+            if (routeCountField) routeCountField.value = stats.routes.missing;
+
+            const spotCountField = document.getElementById('elevationSpotCount');
+            if (spotCountField) spotCountField.value = stats.spots.missing;
+
+            let areaVertexMissing = 0;
+            if (this.areaHandler && this.areaHandler.areas) {
+                for (const area of this.areaHandler.areas) {
+                    if (area.vertices && Array.isArray(area.vertices)) {
+                        for (const vertex of area.vertices) {
+                            if (vertex.elevation === undefined || vertex.elevation === null) {
+                                areaVertexMissing++;
+                            }
+                        }
+                    }
+                }
+            }
+            const areaVertexCountField = document.getElementById('elevationAreaVertexCount');
+            if (areaVertexCountField) areaVertexCountField.value = areaVertexMissing;
+        } catch (error) {
+            this.logger.error('標高未取得件数更新エラー', error);
         }
-        // PNG画像が読み込まれていない場合はデフォルト名を使用
-        return this.fileHandler.getDefaultDataFileName();
     }
 
     /**
@@ -1195,16 +912,33 @@ class GeoReferencerApp {
 
     /**
      * 標高統計を取得
-     * @returns {Object} {routes: {missing, total}, spots: {missing, total}}
+     * @returns {Object} {points: {missing, total}, routes: {missing, total}, spots: {missing, total}}
      */
     getElevationStats() {
         const stats = {
+            points: { missing: 0, total: 0 },
             routes: { missing: 0, total: 0 },
             spots: { missing: 0, total: 0 }
         };
 
+        // ポイントのカウント（GPS Excelデータ）
+        if (this.routeSpotHandler?.pointData?.length > 0) {
+            const points = this.routeSpotHandler.pointData;
+            stats.points.total = points.length;
+            for (const point of points) {
+                if (point.elevation === undefined || point.elevation === null) {
+                    stats.points.missing++;
+                }
+            }
+        } else if (this.imageCoordinateMarkers?.length > 0) {
+            // combined JSON形式のポイント（imageCoordinateMarkersのpointJSON型）
+            const pointInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'pointJSON');
+            stats.points.total = pointInfos.length;
+            stats.points.missing = pointInfos.filter(m => m.data?.elevation === undefined || m.data?.elevation === null).length;
+        }
+
         // ルートマーカーのカウント
-        if (this.routeSpotHandler?.routeMarkers) {
+        if (this.routeSpotHandler?.routeMarkers?.length > 0) {
             stats.routes.total = this.routeSpotHandler.routeMarkers.length;
             for (const marker of this.routeSpotHandler.routeMarkers) {
                 const meta = marker.__meta;
@@ -1212,10 +946,15 @@ class GeoReferencerApp {
                     stats.routes.missing++;
                 }
             }
+        } else if (this.imageCoordinateMarkers?.length > 0) {
+            // combined JSON形式のルート中間点（imageCoordinateMarkersのwaypoint型）
+            const waypointInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'waypoint');
+            stats.routes.total = waypointInfos.length;
+            stats.routes.missing = waypointInfos.filter(m => m.data?.elevation === undefined || m.data?.elevation === null).length;
         }
 
         // スポットマーカーのカウント
-        if (this.routeSpotHandler?.spotMarkers) {
+        if (this.routeSpotHandler?.spotMarkers?.length > 0) {
             const latestSpots = this.getLatestSpots(this.routeSpotHandler.spotMarkers);
             stats.spots.total = latestSpots.length;
             for (const marker of latestSpots) {
@@ -1224,6 +963,11 @@ class GeoReferencerApp {
                     stats.spots.missing++;
                 }
             }
+        } else if (this.imageCoordinateMarkers?.length > 0) {
+            // combined JSON形式のスポット（imageCoordinateMarkersのspot型）
+            const spotInfos = this.imageCoordinateMarkers.filter(m => m.data?.type === 'spot');
+            stats.spots.total = spotInfos.length;
+            stats.spots.missing = spotInfos.filter(m => m.data?.elevation === undefined || m.data?.elevation === null).length;
         }
 
         return stats;
@@ -1290,12 +1034,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         const app = new GeoReferencerApp();
         await app.init();
-        
+
         // グローバルスコープでデバッグ用にアクセス可能にする
         window.geoApp = app;
-        
+
     } catch (error) {
-        
+
         // エラーをユーザーにも表示
         document.body.innerHTML = `
             <div style="padding: 20px; color: red; font-family: monospace;">

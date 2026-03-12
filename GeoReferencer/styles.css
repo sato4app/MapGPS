@@ -10,13 +10,13 @@
     --color-light: #f8f9fa;
     --color-dark: #333;
     --color-white: #ffffff;
-    
+
     /* 透過色 */
     --color-overlay: rgba(255, 255, 255, 0.95);
     --color-shadow: rgba(0, 0, 0, 0.15);
     --color-border: rgba(0, 0, 0, 0.1);
     --color-tooltip: rgba(0, 0, 0, 0.8);
-    
+
     /* サイズ */
     --control-panel-width: 320px;
     --border-radius: 8px;
@@ -25,14 +25,14 @@
     --spacing-medium: 8px;
     --spacing-large: 15px;
     --spacing-xl: 20px;
-    
+
     /* フォント */
     --font-size-small: 11px;
     --font-size-normal: 12px;
     --font-size-large: 14px;
     --font-weight-normal: 400;
     --font-weight-bold: 500;
-    
+
     /* アニメーション */
     --transition-fast: 0.2s ease;
     --transition-normal: 0.3s ease;
@@ -73,7 +73,9 @@ body {
     cursor: default !important;
 }
 
-html, body, #map {
+html,
+body,
+#map {
     height: 100%;
     width: 100vw;
 }
@@ -157,7 +159,7 @@ html, body, #map {
     transition: color var(--transition-fast);
 }
 
-.editing-option input[type="radio"]:checked + label {
+.editing-option input[type="radio"]:checked+label {
     color: var(--color-primary);
     font-weight: 600;
 }
@@ -166,58 +168,97 @@ html, body, #map {
     color: var(--color-primary);
 }
 
-/* 読み込みボタンとラジオボタンの横並びコンテナ */
-.load-file-container {
-    display: flex;
-    align-items: center;
-    gap: 30px; /* ボタンとテキストボックスの間を10px左に寄せる */
-    margin-bottom: 0px;
+/* 読み込みコントロールのコンテナ */
+.load-control-container {
+    margin-bottom: 10px;
+    padding: 5px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 4px;
 }
 
-/* ファイル種類選択ラジオボタン */
-.radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 6px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: var(--border-radius-small);
-    flex: 1;
-}
-
-.radio-group label {
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: var(--font-weight-normal);
-    color: var(--color-dark);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    transition: color var(--transition-fast);
-}
-
-.radio-group input[type="radio"] {
-    margin: 0;
-}
-
-.radio-group input[type="radio"]:checked + span,
-.radio-group label:has(input[type="radio"]:checked) {
-    color: var(--color-primary);
-    font-weight: var(--font-weight-bold);
-}
-
-.radio-group label:hover {
-    color: var(--color-primary);
-}
-
-/* ラジオボタン項目の横並び配置 */
-.radio-item {
+.load-button-area {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 6px;
+    gap: 10px;
 }
 
+/* 読み込みボタン */
+#loadFileBtn {
+    width: 70px !important;
+    height: 40px !important;
+    /* 3行分に合わせて高さを確保 */
+    line-height: 1.2;
+    padding: 0 4px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0 !important;
+    flex-shrink: 0 !important;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+/* ラジオボタンエリア */
+.load-type-radios {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    height: auto;
+    /* ボタンと同じ高さ */
+    flex: 1;
+    padding: 2px 0;
+}
+
+.radio-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+}
+
+.radio-row label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    white-space: nowrap;
+    width: 90px;
+    margin: 0;
+    color: var(--color-dark);
+}
+
+.radio-row input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* インライン件数表示 (GPS Point) */
+.count-display-inline {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+#gpsPointCount {
+    width: 40px;
+    text-align: right;
+}
+
+/* ファイル名表示フィールド */
+.filename-field {
+    width: 120px;
+    padding: 2px 4px;
+    font-size: 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    background-color: #f9f9f9;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 /* JSONデータ読み込み結果表示 */
 .json-data-counts {
@@ -226,49 +267,29 @@ html, body, #map {
     gap: 4px;
     margin-top: 6px;
     margin-bottom: 10px;
+    margin-left: -60px;
+    margin-right: 10px;
     padding: 6px;
     background: rgba(240, 240, 240, 0.9);
     border-radius: var(--border-radius-small);
 }
 
-/* JSONロード行のレイアウト */
-.json-load-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 48px;
-    margin-bottom: 4px;
-}
-
-/* 読み込みJSONボタンのスタイル - 読み込みボタンと同じスタイル */
-.load-json-button {
-    padding: 8px;
-    cursor: pointer;
-    display: block;
-    text-align: center;
-    height: 60px;
-    box-sizing: border-box;
-    line-height: 1.4;
-    width: 100px !important;
-    flex-shrink: 0 !important;
-}
-
-.load-json-button:hover {
-    background: #f8f9fa;
-    transform: none;
-}
-
 /* インライン件数表示フィールド */
 .count-fields-inline {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    grid-auto-flow: column;
+    gap: 4px 20px;
+    /* 行間4px, 列間20px */
+    width: 100%;
 }
 
 .count-item-inline {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 4px;
     font-size: 11px;
     width: 100%;
 }
@@ -303,81 +324,6 @@ html, body, #map {
     font-size: 10px;
 }
 
-.json-data-counts .count-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-}
-
-.json-data-counts .count-item label {
-    font-size: 12px;
-    color: var(--color-dark);
-    font-weight: var(--font-weight-normal);
-}
-
-/* 個数表示用テキストフィールド */
-.count-field {
-    width: 40px;
-    padding: 2px 4px;
-    font-size: 12px;
-    text-align: right;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    background-color: #f9f9f9;
-    color: #333;
-    box-sizing: border-box;
-}
-
-/* 標高カウント表示のラッパー */
-.elevation-count-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    width: 40px;
-}
-
-/* 標高未取得ラベル */
-.elevation-count-label {
-    font-size: 11px;
-    color: var(--text-color);
-    opacity: 0.8;
-    margin-left: -20px;
-    text-align: right;
-}
-
-/* 新しいcount-group用のスタイル */
-.count-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-medium);
-    margin-left: var(--spacing-large);
-    align-items: flex-start;
-}
-
-.count-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-medium);
-    font-size: var(--font-size-normal);
-}
-
-.count-item label {
-    font-weight: var(--font-weight-normal);
-    margin: 0;
-    white-space: nowrap;
-    color: var(--color-dark);
-}
-
-/* 単位ラベル */
-.unit-label {
-    font-size: 11px;
-    color: var(--color-dark);
-    font-weight: var(--font-weight-normal);
-    margin-right: 20px;
-}
-
 /* エディターパネル */
 .editor-panel {
     display: flex;
@@ -385,11 +331,9 @@ html, body, #map {
     gap: 8px;
 }
 
-#loadFileBtn,
-#loadRouteSpotBtn,
 #matchPointsBtn,
 #exportGeoJsonBtn,
-#saveToFirebaseBtn {
+#saveGeoJsonBtn {
     padding: 8px;
     cursor: pointer;
     display: block;
@@ -401,22 +345,19 @@ html, body, #map {
     line-height: 1.4;
 }
 
-/* 各ボタンの幅を固定 */
-#loadFileBtn {
-    width: 180px !important;
-    box-sizing: border-box !important;
-    flex-shrink: 0 !important;
+/* #saveGeoJsonBtn の幅は共通設定（width: 100%）を使用 */
+#saveGeoJsonBtn {
+    /* ボタンの上に10pxの余白を追加 */
+    margin-top: 10px;
 }
 
-#loadRouteSpotBtn {
-    width: 84px !important;
-    box-sizing: border-box !important;
-    flex-shrink: 0 !important;
-}
-
-/* #saveToFirebaseBtn の幅は共通設定（width: 100%）を使用 */
-#saveToFirebaseBtn {
-    margin-top: -10px; /* ボタンを10px上に配置 */
+#saveGeoJsonNote {
+    font-size: 11px;
+    color: #999;
+    text-align: center;
+    margin-top: -10px;
+    display: none;
+    /* Initially hidden */
 }
 
 #fetchElevationBtn {
@@ -499,7 +440,8 @@ html, body, #map {
     font-size: 12px;
     font-weight: bold;
     color: #333;
-    width: 60px; /* 84px→60px */
+    width: 60px;
+    /* 84px→60px */
     flex-shrink: 0;
 }
 
@@ -516,7 +458,8 @@ html, body, #map {
     border: 1px solid #ccc;
     border-radius: 3px;
     font-size: 12px;
-    width: 200px; /* 180px→200px */
+    width: 200px;
+    /* 180px→200px */
 }
 
 .info-field-row input:read-only {
@@ -529,7 +472,8 @@ html, body, #map {
     width: 50px;
 }
 
-#latDecimalField, #lngDecimalField {
+#latDecimalField,
+#lngDecimalField {
     width: 90px;
 }
 
@@ -582,6 +526,12 @@ html, body, #map {
 
 .leaflet-popup-content-wrapper {
     font-size: 11pt !important;
+}
+
+/* エリア頂点マーカーのスタイル */
+.area-vertex-marker {
+    background: transparent;
+    border: none;
 }
 
 /* ルート中間点マーカーのスタイル */
@@ -715,7 +665,7 @@ html, body, #map {
     font-family: sans-serif;
     text-align: center;
     max-width: 400px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     z-index: 10000;
 }
 
@@ -794,9 +744,20 @@ html, body, #map {
 
 /* ドラッグハンドルのアニメーション */
 @keyframes dragHandlePulse {
-    0% { transform: scale(1); opacity: 0.8; }
-    50% { transform: scale(1.2); opacity: 1; }
-    100% { transform: scale(1); opacity: 0.8; }
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
 }
 
 .drag-handle-pulse {
@@ -910,7 +871,7 @@ select:focus {
         --color-white: #1e1e1e;
         --color-border: rgba(255, 255, 255, 0.1);
     }
-    
+
     .overlay-controls {
         color: var(--color-dark);
     }
@@ -926,7 +887,8 @@ select:focus {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
-    margin-bottom: 5px; /* 標高取得セクションとの間隔を詰める */
+    margin-bottom: 5px;
+    /* 標高取得セクションとの間隔を詰める */
     padding: 12px;
     border: 2px solid rgba(70, 130, 180, 0.4);
     border-radius: var(--border-radius);
@@ -980,7 +942,8 @@ select:focus {
     padding: 6px 8px;
     border: 1px solid #ccc;
     border-radius: var(--border-radius-small);
-    font-size: var(--font-size-normal); /* ラベルと同じサイズに変更 */
+    font-size: var(--font-size-normal);
+    /* ラベルと同じサイズに変更 */
     font-family: monospace;
     background-color: #f9f9f9;
     color: var(--color-dark);
@@ -1052,27 +1015,33 @@ select:focus {
 
 /* 標高取得コントロールのスタイル */
 .elevation-controls {
-    margin-top: 0px; /* マッチング結果との間隔を詰める */
-    padding: 5px 5px 5px 0px; /* 左側のパディングを0にしてボタンを左に寄せる */
+    margin-top: 0px;
+    /* マッチング結果との間隔を詰める */
+    padding: 5px 5px 5px 0px;
+    /* 左側のパディングを0にしてボタンを左に寄せる */
     background: var(--color-overlay);
 }
 
 .elevation-controls button {
     width: 100%;
-    margin-top: 20px; /* ボタンを30px下に配置 */
-    margin-bottom: 30px; /* ボタンとチェックボックスの間に30pxの余白 */
+    margin-top: 20px;
+    /* ボタンを30px下に配置 */
+    margin-bottom: 30px;
+    /* ボタンとチェックボックスの間に30pxの余白 */
 }
 
 .elevation-checkboxes {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-medium);
-    padding-left: 30px; /* 標高取得ボタンとの間に横の余白を追加 */
+    padding-left: 30px;
+    /* 標高取得ボタンとの間に横の余白を追加 */
 }
 
 .elevation-checkbox-item {
     display: flex;
-    align-items: flex-end; /* チェックボックスとテキストフィールドを下端で揃える */
+    align-items: flex-end;
+    /* チェックボックスとテキストフィールドを下端で揃える */
     justify-content: space-between;
     gap: var(--spacing-medium);
 }
@@ -1084,6 +1053,24 @@ select:focus {
     font-size: var(--font-size-normal);
     cursor: pointer;
     min-width: 120px;
+}
+
+#matchedPointCountField {
+    width: 40px;
+    text-align: right;
+}
+
+/* 標高取得フィールドの設定 */
+.elevation-checkbox-item .count-field {
+    width: 40px !important;
+    text-align: right;
+}
+
+/* 右端から10px左に移動（margin-right）し、さらに位置指定で15px左へ */
+.elevation-checkbox-item>*:last-child {
+    margin-right: 10px;
+    position: relative;
+    right: 15px;
 }
 
 .elevation-checkbox-item input[type="checkbox"] {
@@ -1101,3 +1088,9 @@ select:focus {
     color: #333;
 }
 
+/* 仕切り線 */
+.separator-line {
+    border-top: 3px solid #666;
+    /* margin: 15px 0; */
+    width: 100%;
+}

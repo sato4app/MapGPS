@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,32 +11,28 @@
 
     <!-- セキュリティとパフォーマンスのためのメタタグ -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    
+
     <!-- ファビコンのリクエストを抑制して404エラーを防ぐ -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
     <!-- 外部CDNリソースの事前接続でパフォーマンス向上 -->
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
-    
+
     <!-- Leaflet.js の CSS と JS を読み込み -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin="">
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- SheetJS (XLSX) ライブラリ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- Firebase SDK (v10.14.1 Compat) - BloomFilter errorを修正 -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
 
     <!-- アプリケーション固有のスタイルシート -->
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <!-- メイン地図コンテナ -->
     <main id="map" role="main" aria-label="国土地理院地形図"></main>
@@ -48,56 +45,87 @@
         <!-- 画像重ね合わせセクション -->
         <section id="geoReferencerPanel" class="editor-panel" aria-labelledby="geo-ref-title">
             <h2 id="geo-ref-title" class="visually-hidden">画像重ね合わせツール</h2>
-            
-            <!-- ポイントGPS読み込み -->
-            <div class="load-file-container">
-                <button id="loadFileBtn" title="GPS座標データ（Excel形式）を読み込みます" class="leaflet-bar leaflet-control">ポイントGPSの読み込み</button>
-                <div class="count-display">
-                    <input type="text" id="gpsPointCount" readonly value="0" class="count-field">
-                    <span class="unit-label">個</span>
-                </div>
-            </div>
-            
-            <!-- ファイル入力 -->
-            <input type="file" id="gpsExcelInput" accept=".xlsx" style="display: none;">
-            <input type="file" id="imageInput" accept="image/png" style="display: none;">
-            
-            <!-- PNG画像読み込み -->
-            <div class="json-data-counts">
-                <div class="json-load-row">
-                    <button id="loadPngBtn" class="load-json-button leaflet-bar leaflet-control"
-                            title="PNG画像を読み込み、Firebaseから画像座標データを自動取得します">PNG画像の読み込み</button>
-                    <div class="count-fields-inline">
-                        <div class="count-item-inline">
-                            <label>ポイント</label>
-                            <div class="count-value-group">
-                                <input type="text" id="pointCount" readonly value="0" class="count-field">
+
+            <!-- 読み込みコントロール -->
+            <div class="load-control-container">
+                <div class="load-button-area">
+                    <button id="loadFileBtn" title="選択した形式のファイルを読み込みます"
+                        class="leaflet-bar leaflet-control">読み込み</button>
+
+                    <div class="load-type-radios">
+                        <div class="radio-row">
+                            <label>
+                                <input type="radio" name="loadType" value="gps" checked>
+                                ポイントGPS
+                            </label>
+                            <div class="count-display-inline">
+                                <input type="text" id="gpsPointCount" readonly value="0" class="count-field">
                                 <span class="unit-label">個</span>
                             </div>
                         </div>
-                        <div class="count-item-inline">
-                            <label>ルート</label>
-                            <div class="count-value-group">
-                                <input type="text" id="routeCount" readonly value="0" class="count-field">
-                                <span class="unit-label">本</span>
-                            </div>
+                        <div class="radio-row">
+                            <label>
+                                <input type="radio" name="loadType" value="png">
+                                PNG画像
+                            </label>
+                            <input type="text" id="pngFileName" readonly placeholder="ファイル名" class="filename-field">
                         </div>
-                        <div class="count-item-inline">
-                            <label>スポット</label>
-                            <div class="count-value-group">
-                                <input type="text" id="spotCount" readonly value="0" class="count-field">
-                                <span class="unit-label">個</span>
+                        <div class="radio-row">
+                            <label>
+                                <input type="radio" name="loadType" value="json">
+                                JSONファイル
+                            </label>
+                        </div>
+
+                        <!-- データ件数表示 -->
+                        <div class="json-data-counts">
+                            <div class="count-fields-inline">
+                                <div class="count-item-inline">
+                                    <label>ポイント</label>
+                                    <div class="count-value-group">
+                                        <input type="text" id="pointCount" readonly value="0" class="count-field">
+                                        <span class="unit-label">個</span>
+                                    </div>
+                                </div>
+                                <div class="count-item-inline">
+                                    <label>ルート</label>
+                                    <div class="count-value-group">
+                                        <input type="text" id="routeCount" readonly value="0" class="count-field">
+                                        <span class="unit-label">本</span>
+                                    </div>
+                                </div>
+                                <div class="count-item-inline">
+                                    <label>スポット</label>
+                                    <div class="count-value-group">
+                                        <input type="text" id="spotCount" readonly value="0" class="count-field">
+                                        <span class="unit-label">個</span>
+                                    </div>
+                                </div>
+                                <div class="count-item-inline">
+                                    <label>エリア</label>
+                                    <div class="count-value-group">
+                                        <input type="text" id="areaCount" readonly value="0" class="count-field">
+                                        <span class="unit-label">個</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- ファイル入力 -->
+            <input type="file" id="gpsExcelInput" accept=".xlsx" multiple style="display: none;">
+            <input type="file" id="imageInput" accept="image/png" style="display: none;">
+            <input type="file" id="jsonInput" accept=".json" multiple style="display: none;">
+
+
+
             <!-- ポイントマッチング結果表示 -->
             <div class="matching-results-container">
                 <!-- 画像の重ね合わせ(ジオリファレンス)ボタン -->
                 <button id="matchPointsBtn" class="leaflet-bar leaflet-control"
-                        title="ポイントのマッチングと画像の重ね合わせを実行します">画像の重ね合わせ（ジオリファレンス）</button>
+                    title="ポイントのマッチングと画像の重ね合わせを実行します">画像の重ね合わせ（ジオリファレンス）</button>
 
                 <div class="matched-count">
                     <label for="matchedPointCountField">一致するポイント数</label>
@@ -109,23 +137,30 @@
 
                 <div class="unmatched-points">
                     <label for="unmatchedPointsField">不一致ポイント</label>
-                    <input type="text" id="unmatchedPointsField" readonly placeholder="マッチングしなかったポイント">
+                    <input type="text" id="unmatchedPointsField" readonly placeholder="マッチしなかったポイント">
                 </div>
             </div>
             <!-- 標高取得セクション -->
             <div class="elevation-controls">
                 <button id="fetchElevationBtn" class="leaflet-bar leaflet-control" disabled
-                        title="ジオリファレンス実行後に有効になります">標高取得</button>
+                    title="ジオリファレンス実行後に有効になります">標高取得</button>
                 <div class="elevation-checkboxes">
+                    <div class="elevation-checkbox-item">
+                        <label>
+                            <input type="checkbox" id="elevationPointCheckbox" checked>
+                            ポイント
+                        </label>
+                        <div class="elevation-count-wrapper">
+                            <label class="elevation-count-label">標高未取得</label>
+                            <input type="text" id="elevationPointCount" readonly value="0" class="count-field">
+                        </div>
+                    </div>
                     <div class="elevation-checkbox-item">
                         <label>
                             <input type="checkbox" id="elevationRouteCheckbox" checked>
                             ルート中間点
                         </label>
-                        <div class="elevation-count-wrapper">
-                            <label class="elevation-count-label">標高未取得</label>
-                            <input type="text" id="elevationRouteCount" readonly value="0" class="count-field">
-                        </div>
+                        <input type="text" id="elevationRouteCount" readonly value="0" class="count-field">
                     </div>
                     <div class="elevation-checkbox-item">
                         <label>
@@ -134,12 +169,20 @@
                         </label>
                         <input type="text" id="elevationSpotCount" readonly value="0" class="count-field">
                     </div>
+                    <div class="elevation-checkbox-item">
+                        <label>
+                            <input type="checkbox" id="elevationAreaVertexCheckbox" checked>
+                            エリア頂点
+                        </label>
+                        <input type="text" id="elevationAreaVertexCount" readonly value="0" class="count-field">
+                    </div>
                 </div>
             </div>
 
             <!-- GPS値保存 -->
-            <button id="saveToFirebaseBtn" class="leaflet-bar leaflet-control" disabled
-                    title="ジオリファレンス後のGPS変換済みデータをFirebaseに保存します">変換後のGPS値をデータベースに格納</button>
+            <button id="saveGeoJsonBtn" class="leaflet-bar leaflet-control" disabled
+                title="ジオリファレンス後のGPS変換済みデータをGeoJSONファイルに保存します">変換後のGPS値をGeoJSONファイルに保存</button>
+            <div id="saveGeoJsonNote">（ポイントGPSは、GeoJSONファイルへの格納対象外）</div>
 
         </section>
     </aside>
@@ -148,4 +191,5 @@
     <!-- type="module"により、ES6モジュールとして読み込む -->
     <script type="module" src="js/app-main.js"></script>
 </body>
+
 </html>

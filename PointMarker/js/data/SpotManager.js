@@ -16,20 +16,21 @@ export class SpotManager extends BaseManager {
      * @param {number} x - X座標
      * @param {number} y - Y座標
      * @param {string} name - スポット名（デフォルト: 空文字列）
+     * @param {boolean} skipRedrawInput - 入力ボックスの再描画をスキップするかどうか (デフォルト: false)
      * @returns {Object} 追加されたスポット
      */
-    addSpot(x, y, name = '') {
+    addSpot(x, y, name = '', skipRedrawInput = false) {
         const spot = {
             x: Math.round(x),
             y: Math.round(y),
             name: name,
             index: this.spots.length
         };
-        
+
         this.spots.push(spot);
-        this.notify('onChange');
+        this.notify('onChange', undefined, skipRedrawInput);
         this.notify('onCountChange', this.spots.length);
-        
+
         return spot;
     }
 

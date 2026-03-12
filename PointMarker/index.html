@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,8 +8,11 @@
     <meta name="description" content="PNG画像のハイキングマップから視覚的にポイントを選択し、座標データをJSONファイルとして出力するWebアプリケーション">
 
     <!-- Favicon設定（404エラー回避） -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
-    <link rel="icon" href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" type="image/x-icon">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
+    <link rel="icon"
+        href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        type="image/x-icon">
 
     <link rel="stylesheet" href="styles.css">
 
@@ -17,6 +21,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
+
 <body>
     <div class="container">
         <!-- メインコンテンツ -->
@@ -24,16 +29,34 @@
             <!-- 地図表示エリア -->
             <div class="map-container">
                 <canvas id="mapCanvas" class="map-canvas"></canvas>
+                <div id="imageFilenameDisplay" class="image-filename-display"></div>
             </div>
-            
+
             <!-- コントロールパネル（オーバーレイ） -->
             <aside class="controls-sidebar">
                 <h2>Points/Routes Marker</h2>
 
                 <!-- 画像ファイル入力 -->
-                <div class="file-input-wrapper">
-                    <button type="button" id="imageInputBtn" class="file-input-label" title="ハイキングマップのPNG画像ファイルを選択してください" aria-label="PNG画像を選択">
-                        PNG画像を選択
+                <!-- Stage 1: 画像読み込み -->
+                <div id="stage1-container" class="file-input-wrapper">
+                    <button type="button" id="stage1ImageBtn" class="file-input-label" title="PNG画像ファイルを選択"
+                        aria-label="PNG画像を読み込み">
+                        PNG画像を読み込み
+                    </button>
+                </div>
+
+                <!-- ファイル操作: JSONデータの読み込み・保存 -->
+                <div id="file-operations-container" class="file-input-wrapper"
+                    style="display: none; align-items: center; gap: 12px;">
+                    <button type="button" id="loadJsonBtn" class="file-input-label"
+                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="JSONファイルからデータを読み込み"
+                        aria-label="読み込み">
+                        読み込み
+                    </button>
+                    <button type="button" id="saveJsonBtn" class="file-input-label"
+                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="JSONファイルにデータを保存"
+                        aria-label="保存">
+                        保存
                     </button>
                 </div>
 
@@ -52,8 +75,12 @@
                         <input type="radio" name="editingMode" value="spot">
                         <span>スポット編集</span>
                     </label>
+                    <label class="editing-option">
+                        <input type="radio" name="editingMode" value="area">
+                        <span>エリア編集</span>
+                    </label>
                 </fieldset>
-                
+
                 <!-- ポイント編集パネル -->
                 <section class="point-editor" id="pointEditor">
                     <h3>ポイント編集</h3>
@@ -62,7 +89,7 @@
                         ポイント数: <span id="pointCount">0</span>
                     </div>
                 </section>
-                
+
                 <!-- ルート編集パネル -->
                 <section class="route-editor" id="routeEditor" style="display: none;">
                     <h3>ルート編集</h3>
@@ -85,12 +112,14 @@
                         <div class="route-points-inputs">
                             <div class="route-point-input">
                                 <label for="startPointInput">開始ポイント:</label>
-                                <input type="text" id="startPointInput" class="route-point-field" maxlength="4" aria-describedby="start-point-desc" readonly>
+                                <input type="text" id="startPointInput" class="route-point-field" maxlength="4"
+                                    aria-describedby="start-point-desc" readonly>
                                 <span id="start-point-desc" class="sr-only">既存ポイントのIDを入力</span>
                             </div>
                             <div class="route-point-input">
                                 <label for="endPointInput">終了ポイント:</label>
-                                <input type="text" id="endPointInput" class="route-point-field" maxlength="4" aria-describedby="end-point-desc" readonly>
+                                <input type="text" id="endPointInput" class="route-point-field" maxlength="4"
+                                    aria-describedby="end-point-desc" readonly>
                                 <span id="end-point-desc" class="sr-only">既存ポイントのIDを入力</span>
                             </div>
                             <div class="waypoint-count" aria-live="polite">
@@ -109,13 +138,43 @@
                         </div>
                     </div>
                 </section>
-                
+
                 <!-- スポット編集パネル -->
                 <section class="spot-editor" id="spotEditor" style="display: none;">
                     <h3>スポット編集</h3>
 
                     <div class="spot-count" aria-live="polite">
                         スポット数: <span id="spotCount">0</span>
+                    </div>
+                </section>
+
+                <!-- エリア編集パネル -->
+                <section class="area-editor" id="areaEditor" style="display: none;">
+                    <h3>エリア編集</h3>
+
+                    <!-- エリア選択ドロップダウン -->
+                    <div class="area-selector">
+                        <select id="areaSelectDropdown" aria-label="エリア選択">
+                            <option value="">-- エリアを選択 --</option>
+                        </select>
+                    </div>
+
+
+
+                    <!-- エリア操作ボタン -->
+                    <div class="area-actions">
+                        <button id="addAreaBtn" class="area-action-btn" title="新しいエリアを追加">追加</button>
+                        <button id="deleteAreaBtn" class="area-action-btn" title="選択中のエリアを削除">削除</button>
+                    </div>
+
+                    <div class="area-info">
+                        <!-- エリア設定 -->
+                        <div class="area-points-inputs">
+                            <div class="vertex-count" aria-live="polite">
+                                頂点数: <span id="vertexCount">0</span>
+                            </div>
+                            <!-- 必要に応じて表示制御を追加 -->
+                        </div>
                     </div>
                 </section>
 
@@ -155,7 +214,8 @@
     </div>
 
     <!-- 認証状態表示（オーバーレイパネルに追加される） -->
-    <div id="authStatus" style="display: none; position: fixed; top: 10px; right: 10px; background-color: white; padding: 10px 15px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10002; font-size: 12px;">
+    <div id="authStatus"
+        style="display: none; position: fixed; top: 10px; right: 10px; background-color: white; padding: 10px 15px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10002; font-size: 12px;">
         <div id="authUserInfo">
             <span id="authIcon">🔒</span>
             <span id="authText">認証中...</span>
@@ -167,61 +227,149 @@
         <div class="settings-dialog">
             <div class="settings-dialog-header">
                 <span class="settings-dialog-icon">⚙️</span>
-                <h3>マーカーサイズ設定</h3>
+                <h3>マーカーサイズ設定／データベース</h3>
             </div>
             <div class="settings-dialog-body">
-                <p class="settings-dialog-message">各マーカーのサイズを指定してください（ピクセル単位）</p>
+                <!-- タブ切り替えボタン -->
+                <div class="settings-tabs">
+                    <button class="settings-tab-btn active" data-tab="marker-settings">マーカーサイズ設定</button>
+                    <button class="settings-tab-btn" data-tab="database-settings">データベース</button>
+                </div>
 
-                <div class="settings-dialog-controls">
-                    <!-- ポイントマーカー -->
-                    <div class="settings-control-group">
-                        <label for="pointSizeInput">
-                            <span class="settings-marker-preview point-marker"></span>
-                            <span class="settings-label-text">ポイント:</span>
-                        </label>
-                        <input type="range" id="pointSizeSlider" class="settings-slider" min="2" max="12" value="6" step="0.5">
-                        <input type="number" id="pointSizeInput" class="settings-input" min="2" max="12" value="6" step="0.5">
-                        <span class="settings-unit">px</span>
-                    </div>
+                <!-- マーカーサイズ設定タブ -->
+                <div id="tab-marker-settings" class="settings-tab-content active">
+                    <p class="settings-dialog-message">各マーカーのサイズを指定してください（ピクセル単位）</p>
 
-                    <!-- 選択ルート中間点 -->
-                    <div class="settings-control-group">
-                        <label for="selectedWaypointSizeInput">
-                            <span class="settings-marker-preview waypoint-marker selected"></span>
-                            <span class="settings-label-text">選択ルート中間点:</span>
-                        </label>
-                        <input type="range" id="selectedWaypointSizeSlider" class="settings-slider" min="2" max="12" value="6" step="0.5">
-                        <input type="number" id="selectedWaypointSizeInput" class="settings-input" min="2" max="12" value="6" step="0.5">
-                        <span class="settings-unit">px</span>
-                    </div>
+                    <div class="settings-dialog-controls">
+                        <!-- ポイントマーカー -->
+                        <div class="settings-control-group">
+                            <label for="pointSizeInput">
+                                <span class="settings-marker-preview point-marker"></span>
+                                <span class="settings-label-text">ポイント:</span>
+                            </label>
+                            <input type="range" id="pointSizeSlider" class="settings-slider" min="2" max="12" value="6"
+                                step="0.5">
+                            <input type="number" id="pointSizeInput" class="settings-input" min="2" max="12" value="6"
+                                step="0.5">
+                            <span class="settings-unit">px</span>
+                        </div>
 
-                    <!-- 非選択ルート中間点 -->
-                    <div class="settings-control-group">
-                        <label for="unselectedWaypointSizeInput">
-                            <span class="settings-marker-preview waypoint-marker unselected"></span>
-                            <span class="settings-label-text">非選択ルート中間点:</span>
-                        </label>
-                        <input type="range" id="unselectedWaypointSizeSlider" class="settings-slider" min="2" max="12" value="4" step="0.5">
-                        <input type="number" id="unselectedWaypointSizeInput" class="settings-input" min="2" max="12" value="4" step="0.5">
-                        <span class="settings-unit">px</span>
-                    </div>
+                        <!-- 選択ルート中間点 -->
+                        <div class="settings-control-group">
+                            <label for="selectedWaypointSizeInput">
+                                <span class="settings-marker-preview waypoint-marker selected"></span>
+                                <span class="settings-label-text">選択ルート中間点:</span>
+                            </label>
+                            <input type="range" id="selectedWaypointSizeSlider" class="settings-slider" min="2" max="12"
+                                value="6" step="0.5">
+                            <input type="number" id="selectedWaypointSizeInput" class="settings-input" min="2" max="12"
+                                value="6" step="0.5">
+                            <span class="settings-unit">px</span>
+                        </div>
 
-                    <!-- スポット -->
-                    <div class="settings-control-group">
-                        <label for="spotSizeInput">
-                            <span class="settings-marker-preview spot-marker"></span>
-                            <span class="settings-label-text">スポット:</span>
-                        </label>
-                        <input type="range" id="spotSizeSlider" class="settings-slider" min="4" max="20" value="12" step="0.5">
-                        <input type="number" id="spotSizeInput" class="settings-input" min="4" max="20" value="12" step="0.5">
-                        <span class="settings-unit">px</span>
+                        <!-- 非選択ルート中間点 -->
+                        <div class="settings-control-group">
+                            <label for="unselectedWaypointSizeInput">
+                                <span class="settings-marker-preview waypoint-marker unselected"></span>
+                                <span class="settings-label-text">非選択ルート中間点:</span>
+                            </label>
+                            <input type="range" id="unselectedWaypointSizeSlider" class="settings-slider" min="2"
+                                max="12" value="4" step="0.5">
+                            <input type="number" id="unselectedWaypointSizeInput" class="settings-input" min="2"
+                                max="12" value="4" step="0.5">
+                            <span class="settings-unit">px</span>
+                        </div>
+
+                        <!-- スポット -->
+                        <div class="settings-control-group">
+                            <label for="spotSizeInput">
+                                <span class="settings-marker-preview spot-marker"></span>
+                                <span class="settings-label-text">スポット:</span>
+                            </label>
+                            <input type="range" id="spotSizeSlider" class="settings-slider" min="4" max="20" value="12"
+                                step="0.5">
+                            <input type="number" id="spotSizeInput" class="settings-input" min="4" max="20" value="12"
+                                step="0.5">
+                            <span class="settings-unit">px</span>
+                        </div>
+
+                        <!-- エリア頂点 -->
+                        <div class="settings-control-group">
+                            <label for="areaVertexSizeInput">
+                                <span class="settings-marker-preview area-vertex-marker"></span>
+                                <span class="settings-label-text">エリア頂点:</span>
+                            </label>
+                            <input type="range" id="areaVertexSizeSlider" class="settings-slider" min="2" max="12"
+                                value="6" step="0.5">
+                            <input type="number" id="areaVertexSizeInput" class="settings-input" min="2" max="12"
+                                value="6" step="0.5">
+                            <span class="settings-unit">px</span>
+                        </div>
                     </div>
+                </div>
+
+                <!-- データベースタブ -->
+                <div id="tab-database-settings" class="settings-tab-content">
+                    <p class="settings-dialog-message">Firebaseデータベースとの連携を行います</p>
+                    <div class="settings-dialog-controls"
+                        style="display: flex; gap: 10px; justify-content: flex-end; padding: 20px 0; flex-direction: row;">
+                        <button id="databaseLoadBtn" class="settings-dialog-btn settings-dialog-btn-ok">
+                            ☁️ 読み込み
+                        </button>
+                        <button id="databaseExportBtn" class="settings-dialog-btn settings-dialog-btn-ok">
+                            ☁️ 保存
+                        </button>
+                        <button id="databaseCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">
+                            キャンセル
+                        </button>
+                    </div>
+                    <p style="font-size: 11px; color: #666; text-align: center;">※ 現在の画像ファイル名に基づくプロジェクトIDで、読み込み・保存されます
+                    </p>
                 </div>
             </div>
             <div class="settings-dialog-footer">
                 <button id="settingsResetBtn" class="settings-dialog-btn settings-dialog-btn-reset">初期値に戻す</button>
                 <button id="settingsOkBtn" class="settings-dialog-btn settings-dialog-btn-ok">OK</button>
                 <button id="settingsCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 保存対象選択ダイアログ -->
+    <div id="saveSelectionDialog" class="settings-dialog-overlay" style="display: none;">
+        <div class="settings-dialog" style="max-width: 360px;">
+            <div class="settings-dialog-header">
+                <span class="settings-dialog-icon">💾</span>
+                <h3>保存対象の選択</h3>
+            </div>
+            <div class="settings-dialog-body">
+                <p class="settings-dialog-message">保存するデータを選択してください</p>
+                <div class="save-selection-group">
+                    <label class="save-selection-item">
+                        <input type="checkbox" id="savePoints" checked>
+                        <span>ポイント</span>
+                        <span id="savePointsCount" class="save-selection-count"></span>
+                    </label>
+                    <label class="save-selection-item">
+                        <input type="checkbox" id="saveRoutes" checked>
+                        <span>ルート</span>
+                        <span id="saveRoutesCount" class="save-selection-count"></span>
+                    </label>
+                    <label class="save-selection-item">
+                        <input type="checkbox" id="saveSpots" checked>
+                        <span>スポット</span>
+                        <span id="saveSpotsCount" class="save-selection-count"></span>
+                    </label>
+                    <label class="save-selection-item">
+                        <input type="checkbox" id="saveAreas" checked>
+                        <span>エリア</span>
+                        <span id="saveAreasCount" class="save-selection-count"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="settings-dialog-footer">
+                <button id="saveSelectionOkBtn" class="settings-dialog-btn settings-dialog-btn-ok">OK</button>
+                <button id="saveSelectionCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">キャンセル</button>
             </div>
         </div>
     </div>
@@ -240,24 +388,47 @@
         window.AuthManager = AuthManager;
         window.FirestoreDataManager = FirestoreDataManager;
 
-        // アプリケーション初期化
-        document.addEventListener('DOMContentLoaded', async () => {
+        // Firebase接続中フラグ（多重呼び出し防止）
+        let _firebaseConnecting = false;
+
+        /**
+         * Firebase遅延接続関数
+         * 読み込み・保存操作時のみ呼び出す（起動時には接続しない）
+         */
+        window.connectFirebase = async () => {
+            // 既に接続済みの場合はスキップ
+            if (window.firestoreManager) {
+                return;
+            }
+
+            // 接続中の場合は完了まで待機
+            if (_firebaseConnecting) {
+                while (_firebaseConnecting) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                return;
+            }
+
+            _firebaseConnecting = true;
+
+            const authStatusEl = document.getElementById('authStatus');
+            const authTextEl = document.getElementById('authText');
+            const authIconEl = document.getElementById('authIcon');
+
+            authStatusEl.style.display = 'block';
+            authStatusEl.style.opacity = '1';
+            authStatusEl.style.transition = '';
+            authStatusEl.style.backgroundColor = '';
+            authIconEl.textContent = '🔒';
+            authTextEl.textContent = '接続中...';
+
             try {
                 // Firebaseクライアント初期化
                 const firebaseClient = new FirebaseClient(firebaseConfig);
                 await firebaseClient.initialize();
 
-                // 認証マネージャー初期化
+                // 認証マネージャー初期化・匿名ログイン
                 const authManager = new AuthManager(firebaseClient.getApp());
-
-                // 匿名ログイン
-                const authStatusEl = document.getElementById('authStatus');
-                const authTextEl = document.getElementById('authText');
-                const authIconEl = document.getElementById('authIcon');
-
-                authStatusEl.style.display = 'block';
-                authTextEl.textContent = '認証中...';
-
                 await authManager.signInAnonymously();
 
                 authIconEl.textContent = '✅';
@@ -275,31 +446,38 @@
                 window.authManager = authManager;
                 window.firestoreManager = firestoreManager;
 
-                // PointMarkerアプリ起動
-                const app = new PointMarkerApp();
-                window.pointMarkerApp = app;
-
                 // 3秒後に認証状態表示を非表示
                 setTimeout(() => {
                     authStatusEl.style.opacity = '0';
                     authStatusEl.style.transition = 'opacity 0.5s ease';
                     setTimeout(() => {
                         authStatusEl.style.display = 'none';
+                        authStatusEl.style.opacity = '1';
+                        authStatusEl.style.transition = '';
                     }, 500);
                 }, 3000);
 
             } catch (error) {
-                console.error('アプリケーション初期化エラー:', error);
-                const authStatusEl = document.getElementById('authStatus');
-                const authTextEl = document.getElementById('authText');
-                const authIconEl = document.getElementById('authIcon');
-
-                authStatusEl.style.display = 'block';
                 authStatusEl.style.backgroundColor = '#fee';
                 authIconEl.textContent = '❌';
-                authTextEl.textContent = '初期化失敗: ' + error.message;
+                authTextEl.textContent = '接続失敗: ' + error.message;
+                _firebaseConnecting = false;
+                throw error;
+            }
+
+            _firebaseConnecting = false;
+        };
+
+        // アプリケーション初期化（起動時はFirebaseに接続しない）
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const app = new PointMarkerApp();
+                window.pointMarkerApp = app;
+            } catch (error) {
+                console.error('アプリケーション初期化エラー:', error);
             }
         });
     </script>
 </body>
+
 </html>

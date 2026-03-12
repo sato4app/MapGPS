@@ -48,7 +48,7 @@ export class DragDropHandler {
      * @param {Object} routeManager - RouteManagerインスタンス
      * @returns {boolean} 位置が更新されたかどうか
      */
-    updateDrag(mouseX, mouseY, pointManager, spotManager, routeManager) {
+    updateDrag(mouseX, mouseY, pointManager, spotManager, routeManager, areaManager) {
         if (!this.isDragging) return false;
 
         // 移動距離を計算
@@ -78,6 +78,9 @@ export class DragDropHandler {
         } else if (this.draggedObjectType === 'routePoint') {
             routeManager.updateRoutePoint(this.draggedObjectIndex, newX, newY);
             return true;
+        } else if (this.draggedObjectType === 'vertex' && areaManager) {
+            areaManager.updateVertex(this.draggedObjectIndex, Math.round(newX), Math.round(newY));
+            return true;
         }
 
         return false;
@@ -92,7 +95,7 @@ export class DragDropHandler {
      * @param {Function} onRoutePointDragEndCallback - ルート中間点ドラッグ終了時のコールバック（オプション）
      * @returns {{wasDragging: boolean, hasMoved: boolean}} ドラッグ情報
      */
-    endDrag(inputManager, pointManager, onPointDragEndCallback, onSpotDragEndCallback, onRoutePointDragEndCallback) {
+    endDrag(inputManager, pointManager, onPointDragEndCallback, onSpotDragEndCallback, onRoutePointDragEndCallback, onVertexDragEndCallback) {
         if (!this.isDragging) return { wasDragging: false, hasMoved: false };
 
         const wasDragging = true;
@@ -119,6 +122,11 @@ export class DragDropHandler {
             // ルート中間点ドラッグ終了コールバック実行
             if (onRoutePointDragEndCallback && typeof onRoutePointDragEndCallback === 'function') {
                 onRoutePointDragEndCallback(draggedIndex);
+            }
+        } else if (this.draggedObjectType === 'vertex') {
+            // エリア頂点ドラッグ終了コールバック実行
+            if (onVertexDragEndCallback && typeof onVertexDragEndCallback === 'function') {
+                onVertexDragEndCallback(draggedIndex);
             }
         }
 

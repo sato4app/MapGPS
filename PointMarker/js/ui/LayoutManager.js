@@ -99,12 +99,14 @@ export class LayoutManager {
         const pointEditor = document.getElementById('pointEditor');
         const routeEditor = document.getElementById('routeEditor');
         const spotEditor = document.getElementById('spotEditor');
-        
+        const areaEditor = document.getElementById('areaEditor');
+
         // 全パネルを一旦非表示
         pointEditor.style.display = 'none';
         routeEditor.style.display = 'none';
         spotEditor.style.display = 'none';
-        
+        if (areaEditor) areaEditor.style.display = 'none';
+
         // 選択されたモードのパネルのみ表示
         if (this.currentEditingMode === 'point') {
             pointEditor.style.display = 'flex';
@@ -112,8 +114,10 @@ export class LayoutManager {
             routeEditor.style.display = 'block';
         } else if (this.currentEditingMode === 'spot') {
             spotEditor.style.display = 'flex';
+        } else if (this.currentEditingMode === 'area') {
+            if (areaEditor) areaEditor.style.display = 'block';
         }
-        
+
         const radio = document.querySelector(`input[name="editingMode"][value="${this.currentEditingMode}"]`);
         if (radio) {
             radio.checked = true;

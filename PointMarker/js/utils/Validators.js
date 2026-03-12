@@ -11,7 +11,7 @@ export class Validators {
         if (!value || value.trim() === '') {
             return true;
         }
-        
+
         const validPattern = /^[A-Z]-\d{2}$/;
         return validPattern.test(value);
     }
@@ -25,13 +25,13 @@ export class Validators {
         if (!value || value.trim() === '') {
             return value;
         }
-        
+
         // 1. 全角英数字を半角英数字に変換
         let convertedValue = this.convertFullWidthToHalfWidth(value);
-        
+
         // 2. 英小文字を英大文字に変換
         convertedValue = convertedValue.toUpperCase();
-        
+
         // 完全な「X-nn」形式（2桁数字）の場合
         const fullMatch = convertedValue.match(/^([A-Z])[-]?(\d{2})$/);
         if (fullMatch) {
@@ -39,7 +39,7 @@ export class Validators {
             const numbers = fullMatch[2];
             return `${letter}-${numbers}`;
         }
-        
+
         // 不完全な入力「X-n」（1桁数字）の場合
         const partialMatch = convertedValue.match(/^([A-Z])[-]?(\d{1})$/);
         if (partialMatch) {
@@ -48,7 +48,7 @@ export class Validators {
             // 1桁の場合は0埋めしてフォーマット
             return `${letter}-${number.padStart(2, '0')}`;
         }
-        
+
         // ハイフンなしの「X数字」形式の場合
         const noHyphenMatch = convertedValue.match(/^([A-Z])(\d{1,2})$/);
         if (noHyphenMatch) {
@@ -56,22 +56,22 @@ export class Validators {
             const numbers = noHyphenMatch[2].padStart(2, '0');
             return `${letter}-${numbers}`;
         }
-        
+
         // 数字のみの場合は変換しない
         if (convertedValue.match(/^\d+$/)) {
             return convertedValue;
         }
-        
+
         return convertedValue;
     }
-    
+
     /**
      * 全角英文字と全角数字、全角ハイフンを半角に変換する
      * @param {string} str - 変換する文字列
      * @returns {string} 変換後の文字列
      */
     static convertFullWidthToHalfWidth(str) {
-        return str.replace(/[Ａ-Ｚａ-ｚ０-９－−‐―]/g, function(char) {
+        return str.replace(/[Ａ-Ｚａ-ｚ０-９－−‐―]/g, function (char) {
             if (char >= 'Ａ' && char <= 'Ｚ') {
                 return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
             }
@@ -145,6 +145,15 @@ export class Validators {
         }
 
         return false;
+    }
+
+    /**
+     * JSONデータがエリア形式として有効かどうかをチェック
+     * @param {Object} data - チェックするJSONデータ
+     * @returns {boolean} 有効なエリアデータかどうか
+     */
+    static isValidAreaData(data) {
+        return data && data.areas && Array.isArray(data.areas);
     }
 
     /**

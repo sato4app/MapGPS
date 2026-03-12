@@ -29,7 +29,10 @@ export class CanvasRenderer {
             point: 6,
             selectedWaypoint: 6,
             unselectedWaypoint: 4,
-            spot: 12
+            unselectedWaypoint: 4,
+            unselectedWaypoint: 4,
+            spot: 12,
+            areaVertex: 6
         };
     }
 
@@ -79,63 +82,145 @@ export class CanvasRenderer {
     }
 
     /**
-     * 単一ポイントを指定色・サイズで描画
-     * @param {Object} point - ポイントオブジェクト {x, y}
-     * @param {string} color - 描画色 (デフォルト: '#ff0000')
-     * @param {number} radius - 半径 (デフォルト: 4)
-     * @param {number} strokeWidth - 線の太さ (デフォルト: 1.5)
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
+     * 汎用マーカー描画メソッド
+     * @param {string} type - 'circle' | 'square' | 'diamond'
+     * @param {number} x - 中心X座標
+     * @param {number} y - 中心Y座標
+     * @param {number} size - サイズ（半径または一辺の長さ）
+     * @param {string} fillColor - 塗りつぶし色
+     * @param {string} strokeColor - 枠線色
+     * @param {number} strokeWidth - 枠線の太さ
+     * @param {number} canvasScale - キャンバスのスケール値
      */
-    drawPoint(point, color = '#ff0000', radius = 6, strokeWidth = 1.5, canvasScale = 1.0) {
+    drawMarker(type, x, y, size, fillColor, strokeColor, strokeWidth, canvasScale) {
         // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
         // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
-        const adjustedRadius = this.applyDevicePixelRatioCorrection(radius, canvasScale);
+        const adjustedSize = this.applyDevicePixelRatioCorrection(size, canvasScale);
         const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
 
-        this.ctx.fillStyle = color;
-        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.fillStyle = fillColor;
+        this.ctx.strokeStyle = strokeColor;
         this.ctx.lineWidth = adjustedStrokeWidth;
-
         this.ctx.beginPath();
-        this.ctx.arc(point.x, point.y, adjustedRadius, 0, 2 * Math.PI);
+
+        if (type === 'circle') {
+            this.ctx.arc(x, y, adjustedSize, 0, 2 * Math.PI);
+        } else if (type === 'square') {
+            const halfSize = adjustedSize / 2;
+            this.ctx.rect(x - halfSize, y - halfSize, adjustedSize, adjustedSize);
+        } else if (type === 'diamond') {
+            this.ctx.moveTo(x, y - adjustedSize);  // 上
+            this.ctx.lineTo(x + adjustedSize, y);  // 右
+            this.ctx.lineTo(x, y + adjustedSize);  // 下
+            this.ctx.lineTo(x - adjustedSize, y);  // 左
+            this.ctx.closePath();
+        }
+
         this.ctx.fill();
         this.ctx.stroke();
     }
 
     /**
+     * 単一ポイントを指定色・サイズで描画
+     */
+    drawPoint(point, color = '#ff0000', radius = 6, strokeWidth = 1.5, canvasScale = 1.0) {
+        this.drawMarker('circle', point.x, point.y, radius, color, '#ffffff', strokeWidth, canvasScale);
+    }
+
+    /**
      * 複数のポイントを一括描画
-     * @param {Array} points - ポイント配列
-     * @param {Object} options - 描画オプション
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
     drawPoints(points, options = {}, canvasScale = 1.0) {
-        const {
-            defaultColor = '#ff0000'
-        } = options;
+        const { defaultColor = '#ff0000' } = options;
+        const radius = this.markerSizes.point;
 
         points.forEach((point) => {
-            let color = defaultColor;
-            let radius = this.markerSizes.point;  // マーカーサイズ設定を使用
+            let fillColor = defaultColor;
+            let strokeColor = '#ffffff';
             let strokeWidth = 1.5;
 
-            this.drawPoint(point, color, radius, strokeWidth, canvasScale);
+            // ルート編集モードで開始点・終了点の場合は白抜きにする
+            if (options.showRouteMode && (point.id === options.startPointId || point.id === options.endPointId)) {
+                fillColor = '#ffffff';
+                strokeColor = defaultColor;
+                strokeWidth = 2.0;
+            }
+
+            this.drawMarker('circle', point.x, point.y, radius, fillColor, strokeColor, strokeWidth, canvasScale);
         });
     }
 
     /**
      * 菱形を描画
-     * @param {number} cx - 中心X座標
-     * @param {number} cy - 中心Y座標
-     * @param {number} radius - 半径
-     * @param {string} fillColor - 塗りつぶし色
-     * @param {string} strokeColor - 枠線色
-     * @param {number} strokeWidth - 枠線の太さ
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
      */
     drawDiamond(cx, cy, radius, fillColor = '#ff0000', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
-        // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
-        // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
-        const adjustedRadius = this.applyDevicePixelRatioCorrection(radius, canvasScale);
+        this.drawMarker('diamond', cx, cy, radius, fillColor, strokeColor, strokeWidth, canvasScale);
+    }
+
+    /**
+     * ルートポイント（中間点）を描画
+     */
+    drawRoutePoints(routePoints, canvasScale = 1.0, radius = 5) {
+        routePoints.forEach(point => {
+            this.drawMarker('diamond', point.x, point.y, radius, '#ff9500', '#ffffff', 1, canvasScale);
+        });
+    }
+
+    /**
+     * 複数ルートの中間点を一括描画（未選択ルートは菱形で小さく）
+     */
+    drawAllRoutesWaypoints(allRoutes, selectedRouteIndex, canvasScale = 1.0) {
+        allRoutes.forEach((route, index) => {
+            const waypoints = route.routePoints || [];
+            const size = (index === selectedRouteIndex) ? this.markerSizes.selectedWaypoint : this.markerSizes.unselectedWaypoint;
+
+            waypoints.forEach(point => {
+                this.drawMarker('diamond', point.x, point.y, size, '#ff9500', '#ffffff', 1, canvasScale);
+            });
+        });
+    }
+
+    /**
+     * 正四角形を描画
+     */
+    drawSquare(cx, cy, size, fillColor = '#ff9500', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
+        this.drawMarker('square', cx, cy, size, fillColor, strokeColor, strokeWidth, canvasScale);
+    }
+
+    /**
+     * スポット（正四角形マーカー）を描画
+     */
+    drawSpots(spots, options = {}, canvasScale = 1.0) {
+        const {
+            fillColor = '#0066ff',
+            strokeColor = '#ffffff',
+            size = this.markerSizes.spot,
+            strokeWidth = 1
+        } = options;
+
+        spots.forEach(spot => {
+            let currentFillColor = fillColor;
+            let currentStrokeColor = strokeColor;
+            let currentStrokeWidth = strokeWidth;
+
+            // ルート編集モードで開始点・終了点の場合は白抜きにする
+            if (options.showRouteMode && (spot.name === options.startPointId || spot.name === options.endPointId)) {
+                currentFillColor = '#ffffff';
+                currentStrokeColor = fillColor;
+                currentStrokeWidth = 2.0;
+            }
+
+            this.drawMarker('square', spot.x, spot.y, size, currentFillColor, currentStrokeColor, currentStrokeWidth, canvasScale);
+        });
+    }
+
+    /**
+     * 多角形エリアを描画
+     */
+    drawArea(vertices, fillColor = 'rgba(255, 149, 0, 0.3)', strokeColor = '#ff9500', strokeWidth = 2, canvasScale = 1.0, areaName = null, vertexSize = 4, vertexColor = null, isAreaEditMode = false) {
+        if (!vertices || vertices.length < 3) return;
+
+        const actualVertexColor = vertexColor || strokeColor;
         const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
 
         this.ctx.fillStyle = fillColor;
@@ -143,91 +228,117 @@ export class CanvasRenderer {
         this.ctx.lineWidth = adjustedStrokeWidth;
 
         this.ctx.beginPath();
-        this.ctx.moveTo(cx, cy - adjustedRadius);  // 上
-        this.ctx.lineTo(cx + adjustedRadius, cy);  // 右
-        this.ctx.lineTo(cx, cy + adjustedRadius);  // 下
-        this.ctx.lineTo(cx - adjustedRadius, cy);  // 左
+        this.ctx.moveTo(vertices[0].x, vertices[0].y);
+        for (let i = 1; i < vertices.length; i++) {
+            this.ctx.lineTo(vertices[i].x, vertices[i].y);
+        }
         this.ctx.closePath();
-
         this.ctx.fill();
         this.ctx.stroke();
-    }
 
-    /**
-     * ルートポイント（中間点）を描画
-     * @param {Array} routePoints - ルートポイント配列（選択中のルート）
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
-     * @param {number} radius - 菱形の半径（デフォルト: 5）
-     */
-    drawRoutePoints(routePoints, canvasScale = 1.0, radius = 5) {
-        routePoints.forEach(point => {
-            this.drawDiamond(point.x, point.y, radius, '#ff9500', '#ffffff', 1, canvasScale);
+        // 頂点の描画（小さな菱形）
+        vertices.forEach(vertex => {
+            this.drawMarker('diamond', vertex.x, vertex.y, vertexSize, actualVertexColor, '#ffffff', 1, canvasScale);
         });
+
+        if (areaName) {
+            this.drawAreaLabel(vertices, areaName, canvasScale, isAreaEditMode);
+        }
     }
 
     /**
-     * 複数ルートの中間点を一括描画（未選択ルートは菱形で小さく）
-     * @param {Array} allRoutes - 全ルート配列
-     * @param {number} selectedRouteIndex - 選択中のルートインデックス（-1 = 未選択）
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
+     * エリア名を描画（重心に表示）
+     * @param {Array} vertices - 頂点配列
+     * @param {string} name - エリア名
+     * @param {number} canvasScale - キャンバスのスケール値
+     * @param {boolean} isAreaEditMode - エリア編集モードかどうか
      */
-    drawAllRoutesWaypoints(allRoutes, selectedRouteIndex, canvasScale = 1.0) {
-        allRoutes.forEach((route, index) => {
-            const waypoints = route.routePoints || [];
-            if (index === selectedRouteIndex) {
-                // 選択中のルート: 菱形、通常サイズ（マーカーサイズ設定を使用）
-                this.drawRoutePoints(waypoints, canvasScale, this.markerSizes.selectedWaypoint);
-            } else {
-                // 未選択ルート: 菱形、小さいサイズ（マーカーサイズ設定を使用）
-                waypoints.forEach(point => {
-                    this.drawDiamond(point.x, point.y, this.markerSizes.unselectedWaypoint, '#ff9500', '#ffffff', 1, canvasScale);
-                });
+    drawAreaLabel(vertices, name, canvasScale, isAreaEditMode = false) {
+        if (!vertices || vertices.length === 0 || !name) return;
+
+        // 重心を計算
+        let cx = 0, cy = 0;
+        vertices.forEach(v => {
+            cx += v.x;
+            cy += v.y;
+        });
+        cx /= vertices.length;
+        cy /= vertices.length;
+
+        const fontSize = this.applyDevicePixelRatioCorrection(12, canvasScale);
+
+        this.ctx.font = `bold ${Math.max(10, fontSize)}px sans-serif`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+
+        // 文字の背景（読みやすくするため）
+        const metrics = this.ctx.measureText(name);
+        const padding = 4 / canvasScale;
+        const textHeight = Math.max(10, fontSize);
+
+        // 背景色: エリア編集モードは白、それ以外はグレー
+        this.ctx.fillStyle = isAreaEditMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(224, 224, 224, 0.8)';
+        this.ctx.fillRect(
+            cx - metrics.width / 2 - padding,
+            cy - textHeight / 2 - padding,
+            metrics.width + padding * 2,
+            textHeight + padding * 2
+        );
+
+        this.ctx.fillStyle = '#000000';
+        this.ctx.fillText(name, cx, cy);
+    }
+
+    /**
+     * すべてのエリアを描画
+     * @param {Array} areas - エリア配列
+     * @param {number} selectedAreaIndex - 選択中のエリアインデックス
+     * @param {number} canvasScale - キャンバスのスケール値
+     * @param {boolean} isAreaEditMode - エリア編集モードかどうか
+     */
+    drawAllAreas(areas, selectedAreaIndex, canvasScale = 1.0, isAreaEditMode = false) {
+        if (!areas) return;
+
+        areas.forEach((area, index) => {
+            // エリア編集モードでない場合は、すべてのエリアを未選択として描画
+            const isSelected = isAreaEditMode && (index == selectedAreaIndex);
+
+            // 色設定
+            // 選択中: ピンク (Fill: HotPink 40%, Stroke: DeepPink)
+            // 未選択: 薄いピンク (Fill: Pink 20%, Stroke: DeepPink)
+            const fillColor = isSelected ? 'rgba(255, 105, 180, 0.4)' : 'rgba(255, 182, 193, 0.4)'; // HotPink vs LightPink
+            const strokeColor = isSelected ? '#ff1493' : '#ff69b4'; // DeepPink vs HotPink
+            // 頂点の色は常にDeepPink (#ff1493)
+            const vertexColor = '#ff1493';
+            const strokeWidth = isSelected ? 3 : 2;
+
+            // 頂点サイズ (選択中・未選択にかかわらず設定値を使用)
+            const vertexSize = this.markerSizes.areaVertex || 6;
+
+            if (area.vertices && area.vertices.length >= 0) {
+                // 3点未満の場合の処理（頂点のみ描画）
+                if (area.vertices.length < 3) {
+                    area.vertices.forEach(vertex => {
+                        this.drawDiamond(vertex.x, vertex.y, vertexSize, vertexColor, '#ffffff', 1, canvasScale);
+                    });
+                    // 線も引く（閉じてないパス）
+                    if (area.vertices.length > 1) {
+                        const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
+                        this.ctx.strokeStyle = strokeColor;
+                        this.ctx.lineWidth = adjustedStrokeWidth;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(area.vertices[0].x, area.vertices[0].y);
+                        for (let i = 1; i < area.vertices.length; i++) {
+                            this.ctx.lineTo(area.vertices[i].x, area.vertices[i].y);
+                        }
+                        this.ctx.stroke();
+                    }
+
+                } else {
+                    // drawAreaメソッドに isAreaEditMode を渡す
+                    this.drawArea(area.vertices, fillColor, strokeColor, strokeWidth, canvasScale, area.areaName, vertexSize, vertexColor, isAreaEditMode);
+                }
             }
-        });
-    }
-
-
-    /**
-     * 正四角形を描画
-     * @param {number} cx - 中心X座標
-     * @param {number} cy - 中心Y座標
-     * @param {number} size - 正方形のサイズ（一辺の長さ）
-     * @param {string} fillColor - 塗りつぶし色
-     * @param {string} strokeColor - 枠線色
-     * @param {number} strokeWidth - 枠線の太さ
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
-     */
-    drawSquare(cx, cy, size, fillColor = '#ff9500', strokeColor = '#ffffff', strokeWidth = 1, canvasScale = 1.0) {
-        // devicePixelRatio で補正（ディスプレイ設定によらず一貫したサイズ）
-        // + canvasScale の逆数で補正（ズーム時もマーカーサイズ固定）
-        const adjustedSize = this.applyDevicePixelRatioCorrection(size, canvasScale);
-        const adjustedStrokeWidth = this.applyDevicePixelRatioCorrection(strokeWidth, canvasScale);
-        const halfSize = adjustedSize / 2;
-
-        this.ctx.fillStyle = fillColor;
-        this.ctx.strokeStyle = strokeColor;
-        this.ctx.lineWidth = adjustedStrokeWidth;
-
-        this.ctx.fillRect(cx - halfSize, cy - halfSize, adjustedSize, adjustedSize);
-        this.ctx.strokeRect(cx - halfSize, cy - halfSize, adjustedSize, adjustedSize);
-    }
-
-    /**
-     * スポット（正四角形マーカー）を描画
-     * @param {Array} spots - スポット配列
-     * @param {Object} options - 描画オプション
-     * @param {number} canvasScale - キャンバスのスケール値 (デフォルト: 1.0)
-     */
-    drawSpots(spots, options = {}, canvasScale = 1.0) {
-        const {
-            fillColor = '#0066ff',    // 青色
-            strokeColor = '#ffffff',   // 白色の枠線
-            size = this.markerSizes.spot,  // マーカーサイズ設定を使用
-            strokeWidth = 1
-        } = options;
-
-        spots.forEach(spot => {
-            this.drawSquare(spot.x, spot.y, size, fillColor, strokeColor, strokeWidth, canvasScale);
         });
     }
 
@@ -241,7 +352,20 @@ export class CanvasRenderer {
      *   - allRoutes: 全ルート配列（複数ルート対応）
      *   - selectedRouteIndex: 選択中のルートインデックス
      */
-    redraw(points = [], routePoints = [], spots = [], options = {}) {
+    /**
+     * 画像とすべてのポイントを再描画
+     * @param {Array} points - 通常ポイント配列
+     * @param {Array} routePoints - ルートポイント配列（選択中のルートのみ、後方互換性のため残す）
+     * @param {Array} spots - スポット配列
+     * @param {Array} areas - エリア配列
+     * @param {Object} options - 描画オプション
+     *   - showRouteMode: ルート編集モードかどうか
+     *   - allRoutes: 全ルート配列（複数ルート対応）
+     *   - selectedRouteIndex: 選択中のルートインデックス
+     *   - selectedAreaIndex: 選択中のエリアインデックス
+     *   - showAreaEditMode: エリア編集モードかどうか
+     */
+    redraw(points = [], routePoints = [], spots = [], areas = [], options = {}) {
         this.drawImage();
 
         // マーカー描画時にズーム・パン変換を適用
@@ -262,6 +386,11 @@ export class CanvasRenderer {
         }
 
         this.drawSpots(spots, options, this.scale);
+
+        // エリアの描画
+        const selectedAreaIndex = options.selectedAreaIndex !== undefined ? options.selectedAreaIndex : -1;
+        const isAreaEditMode = options.showAreaEditMode === true;
+        this.drawAllAreas(areas, selectedAreaIndex, this.scale, isAreaEditMode);
 
         this.ctx.restore();
     }

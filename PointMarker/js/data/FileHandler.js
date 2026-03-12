@@ -26,18 +26,46 @@ export class FileHandler {
                     }],
                     multiple: false
                 });
-                
+
                 this.currentImageFileHandle = fileHandle;
                 const file = await fileHandle.getFile();
-                
+
                 if (!Validators.isPngFile(file)) {
                     throw new Error('PNG画像ファイルを選択してください');
                 }
-                
+
                 this.currentImageFileName = file.name.replace(/\.png$/i, '');
                 const image = await this.loadImageFromFile(file);
-                
-                return { file, image, fileName: this.currentImageFileName };
+
+                return { file, image, fileName: this.currentImageFileName, fullFileName: file.name };
+            } else {
+                throw new Error('File System Access API not supported');
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('ファイル選択がキャンセルされました');
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * JSONファイルを選択
+     * @returns {Promise<File>} 選択されたファイル
+     */
+    async selectJsonFile() {
+        try {
+            if ('showOpenFilePicker' in window) {
+                const [fileHandle] = await window.showOpenFilePicker({
+                    types: [{
+                        description: 'JSON Files',
+                        accept: {
+                            'application/json': ['.json']
+                        }
+                    }],
+                    multiple: false
+                });
+                return await fileHandle.getFile();
             } else {
                 throw new Error('File System Access API not supported');
             }
@@ -58,11 +86,11 @@ export class FileHandler {
         if (!Validators.isPngFile(file)) {
             throw new Error('PNG画像ファイルを選択してください');
         }
-        
+
         this.currentImageFileName = file.name.replace(/\.png$/i, '');
         const image = await this.loadImageFromFile(file);
-        
-        return { file, image, fileName: this.currentImageFileName };
+
+        return { file, image, fileName: this.currentImageFileName, fullFileName: file.name };
     }
 
     /**
@@ -93,7 +121,7 @@ export class FileHandler {
         if (!Validators.isJsonFile(file)) {
             throw new Error('JSONファイルを選択してください');
         }
-        
+
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -118,13 +146,13 @@ export class FileHandler {
         const jsonString = JSON.stringify(data, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
-        
+
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
@@ -138,7 +166,7 @@ export class FileHandler {
     async saveJSONWithUserChoice(data, defaultFilename) {
         const jsonString = JSON.stringify(data, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
-        
+
         try {
             if ('showSaveFilePicker' in window) {
                 let savePickerOptions = {
@@ -150,7 +178,7 @@ export class FileHandler {
                         }
                     }]
                 };
-                
+
                 if (this.currentImageFileHandle) {
                     try {
                         const parentDirectoryHandle = await this.currentImageFileHandle.getParent();
@@ -159,12 +187,12 @@ export class FileHandler {
                         console.log('同じディレクトリの取得に失敗、デフォルトディレクトリを使用');
                     }
                 }
-                
+
                 const fileHandle = await window.showSaveFilePicker(savePickerOptions);
                 const writable = await fileHandle.createWritable();
                 await writable.write(blob);
                 await writable.close();
-                
+
                 console.log(`JSONファイルが保存されました: ${fileHandle.name}`);
                 return true;
             } else {
@@ -176,7 +204,7 @@ export class FileHandler {
                 console.log('ファイル保存がキャンセルされました');
                 return false;
             }
-            
+
             console.error('ファイル保存エラー:', error);
             this.downloadJSON(data, defaultFilename);
             return true;
@@ -248,7 +276,7 @@ export class FileHandler {
     async exportRouteData(routeManager, imageFileName, canvasWidth, canvasHeight, imageWidth, imageHeight, filename) {
         const routePoints = routeManager.getRoutePoints();
         const startEndPoints = routeManager.getStartEndPoints();
-        
+
         const jsonData = {
             routeInfo: {
                 startPoint: startEndPoints.start || '',
@@ -266,7 +294,7 @@ export class FileHandler {
                     canvasWidth, canvasHeight,
                     imageWidth, imageHeight
                 );
-                
+
                 return {
                     type: 'waypoint',
                     index: index + 1,
@@ -293,7 +321,7 @@ export class FileHandler {
     async exportSpotData(spotManager, imageFileName, canvasWidth, canvasHeight, imageWidth, imageHeight, filename) {
         const spots = spotManager.getSpots();
         const validSpots = spots.filter(spot => spot.name && spot.name.trim() !== '');
-        
+
         const jsonData = {
             totalSpots: validSpots.length,
             imageReference: imageFileName,
@@ -307,7 +335,7 @@ export class FileHandler {
                     canvasWidth, canvasHeight,
                     imageWidth, imageHeight
                 );
-                
+
                 return {
                     index: index + 1,
                     name: spot.name.trim(),
@@ -367,7 +395,7 @@ export class FileHandler {
      */
     async importRouteData(routeManager, file, canvasWidth, canvasHeight, imageWidth, imageHeight) {
         const jsonData = await this.loadJsonFile(file);
-        
+
         if (!Validators.isValidRouteData(jsonData)) {
             throw new Error('ルートJSONファイルの形式が正しくありません');
         }
@@ -375,18 +403,18 @@ export class FileHandler {
         routeManager.clearRoute();
         routeManager.setStartPoint(jsonData.routeInfo.startPoint || '');
         routeManager.setEndPoint(jsonData.routeInfo.endPoint || '');
-        
+
         jsonData.points.forEach(pointData => {
-            if (pointData.type === 'waypoint' && 
-                typeof pointData.imageX === 'number' && 
+            if (pointData.type === 'waypoint' &&
+                typeof pointData.imageX === 'number' &&
                 typeof pointData.imageY === 'number') {
-                    
+
                 const canvasCoords = CoordinateUtils.imageToCanvas(
                     pointData.imageX, pointData.imageY,
                     canvasWidth, canvasHeight,
                     imageWidth, imageHeight
                 );
-                
+
                 routeManager.addRoutePoint(canvasCoords.x, canvasCoords.y);
             }
         });
@@ -404,13 +432,13 @@ export class FileHandler {
      */
     async importSpotData(spotManager, file, canvasWidth, canvasHeight, imageWidth, imageHeight) {
         const jsonData = await this.loadJsonFile(file);
-        
+
         if (!Validators.isValidSpotData(jsonData)) {
             throw new Error('JSONファイルにスポットデータが見つかりません');
         }
 
         spotManager.clearSpots();
-        
+
         // spots または points プロパティどちらでも対応
         const spotsData = jsonData.spots || jsonData.points || [];
         spotsData.forEach(spotData => {
@@ -419,8 +447,153 @@ export class FileHandler {
                 canvasWidth, canvasHeight,
                 imageWidth, imageHeight
             );
-            
+
             spotManager.addSpot(canvasCoords.x, canvasCoords.y, spotData.name);
         });
+    }
+
+    /**
+     * プロジェクト全データをJSONエクスポート
+     * @param {Object} managers - { pointManager, routeManager, spotManager, areaManager }
+     * @param {string} imageFileName - 画像ファイル名
+     * @param {number} canvasWidth - キャンバス幅
+     * @param {number} canvasHeight - キャンバス高さ
+     * @param {number} imageWidth - 元画像幅
+     * @param {number} imageHeight - 元画像高さ
+     * @param {string} filename - 出力ファイル名
+     */
+    async exportProjectData(managers, imageFileName, canvasWidth, canvasHeight, imageWidth, imageHeight, filename, saveOptions = { points: true, routes: true, spots: true, areas: true }) {
+        const { pointManager, routeManager, spotManager, areaManager } = managers;
+
+        // ポイントデータ（選択時のみ）
+        const pointsData = saveOptions.points
+            ? pointManager.getPoints().filter(p => p.id && p.id.trim() !== '').map((point) => {
+                const coords = CoordinateUtils.canvasToImage(point.x, point.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                return { id: point.id, x: Math.round(coords.x), y: Math.round(coords.y), index: point.index };
+            })
+            : [];
+
+        // ルートデータ（選択時のみ）
+        const routesData = saveOptions.routes
+            ? routeManager.getAllRoutes().map(route => {
+                const waypoints = (route.routePoints || []).map(wp => {
+                    const coords = CoordinateUtils.canvasToImage(wp.x, wp.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                    return { x: Math.round(coords.x), y: Math.round(coords.y) };
+                });
+                return { routeName: route.routeName, startPoint: route.startPointId, endPoint: route.endPointId, waypoints, description: route.description };
+            })
+            : [];
+
+        // スポットデータ（選択時のみ）
+        const spotsData = saveOptions.spots
+            ? spotManager.getSpots().filter(s => s.name && s.name.trim() !== '').map((spot) => {
+                const coords = CoordinateUtils.canvasToImage(spot.x, spot.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                return { name: spot.name, x: Math.round(coords.x), y: Math.round(coords.y), description: spot.description, category: spot.category };
+            })
+            : [];
+
+        // エリアデータ（選択時のみ）
+        const areasData = saveOptions.areas
+            ? areaManager.getAllAreas().filter(a => a.areaName && a.areaName.trim() !== '').map(area => {
+                const vertices = (area.vertices || []).map(v => {
+                    const coords = CoordinateUtils.canvasToImage(v.x, v.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                    return { x: Math.round(coords.x), y: Math.round(coords.y) };
+                });
+                return { areaName: area.areaName, vertices };
+            })
+            : [];
+
+        const projectData = {
+            version: "1.0",
+            imageReference: imageFileName,
+            imageInfo: { width: imageWidth, height: imageHeight },
+            exportedAt: new Date().toISOString(),
+            data: {
+                points: pointsData,
+                routes: routesData,
+                spots: spotsData,
+                areas: areasData
+            }
+        };
+
+        await this.saveJSONWithUserChoice(projectData, filename);
+    }
+
+    /**
+     * プロジェクト全データをJSONインポート
+     * @param {Object} managers - { pointManager, routeManager, spotManager, areaManager }
+     * @param {File} file - JSONファイル
+     * @param {number} canvasWidth - キャンバス幅
+     * @param {number} canvasHeight - キャンバス高さ
+     * @param {number} imageWidth - 元画像幅
+     * @param {number} imageHeight - 元画像高さ
+     */
+    async importProjectData(managers, file, canvasWidth, canvasHeight, imageWidth, imageHeight) {
+        const { pointManager, routeManager, spotManager, areaManager } = managers;
+        const jsonData = await this.loadJsonFile(file);
+
+        if (!jsonData.data) {
+            throw new Error('有効なプロジェクトデータではありません');
+        }
+
+        // 既存データをクリア
+        pointManager.clearPoints();
+        routeManager.clearAllRoutes();
+        spotManager.clearSpots();
+        areaManager.clearAreas();
+
+        // ポイント読み込み
+        if (jsonData.data.points) {
+            jsonData.data.points.forEach(p => {
+                const coords = CoordinateUtils.imageToCanvas(p.x, p.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                pointManager.addPoint(coords.x, coords.y, p.id);
+            });
+        }
+
+        // スポット読み込み
+        if (jsonData.data.spots) {
+            jsonData.data.spots.forEach(s => {
+                const coords = CoordinateUtils.imageToCanvas(s.x, s.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                spotManager.addSpot(coords.x, coords.y, s.name);
+            });
+        }
+
+        // エリア読み込み
+        if (jsonData.data.areas) {
+            jsonData.data.areas.forEach(a => {
+                const vertices = (a.vertices || []).map(v => {
+                    const coords = CoordinateUtils.imageToCanvas(v.x, v.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                    return { x: coords.x, y: coords.y };
+                });
+                areaManager.addArea({
+                    areaName: a.areaName,
+                    vertices: vertices
+                });
+            });
+        }
+
+        // ルート読み込み
+        if (jsonData.data.routes) {
+            jsonData.data.routes.forEach(r => {
+                const waypoints = (r.waypoints || []).map(wp => {
+                    const coords = CoordinateUtils.imageToCanvas(wp.x, wp.y, canvasWidth, canvasHeight, imageWidth, imageHeight);
+                    return { x: coords.x, y: coords.y };
+                });
+                routeManager.addRoute({
+                    routeName: r.routeName,
+                    startPointId: r.startPoint,
+                    endPointId: r.endPoint,
+                    routePoints: waypoints,
+                    description: r.description
+                });
+            });
+        }
+
+        return {
+            pointsCount: (jsonData.data.points || []).length,
+            routesCount: (jsonData.data.routes || []).length,
+            spotsCount: (jsonData.data.spots || []).length,
+            areasCount: (jsonData.data.areas || []).length
+        };
     }
 }

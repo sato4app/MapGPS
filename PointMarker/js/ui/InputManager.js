@@ -11,10 +11,12 @@ export class InputManager {
         this.spotInputElements = [];
         this.isRouteEditMode = false;
         this.isSpotEditMode = false;
+        this.isAreaEditMode = false;
         this.highlightedPointIds = new Set(); // 強調表示するポイントIDのセット
         this.highlightedSpotNames = new Set(); // 強調表示するスポット名のセット
         this.errorSpotNames = new Set(); // エラー状態のスポット名のセット
         this.alwaysVisibleSpotNames = new Set(); // ルートの開始・終了ポイントとして指定されたスポット名（常に表示）
+        this.forceShowRoutePointsSpotNames = false; // ルート選択等で一時的に強制表示するフラグ
         this.spotNameVisibility = false; // スポット名表示チェックボックスの状態
         // ズーム・パン状態
         this.scale = 1.0;
@@ -55,6 +57,7 @@ export class InputManager {
     setEditMode(mode) {
         this.isRouteEditMode = (mode === 'route');
         this.isSpotEditMode = (mode === 'spot');
+        this.isAreaEditMode = (mode === 'area');
 
         if (mode !== 'route') {
             // ルート編集モード終了時は強調表示とエラー状態をクリア
@@ -128,6 +131,10 @@ export class InputManager {
                     this.alwaysVisibleSpotNames.add(name);
                 }
             });
+            // 一時的に強制表示させるフラグを立てる
+            if (spotNames.length > 0) {
+                this.forceShowRoutePointsSpotNames = true;
+            }
         }
         this.updateSpotInputsState();
     }
@@ -154,6 +161,7 @@ export class InputManager {
                 // ルート編集モードでは表示し、開始・終了ポイントを強調
                 if (container) {
                     container.style.display = 'block';
+                    container.style.pointerEvents = 'none';
                 }
                 input.disabled = true;
                 if (isHighlighted) {
@@ -173,10 +181,23 @@ export class InputManager {
                     }
                     input.title = 'ルート編集モード中はポイントID名の編集はできません';
                 }
+            } else if (this.isAreaEditMode) {
+                // エリア編集モード時は編集不可にする（グレー表示）
+                if (container) {
+                    container.style.display = 'block';
+                }
+                input.disabled = true;
+                input.style.backgroundColor = '#e0e0e0';
+                if (container) {
+                    container.style.backgroundColor = '#e0e0e0';
+                    container.style.border = '1px solid #ccc';
+                }
+                input.title = 'エリア編集モード中はポイントID名の編集はできません';
             } else {
                 // ポイント編集モードでは通常表示
                 if (container) {
                     container.style.display = 'block';
+                    container.style.pointerEvents = 'auto';
                 }
                 input.disabled = false;
                 input.style.backgroundColor = '';
@@ -196,7 +217,7 @@ export class InputManager {
      * @param {boolean} shouldFocus - フォーカスするかどうか
      */
     createInputBox(point, index, shouldFocus = false) {
-        
+
         // ポップアップコンテナを作成
         const container = document.createElement('div');
         container.className = 'point-id-popup';
@@ -209,19 +230,35 @@ export class InputManager {
         input.className = 'point-id-input';
         input.placeholder = 'ID';
         input.value = point.id || '';
-        
+
         container.appendChild(input);
-        
+
         this.positionInputBox(container, point);
-        
-        // input時は変換処理を一切行わない
+
+        // input時はリアルタイムで変換処理と保存を行う
         input.addEventListener('input', (e) => {
-            const value = e.target.value;
-            
-            // 入力中は変換処理なし、そのまま保存（表示更新なし）
+            let value = e.target.value;
+
+            // 1. 全角英数字を半角英数字に変換
+            value = value.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function (s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+
+            // 2. 英子文字を英大文字に変換
+            value = value.toUpperCase();
+
+            // 入力値を更新（カーソル位置がずれる可能性があるため、必要な場合のみ更新）
+            if (e.target.value !== value) {
+                const selectionStart = e.target.selectionStart;
+                e.target.value = value;
+                // カーソル位置を維持（変換で長さが変わらない前提）
+                e.target.setSelectionRange(selectionStart, selectionStart);
+            }
+
+            // 変換後の値で保存（表示更新なし）
             this.notify('onPointIdChange', { index, id: value, skipFormatting: true, skipDisplay: true });
         });
-        
+
         // blur時はフォーマット処理を実行して保存
         input.addEventListener('blur', (e) => {
             const value = e.target.value.trim();
@@ -230,22 +267,22 @@ export class InputManager {
             this.notify('onPointIdChange', { index, id: value, skipFormatting: false });
             container.classList.remove('is-editing');
         });
-        
+
         // キーボードイベント（Escapeキーでポイント削除）
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.notify('onPointRemove', { index, point });
             }
         });
-        
+
         // フォーカス時に編集中スタイル
         input.addEventListener('focus', () => {
             container.classList.add('is-editing');
         });
-        
+
         // ポイントインデックスを属性として設定
         input.setAttribute('data-point-index', index);
-        
+
         document.body.appendChild(container);
         this.inputElements.push(input);
         // 入力からコンテナへ参照
@@ -272,6 +309,19 @@ export class InputManager {
                 container.style.border = '2px solid #999';
                 input.title = 'ルート編集モード中はポイントID名の編集はできません';
             }
+        } else if (this.isAreaEditMode) {
+            // エリア編集モード時のスタイル（グレー、編集不可）
+            if (container) {
+                container.style.display = 'block';
+                container.style.pointerEvents = 'none';
+            }
+            input.disabled = true;
+            input.style.backgroundColor = '#e0e0e0';
+            if (container) {
+                container.style.backgroundColor = '#e0e0e0';
+                container.style.border = '1px solid #ccc';
+            }
+            input.title = 'エリア編集モード中はポイントID名の編集はできません';
         }
 
         if (shouldFocus) {
@@ -344,10 +394,10 @@ export class InputManager {
         const inputWidth = 50;
         const margin = 10;
         const scaledPointX = pointX * scaleX + canvasLeft;
-        
+
         const rightPos = scaledPointX + margin;
         const leftPos = scaledPointX - inputWidth - margin;
-        
+
         if (rightPos + inputWidth < window.innerWidth - 20) {
             return rightPos;
         } else {
@@ -373,20 +423,26 @@ export class InputManager {
     /**
      * 全入力ボックスをクリア・再作成
      * @param {Array} points - ポイント配列
+     * @param {number} focusedIndex - フォーカスするポイントのインデックス（-1の場合はフォーカスしない）
+     * @returns {Promise<void>} 再作成完了時に解決されるPromise
      */
-    redrawInputBoxes(points) {
+    redrawInputBoxes(points, focusedIndex = -1) {
         this.clearInputBoxes();
-        
-        setTimeout(() => {
-            points.forEach((point, index) => {
-                this.createInputBox(point, index);
-                const input = this.inputElements[this.inputElements.length - 1];
-                if (input) {
-                    input.value = point.id || '';
-                    input.setAttribute('data-point-index', index);
-                }
-            });
-        }, 10);
+
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                points.forEach((point, index) => {
+                    const shouldFocus = (index === focusedIndex);
+                    this.createInputBox(point, index, shouldFocus);
+                    const input = this.inputElements[this.inputElements.length - 1];
+                    if (input) {
+                        input.value = point.id || '';
+                        input.setAttribute('data-point-index', index);
+                    }
+                });
+                resolve();
+            }, 10);
+        });
     }
 
     /**
@@ -421,20 +477,23 @@ export class InputManager {
             span.style.whiteSpace = 'nowrap';
             span.style.fontSize = window.getComputedStyle(input).fontSize;
             span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+            span.style.fontWeight = window.getComputedStyle(input).fontWeight;
+            span.style.letterSpacing = window.getComputedStyle(input).letterSpacing;
             span.textContent = displayText;
             document.body.appendChild(span);
 
-            // テキスト幅を計測（左右パディング12px = 6px × 2 のみ追加）
-            const textWidth = span.offsetWidth + 12;
+            // テキスト幅を計測（左右パディング + バッファを追加）
+            // 12px (padding) + 4px (border/margin) + 20px (buffer for mixed width chars)
+            const textWidth = span.offsetWidth + 36;
             document.body.removeChild(span);
 
             // 幅の調整（入力値がある場合は最小限に、ない場合は80px）
             if (input.value) {
-                // 入力値がある場合：テキスト幅に合わせる（最大300px）
-                input.style.width = Math.min(textWidth, 300) + 'px';
+                // 入力値がある場合：テキスト幅に合わせる（最大600px）
+                input.style.width = Math.min(textWidth, 600) + 'px';
             } else {
                 // 入力値がない場合（プレースホルダー表示）：80pxを初期値として使用
-                input.style.width = Math.max(80, Math.min(textWidth, 300)) + 'px';
+                input.style.width = Math.max(80, Math.min(textWidth, 600)) + 'px';
             }
 
             // 高さの自動調整（scrollHeightを使用）
@@ -453,8 +512,9 @@ export class InputManager {
         // input時は変換処理を一切行わない
         input.addEventListener('input', (e) => {
             const value = e.target.value;
-            // 入力サイズを自動調整
-            adjustInputSize();
+            // 入力中は幅の自動調整を行わない（プロンプト指示）
+            // adjustInputSize(); 
+
             // 入力中は変換処理なし、そのまま保存（表示更新なし）
             this.notify('onSpotNameChange', { index, name: value, skipFormatting: true, skipDisplay: true });
         });
@@ -515,42 +575,54 @@ export class InputManager {
             // スポット編集モードの場合は常に表示・編集可能
             if (this.isSpotEditMode) {
                 container.style.display = 'block';
+                container.style.pointerEvents = 'auto';
                 input.disabled = false;
                 input.style.backgroundColor = '';
                 container.style.backgroundColor = '';
                 container.style.border = '';
                 input.title = '';
+                input.style.color = '';
                 return;
             }
 
             // 常に表示すべきスポット名かどうかをチェック
             const isAlwaysVisible = this.alwaysVisibleSpotNames.has(inputValue);
 
-            // ルート編集モードで、チェックボックスがオンまたは常に表示すべきスポットの場合
-            if (this.isRouteEditMode && (this.spotNameVisibility || isAlwaysVisible)) {
-                container.style.display = 'block';
+            // ルート編集モードの場合
+            if (this.isRouteEditMode) {
+                const shouldDisplay = this.spotNameVisibility || (this.forceShowRoutePointsSpotNames && isAlwaysVisible);
 
-                if (isError) {
-                    // エラー状態の場合はピンク背景（複数一致など）
-                    input.disabled = true;
-                    input.style.backgroundColor = '#ffebee';
-                    container.style.backgroundColor = '#ffebee';
-                    container.style.border = '2px solid #f44336';
-                    input.title = 'このスポット名は複数一致の対象です';
-                } else if (isHighlighted) {
-                    // 開始・終了ポイントとして指定されている場合は白背景（ポイントIDと同じ扱い）
-                    input.disabled = true;
-                    input.style.backgroundColor = 'white';
-                    container.style.backgroundColor = 'white';
-                    container.style.border = '2px solid #007bff';
-                    input.title = '開始または終了ポイントとして指定されています';
+                if (shouldDisplay) {
+                    container.style.display = 'block';
+                    container.style.pointerEvents = 'none';
+
+                    if (isError) {
+                        // エラー状態の場合はピンク背景（複数一致など）
+                        input.disabled = true;
+                        input.style.backgroundColor = '#ffebee';
+                        container.style.backgroundColor = '#ffebee';
+                        container.style.border = '2px solid #f44336';
+                        input.title = 'このスポット名は複数一致の対象です';
+                        input.style.color = '';
+                    } else if (isHighlighted || isAlwaysVisible) {
+                        // 開始・終了ポイントとして指定されている場合は白背景（ポイントIDと同じ扱い、実質的な白抜きに相当）
+                        input.disabled = true;
+                        input.style.backgroundColor = 'white';
+                        container.style.backgroundColor = 'white';
+                        container.style.border = '2px solid #007bff';
+                        input.title = '開始または終了ポイントとして指定されています';
+                        input.style.color = '';
+                    } else {
+                        // 通常のスポット名は灰色背景
+                        input.disabled = true;
+                        input.style.backgroundColor = '#e0e0e0';
+                        container.style.backgroundColor = '#e0e0e0';
+                        container.style.border = '2px solid #999';
+                        input.title = 'ルート編集モード中はスポット名の編集はできません';
+                        input.style.color = '';
+                    }
                 } else {
-                    // 通常のスポット名は灰色背景
-                    input.disabled = true;
-                    input.style.backgroundColor = '#e0e0e0';
-                    container.style.backgroundColor = '#e0e0e0';
-                    container.style.border = '2px solid #999';
-                    input.title = 'ルート編集モード中はスポット名の編集はできません';
+                    container.style.display = 'none';
                 }
                 return;
             }
@@ -558,11 +630,13 @@ export class InputManager {
             // その他のモードでチェックボックスがオンの場合
             if (this.spotNameVisibility) {
                 container.style.display = 'block';
+                container.style.pointerEvents = 'none';
                 input.disabled = false;
                 input.style.backgroundColor = '';
                 container.style.backgroundColor = '';
                 container.style.border = '';
                 input.title = '';
+                input.style.color = '';
             } else {
                 container.style.display = 'none';
             }
@@ -587,23 +661,29 @@ export class InputManager {
     /**
      * 全スポット入力ボックスをクリア・再作成
      * @param {Array} spots - スポット配列
+     * @returns {Promise<void>} 再作成完了時に解決されるPromise
      */
     redrawSpotInputBoxes(spots) {
         this.clearSpotInputBoxes();
 
-        // スポット編集モードまたはスポット名表示チェックボックスがオンの時のみ再作成
-        if (this.isSpotEditMode || this.spotNameVisibility) {
-            setTimeout(() => {
-                spots.forEach((spot, index) => {
-                    this.createSpotInputBox(spot, index);
-                    const input = this.spotInputElements[this.spotInputElements.length - 1];
-                    if (input) {
-                        input.value = spot.name || '';
-                        input.setAttribute('data-spot-index', index);
-                    }
-                });
-            }, 10);
-        }
+        return new Promise((resolve) => {
+            // スポット編集モードまたはスポット名表示チェックボックスがオンの時のみ再作成
+            if (this.isSpotEditMode || this.spotNameVisibility) {
+                setTimeout(() => {
+                    spots.forEach((spot, index) => {
+                        this.createSpotInputBox(spot, index);
+                        const input = this.spotInputElements[this.spotInputElements.length - 1];
+                        if (input) {
+                            input.value = spot.name || '';
+                            input.setAttribute('data-spot-index', index);
+                        }
+                    });
+                    resolve();
+                }, 10);
+            } else {
+                resolve();
+            }
+        });
     }
 
     /**
@@ -676,10 +756,16 @@ export class InputManager {
      * スポット名入力ボックスの表示/非表示を切り替え
      * @param {boolean} visible - 表示するかどうか
      * @param {Array} spots - スポットデータの配列（オプション）
+     * @param {boolean} isUserAction - ユーザー操作による変更かどうか
      */
-    setSpotNameVisibility(visible, spots = null) {
+    setSpotNameVisibility(visible, spots = null, isUserAction = false) {
         // チェックボックスの状態を保存
         this.spotNameVisibility = visible;
+
+        // ユーザーが明示的にチェックボックスを操作したなら、強制表示状態を解除
+        if (isUserAction) {
+            this.forceShowRoutePointsSpotNames = false;
+        }
 
         // 表示する場合は、すべてのスポット入力ボックスの位置を再計算
         if (visible && spots) {

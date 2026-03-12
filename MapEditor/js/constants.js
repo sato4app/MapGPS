@@ -11,6 +11,9 @@ export const DEFAULTS = {
     GSI_TILE_URL: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
     GSI_ATTRIBUTION: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>',
 
+    // Excel読み込み制限
+    MAX_EXCEL_ROWS: 1000, // ヘッダー行含む最大読み込み行数
+
     // スタイル設定
     POINT_STYLE: {
         radius: 6,
@@ -41,9 +44,19 @@ export const DEFAULTS = {
             opacity: 1,
             fillOpacity: 1
         },
-        // ルート中間点: 橙色(#f58220)、菱形（ダイヤモンド型）、8x8px（枠なし）
+        // ポイント: 赤色(#ff0000)、円形
+        'point': {
+            radius: 6,
+            fillColor: '#ff0000',
+            color: '#ff0000',
+            weight: 0,
+            stroke: false,
+            opacity: 1,
+            fillOpacity: 1
+        },
+        // ルート中間点: 橙色(#f58220)、菱形（ダイヤモンド型）、5x5px（枠なし）
         'route_waypoint': {
-            radius: 4,
+            radius: 2.5,
             fillColor: '#f58220',
             color: '#f58220',
             weight: 0,
@@ -62,6 +75,17 @@ export const DEFAULTS = {
             opacity: 1,
             fillOpacity: 0.8,
             shape: 'square'
+        },
+        // エリア: シアン(#00ffff)、ポリゴン境界線、頂点は円形(radius 4)
+        'area': {
+            color: '#00ffff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.2,
+            vertex: {
+                radius: 4,
+                shape: 'circle'
+            }
         }
     },
 
@@ -71,7 +95,8 @@ export const DEFAULTS = {
 export const MODES = {
     GEOJSON: 'geojson',
     ROUTE: 'route',
-    SPOT: 'spot'
+    SPOT: 'spot',
+    AREA: 'area'
 };
 
 // スポット区分のリスト

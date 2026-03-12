@@ -98,6 +98,85 @@ export class CoordinateDisplay {
                         }
                     });
                 }
+
+                if (data.spots && Array.isArray(data.spots)) {
+                    data.spots.forEach(spot => {
+                        if (spot.imageX !== undefined && spot.imageY !== undefined) {
+                            coordinates.push({
+                                imageX: spot.imageX,
+                                imageY: spot.imageY,
+                                name: spot.name || spot.id,
+                                description: spot.description || '',
+                                type: 'spot',
+                                id: spot.id,
+                                index: spot.index
+                            });
+                        }
+                    });
+                }
+
+                // data.dataラッパー形式（{version, imageReference, data: {points, routes, spots, areas}}）
+                // 座標フィールドはx/yまたはimageX/imageYを両方サポート
+                if (data.data && typeof data.data === 'object') {
+                    const d = data.data;
+
+                    if (d.points && Array.isArray(d.points)) {
+                        d.points.forEach(point => {
+                            const imageX = point.imageX !== undefined ? point.imageX : point.x;
+                            const imageY = point.imageY !== undefined ? point.imageY : point.y;
+                            if (imageX !== undefined && imageY !== undefined) {
+                                coordinates.push({
+                                    imageX, imageY,
+                                    name: point.name || point.id,
+                                    description: point.description || '',
+                                    type: 'pointJSON',
+                                    id: point.id,
+                                    index: point.index
+                                });
+                            }
+                        });
+                    }
+
+                    if (d.routes && Array.isArray(d.routes)) {
+                        d.routes.forEach(route => {
+                            if (route.waypoints && Array.isArray(route.waypoints)) {
+                                route.waypoints.forEach(wp => {
+                                    const imageX = wp.imageX !== undefined ? wp.imageX : wp.x;
+                                    const imageY = wp.imageY !== undefined ? wp.imageY : wp.y;
+                                    if (imageX !== undefined && imageY !== undefined) {
+                                        coordinates.push({
+                                            imageX, imageY,
+                                            name: route.routeName || 'ルート 中間点',
+                                            description: '',
+                                            type: 'waypoint',
+                                            id: null,
+                                            index: null,
+                                            startPoint: (route.startPoint && route.startPoint.id) || (route.routeInfo && route.routeInfo.startPoint) || route.startPoint || null,
+                                            endPoint: (route.endPoint && route.endPoint.id) || (route.routeInfo && route.routeInfo.endPoint) || route.endPoint || null
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    if (d.spots && Array.isArray(d.spots)) {
+                        d.spots.forEach(spot => {
+                            const imageX = spot.imageX !== undefined ? spot.imageX : spot.x;
+                            const imageY = spot.imageY !== undefined ? spot.imageY : spot.y;
+                            if (imageX !== undefined && imageY !== undefined) {
+                                coordinates.push({
+                                    imageX, imageY,
+                                    name: spot.name || spot.id,
+                                    description: spot.description || '',
+                                    type: 'spot',
+                                    id: spot.id,
+                                    index: spot.index
+                                });
+                            }
+                        });
+                    }
+                }
             }
         } catch (error) {
             this.logger.error('座標抽出エラー', error);

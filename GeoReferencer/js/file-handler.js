@@ -11,6 +11,29 @@ export class FileHandler {
     }
 
     /**
+     * File System Access APIがサポートされているかチェック
+     */
+    isFileSystemAccessSupported() {
+        return 'showSaveFilePicker' in window && 'showOpenFilePicker' in window;
+    }
+
+    /**
+     * ファイルのディレクトリを記録する（File System Access API使用時）
+     * @param {File} file - 読み込んだファイル
+     */
+    async recordFileDirectory(file) {
+        try {
+            // File System Access APIがサポートされているかチェック
+            // 注意: input type="file" からは直接ディレクトリハンドルは取得できない
+            if (this.isFileSystemAccessSupported()) {
+                this.currentFileName = file.name;
+            }
+        } catch (error) {
+            // 無視
+        }
+    }
+
+    /**
      * ファイルハンドルを設定（後でそのフォルダに保存するため）
      * @param {FileSystemFileHandle} fileHandle - ファイルハンドル
      */
@@ -222,7 +245,7 @@ export class FileHandler {
      */
     isExcelFile(file) {
         return file.name.toLowerCase().endsWith('.xlsx') &&
-               file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     }
 
     isPngFile(file) {

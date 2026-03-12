@@ -17,10 +17,10 @@ export class ImageOverlay {
 
         // 内部scale管理（初期値はconstantsから取得）
         this.currentScale = this.getDefaultScale();
-        
+
         // 初期スケール値を設定
         this.initializeScaleInput();
-        
+
 
         this.setupEventHandlers();
     }
@@ -51,7 +51,7 @@ export class ImageOverlay {
     setCurrentScale(scale) {
         this.currentScale = scale;
         // scaleInputフィールドは削除されたため、内部scaleのみ更新
-        
+
         // スケール変更時に画像表示を更新
         if (this.imageOverlay) {
             this.updateImageDisplay();
@@ -82,28 +82,28 @@ export class ImageOverlay {
             this.logger.info(`📍 画像表示: 地図中心 (${centerPos.lat.toFixed(6)}, ${centerPos.lng.toFixed(6)}), scale=${scale.toFixed(6)}`);
         }
 
-        
+
         // naturalWidth/naturalHeightを使用して正確なピクセル数を取得
         const imageWidth = this.currentImage.naturalWidth || this.currentImage.width;
         const imageHeight = this.currentImage.naturalHeight || this.currentImage.height;
-        
+
         // 画像サイズの妥当性チェック
         if (!imageWidth || !imageHeight || imageWidth <= 0 || imageHeight <= 0) {
             return;
         }
-        
+
         // より正確なメートル/ピクセル変換（Mercator投影補正）
         const metersPerPixel = 156543.03392 * Math.cos(centerPos.lat * Math.PI / 180) / Math.pow(2, this.map.getZoom());
-        
+
         // metersPerPixelの妥当性チェック
         if (!isFinite(metersPerPixel) || metersPerPixel <= 0) {
             return;
         }
-        
+
         // スケールがアフィン変換から計算された場合は、そのまま使用
         // そうでない場合は、従来の計算方法を使用
         let scaledImageWidthMeters, scaledImageHeightMeters;
-        
+
         if (this.transformedCenter) {
             // アフィン変換結果の場合：スケールは既に正規化済み
             scaledImageWidthMeters = imageWidth * scale * metersPerPixel;
@@ -113,40 +113,40 @@ export class ImageOverlay {
             scaledImageWidthMeters = imageWidth * scale * metersPerPixel;
             scaledImageHeightMeters = imageHeight * scale * metersPerPixel;
         }
-        
+
         // 地球半径と緯度による補正
         const earthRadius = 6378137;
         const cosLat = Math.cos(centerPos.lat * Math.PI / 180);
-        
+
         // より精密な座標オフセット計算
         const latOffset = (scaledImageHeightMeters / 2) / earthRadius * (180 / Math.PI);
         const lngOffset = (scaledImageWidthMeters / 2) / (earthRadius * cosLat) * (180 / Math.PI);
-        
+
         // オフセット値の妥当性チェック
         if (!isFinite(latOffset) || !isFinite(lngOffset)) {
             return;
         }
-        
+
         // 境界座標の計算と妥当性チェック
         const southWest = [centerPos.lat - latOffset, centerPos.lng - lngOffset];
         const northEast = [centerPos.lat + latOffset, centerPos.lng + lngOffset];
-        
+
         if (!isFinite(southWest[0]) || !isFinite(southWest[1]) || !isFinite(northEast[0]) || !isFinite(northEast[1])) {
             return;
         }
-        
+
         const bounds = L.latLngBounds(southWest, northEast);
 
         this.logger.info(`🖼️ 画像境界計算: SW=(${southWest[0].toFixed(6)}, ${southWest[1].toFixed(6)}), NE=(${northEast[0].toFixed(6)}, ${northEast[1].toFixed(6)}), scale=${scale.toFixed(6)}, サイズ=${imageWidth}x${imageHeight}`);
 
         // 画像レイヤーの境界を更新
         this.imageOverlay.setBounds(bounds);
-        
+
         // 画像レイヤーが地図に追加されていない場合は再追加
         if (!this.map.hasLayer(this.imageOverlay)) {
             this.imageOverlay.addTo(this.map);
         }
-        
+
         // 強制的に画像レイヤーを再描画
         if (this.imageOverlay._image) {
             // ImageOverlayにはredrawメソッドがないため、代替手段を使用
@@ -161,13 +161,13 @@ export class ImageOverlay {
                 }, 10);
             }
         }
-        
+
         // 短時間後に地図の強制更新（レンダリングの遅延対策）
         setTimeout(() => {
             this.map.invalidateSize();
         }, 50);
-        
-        
+
+
         // 画像更新をコールバックに通知
         this.notifyImageUpdate();
     }
@@ -190,7 +190,14 @@ export class ImageOverlay {
                     // ジオリファレンス状態をリセット
                     this.resetTransformation();
 
-                    this.imageOverlay = L.imageOverlay(e.target.result, this.getInitialBounds(), {
+                    // 画像のサイズを取得
+                    const imageWidth = this.currentImage.naturalWidth || this.currentImage.width;
+                    const imageHeight = this.currentImage.naturalHeight || this.currentImage.height;
+
+                    // 画像サイズに基づいて初期表示境界を計算（画面に収まるように）
+                    const bounds = this.calculateInitialBounds(imageWidth, imageHeight);
+
+                    this.imageOverlay = L.imageOverlay(e.target.result, bounds, {
                         opacity: this.getDisplayOpacity(),
                         interactive: false
                     }).addTo(this.map);
@@ -200,9 +207,9 @@ export class ImageOverlay {
 
                     // 画像レイヤーが完全に読み込まれるまで少し待つ
                     setTimeout(() => {
-                        // 初期読み込み時もupdateImageDisplay()を呼んで、正しいスケールで表示
-                        this.updateImageDisplay();
-                        this.logger.info(`📍 初期画像配置完了: scale=${this.getCurrentScale().toFixed(6)}`);
+                        // 初期読み込み時はupdateImageDisplay()を呼ばない
+                        // calculateInitialBounds()で計算した境界をそのまま使用
+                        this.logger.info(`📍 初期画像配置完了: 画面に収まるサイズで表示`);
                         resolve();
                     }, 100);
                 };
@@ -214,6 +221,53 @@ export class ImageOverlay {
             reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました'));
             reader.readAsDataURL(file);
         });
+    }
+
+    /**
+     * 画像のサイズと地図の現在のビューに基づいて、画像が画面に収まるような初期境界を計算する
+     * @param {number} imageWidth 画像の幅(px)
+     * @param {number} imageHeight 画像の高さ(px)
+     * @returns {L.LatLngBounds} 計算された境界
+     */
+    calculateInitialBounds(imageWidth, imageHeight) {
+        // 地図の現在のサイズ(px)を取得
+        const mapSize = this.map.getSize();
+
+        // 画面の80%程度に収まるようにターゲットサイズを計算
+        const targetWidth = mapSize.x * 0.8;
+        const targetHeight = mapSize.y * 0.8;
+
+        // 画像のアスペクト比
+        const imageRatio = imageWidth / imageHeight;
+
+        let displayWidth, displayHeight;
+
+        // 幅に合わせてスケーリング
+        if (targetWidth / imageRatio <= targetHeight) {
+            displayWidth = targetWidth;
+            displayHeight = targetWidth / imageRatio;
+        } else {
+            // 高さに合わせてスケーリング
+            displayWidth = targetHeight * imageRatio;
+            displayHeight = targetHeight;
+        }
+
+        // 地図の中心座標(px)
+        const centerPoint = this.map.getSize().divideBy(2);
+
+        // 境界の南西と北東のピクセル座標を計算
+        const swPoint = L.point(centerPoint.x - displayWidth / 2, centerPoint.y + displayHeight / 2);
+        const nePoint = L.point(centerPoint.x + displayWidth / 2, centerPoint.y - displayHeight / 2);
+
+        // ピクセル座標を緯度経度に変換
+        const swLatLng = this.map.containerPointToLatLng(swPoint);
+        const neLatLng = this.map.containerPointToLatLng(nePoint);
+
+        const bounds = L.latLngBounds(swLatLng, neLatLng);
+
+        this.logger.info(`🖼️ 初期境界計算: ${imageWidth}x${imageHeight} -> ${Math.round(displayWidth)}x${Math.round(displayHeight)} (画面比)`);
+
+        return bounds;
     }
 
     // 現在読み込まれている画像の情報を取得
@@ -244,52 +298,52 @@ export class ImageOverlay {
         this.logger.info(`ジオリファレンス適用: 中心位置=(${centerLat.toFixed(6)}, ${centerLng.toFixed(6)}), スケール=${scale.toFixed(6)}`);
         this.transformedCenter = { lat: centerLat, lng: centerLng };
         this.setCurrentScale(scale);
-        
+
         // アフィン変換結果の場合は、直接境界を設定
         if (this.imageOverlay && this.currentImage.src) {
             const imageWidth = this.currentImage.naturalWidth || this.currentImage.width;
             const imageHeight = this.currentImage.naturalHeight || this.currentImage.height;
-            
+
             if (imageWidth && imageHeight) {
                 // より正確なメートル/ピクセル変換
                 const metersPerPixel = 156543.03392 * Math.cos(centerLat * Math.PI / 180) / Math.pow(2, this.map.getZoom());
-                
+
                 if (isFinite(metersPerPixel) && metersPerPixel > 0) {
                     const scaledImageWidthMeters = imageWidth * scale * metersPerPixel;
                     const scaledImageHeightMeters = imageHeight * scale * metersPerPixel;
-                    
+
                     // 地球半径と緯度による補正
                     const earthRadius = 6378137;
                     const cosLat = Math.cos(centerLat * Math.PI / 180);
-                    
+
                     const latOffset = (scaledImageHeightMeters / 2) / earthRadius * (180 / Math.PI);
                     const lngOffset = (scaledImageWidthMeters / 2) / (earthRadius * cosLat) * (180 / Math.PI);
-                    
+
                     if (isFinite(latOffset) && isFinite(lngOffset)) {
                         const southWest = [centerLat - latOffset, centerLng - lngOffset];
                         const northEast = [centerLat + latOffset, centerLng + lngOffset];
-                        
+
                         if (isFinite(southWest[0]) && isFinite(southWest[1]) &&
                             isFinite(northEast[0]) && isFinite(northEast[1])) {
 
                             const bounds = L.latLngBounds(southWest, northEast);
                             this.imageOverlay.setBounds(bounds);
-                            
+
                             // 画像レイヤーが地図に追加されていない場合は再追加
                             if (!this.map.hasLayer(this.imageOverlay)) {
                                 this.imageOverlay.addTo(this.map);
                             }
-                            
+
                             // 強制的に画像レイヤーを再描画
                             if (this.imageOverlay._image && typeof this.imageOverlay._reset === 'function') {
                                 this.imageOverlay._reset();
                             }
-                            
+
                             // 短時間後に地図の強制更新
                             setTimeout(() => {
                                 this.map.invalidateSize();
                             }, 50);
-                            
+
                             // 画像更新をコールバックに通知
                             this.notifyImageUpdate();
                             return;
@@ -298,7 +352,7 @@ export class ImageOverlay {
                 }
             }
         }
-        
+
         // フォールバック: 通常の更新処理
         this.updateImageDisplay();
     }
@@ -319,7 +373,7 @@ export class ImageOverlay {
         if (this.imageOverlay && typeof this.imageOverlay.getBounds === 'function') {
             return this.imageOverlay.getBounds();
         }
-        
+
         // フォールバック: 初期境界を返す
         return this.getInitialBounds();
     }

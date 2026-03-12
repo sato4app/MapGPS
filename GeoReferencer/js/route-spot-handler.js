@@ -17,41 +17,40 @@ export class RouteSpotHandler {
         this.pointMarkers = [];
     }
 
-    async handleRouteSpotJsonLoad(files, selectedRouteSpotType) {
+    async importRouteSpotData(dataItems) {
         try {
-            if (!files.length) return;
+            if (!dataItems || !dataItems.length) return;
 
-            
             const routeData = [];
             const spotData = [];
-            
-            for (const file of files) {
+
+            for (const item of dataItems) {
                 try {
-                    const text = await file.text();
-                    const data = JSON.parse(text);
-                    
+                    const data = item.data;
+                    const fileName = item.fileName;
+
                     // JSONファイルの内容を自動判定
                     const detectedType = this.detectJsonType(data);
-                    
+
                     if (detectedType === 'route') {
-                        const processedRoutes = this.processRouteData(data, file.name);
+                        const processedRoutes = this.processRouteData(data, fileName);
                         routeData.push(...processedRoutes);
                     } else if (detectedType === 'spot') {
-                        const processedSpots = this.processSpotData(data, file.name);
+                        const processedSpots = this.processSpotData(data, fileName);
                         spotData.push(...processedSpots);
                     } else if (detectedType === 'point') {
-                        this.logger.warn(`ポイントデータは現在サポートされていません: ${file.name}`);
+                        this.logger.warn(`ポイントデータは現在サポートされていません: ${fileName}`);
                         continue;
                     } else {
-                        this.logger.warn(`ファイル形式を判定できませんでした: ${file.name}`);
+                        this.logger.warn(`ファイル形式を判定できませんでした: ${fileName}`);
                         continue;
                     }
-                    
-                } catch (fileError) {
-                    this.logger.error(`ファイル読み込みエラー: ${file.name}`, fileError);
+
+                } catch (dataError) {
+                    this.logger.error(`データ処理エラー: ${item.fileName}`, dataError);
                 }
             }
-            
+
             // ルートデータのマージと表示
             if (routeData.length > 0) {
                 this.routeData = this.mergeAndDeduplicate(this.routeData, routeData, 'route');
@@ -59,7 +58,7 @@ export class RouteSpotHandler {
                     await this.displayRouteSpotOnMap(routeData, 'route');
                 }
             }
-            
+
             // スポットデータのマージと表示
             if (spotData.length > 0) {
                 this.spotData = this.mergeAndDeduplicate(this.spotData, spotData, 'spot');
@@ -67,7 +66,7 @@ export class RouteSpotHandler {
                     await this.displayRouteSpotOnMap(spotData, 'spot');
                 }
             }
-            
+
             // ルート中間点数を計算
             let totalWaypoints = 0;
             routeData.forEach(route => {
@@ -77,86 +76,111 @@ export class RouteSpotHandler {
             });
 
             if (routeData.length > 0) {
-                this.logger.info(`JSON読み込み完了: ルート 中間点 ${totalWaypoints}点`);
+                this.logger.info(`データインポート完了: ルート 中間点 ${totalWaypoints}点`);
             }
             else if (spotData.length > 0) {
-                this.logger.info(`JSON読み込み完了: スポット ${spotData.length}個`);
+                this.logger.info(`データインポート完了: スポット ${spotData.length}個`);
             }
             else {
-                this.logger.info(`JSON読み込み完了: ルート なし、スポット なし`);
+                this.logger.info(`データインポート完了: ルート なし、スポット なし`);
             }
-            
+
         } catch (error) {
-            this.logger.error('ルート・スポット(座標)JSON読み込みエラー', error);
-            errorHandler.handle(error, 'ルート・スポット(座標)JSONファイルの読み込みに失敗しました。', 'ルート・スポット(座標)JSON読み込み');
+            this.logger.error('ルート・スポットデータインポートエラー', error);
+            throw error; // 呼び出し元でエラーハンドリングする
         }
     }
 
     detectJsonType(data) {
         try {
+            // 複合形式の判定（data.dataラッパー: points/routes/spots/areasが1ファイルに入っている形式）
+            // 例: { version, imageReference, imageInfo, data: { points[], routes[], spots[], areas[] } }
+            if (data.data && typeof data.data === 'object') {
+                const d = data.data;
+                if ((d.points && Array.isArray(d.points)) ||
+                    (d.routes && Array.isArray(d.routes)) ||
+                    (d.spots && Array.isArray(d.spots)) ||
+                    (d.areas && Array.isArray(d.areas))) {
+                    return 'combined';
+                }
+            }
+
             // ルートの判定基準
             // - routeInfoオブジェクトがある
             // - routeInfoは、startPoint, endPoint属性を持つ
             // - pointsオブジェクトがある  
             // - pointsは、type属性(値="waypoint")を持ち、imageX, imageYの座標を持つ
-            if (data.routeInfo && 
-                data.routeInfo.startPoint && 
-                data.routeInfo.endPoint && 
-                data.points && 
+            if (data.routeInfo &&
+                data.routeInfo.startPoint &&
+                data.routeInfo.endPoint &&
+                data.points &&
                 Array.isArray(data.points)) {
-                
+
                 // pointsの要素をチェック
-                const hasWaypoints = data.points.some(point => 
-                    point.type === 'waypoint' && 
+                const hasWaypoints = data.points.some(point =>
+                    point.type === 'waypoint' &&
                     (point.imageX !== undefined && point.imageY !== undefined)
                 );
-                
+
                 if (hasWaypoints) {
                     return 'route';
                 }
             }
-            
+
             // スポットの判定基準
             // - spotsオブジェクトがある
             // - spotsは、name属性(値はブランクでない文字列)を持ち、imageX, imageYの座標を持つ
             if (data.spots && Array.isArray(data.spots)) {
                 const hasValidSpots = data.spots.some(spot =>
-                    spot.name && 
-                    typeof spot.name === 'string' && 
+                    spot.name &&
+                    typeof spot.name === 'string' &&
                     spot.name.trim() !== '' &&
                     (spot.imageX !== undefined && spot.imageY !== undefined)
                 );
-                
+
                 if (hasValidSpots) {
                     return 'spot';
                 }
             }
-            
+
             // 単一スポットの場合（データがspotsオブジェクトで包まれていない）
-            if (data.name && 
-                typeof data.name === 'string' && 
+            if (data.name &&
+                typeof data.name === 'string' &&
                 data.name.trim() !== '' &&
                 (data.imageX !== undefined && data.imageY !== undefined)) {
                 return 'spot';
             }
-            
+
             // ポイントの判定基準
             // - points配列が存在し、typeが"waypoint"でない要素がある
             if (data.points && Array.isArray(data.points)) {
-                const hasNonWaypoints = data.points.some(point => 
-                    point.type !== 'waypoint' && 
+                const hasNonWaypoints = data.points.some(point =>
+                    point.type !== 'waypoint' &&
                     (point.id || point.name) &&
                     (point.imageX !== undefined && point.imageY !== undefined)
                 );
-                
+
                 if (hasNonWaypoints) {
                     return 'point';
                 }
             }
-            
+
+            // エリアの判定基準
+            // - areas配列が存在する
+            // - areasの要素にvertices配列があり、{x, y}形式の画像座標を持つ
+            if (data.areas && Array.isArray(data.areas)) {
+                const hasValidAreas = data.areas.some(area =>
+                    area.vertices && Array.isArray(area.vertices) && area.vertices.length > 0 &&
+                    area.vertices.some(v => v.x !== undefined && v.y !== undefined)
+                );
+                if (hasValidAreas) {
+                    return 'area';
+                }
+            }
+
             this.logger.warn('判定不可能なファイルがありました。処理をスキップします。');
             return null;
-            
+
         } catch (error) {
             return null;
         }
@@ -164,7 +188,7 @@ export class RouteSpotHandler {
 
     processRouteData(data, fileName) {
         const routes = [];
-        
+
         try {
             const route = {
                 ...data,
@@ -175,20 +199,20 @@ export class RouteSpotHandler {
             };
 
             routes.push(route);
-            
+
         } catch (error) {
             this.logger.error(`ルートデータ処理エラー: ${fileName}`, error);
         }
-        
+
         return routes;
     }
 
 
     processSpotData(data, fileName) {
         const spots = [];
-        
+
         try {
-            
+
             if (Array.isArray(data)) {
                 data.forEach((item, index) => {
                     const spot = {
@@ -197,7 +221,7 @@ export class RouteSpotHandler {
                         spotId: item.id || item.name || `${fileName}_spot_${index}`,
                         coordinates: this.extractCoordinates(item)
                     };
-                    
+
                     spots.push(spot);
                 });
             } else if (data && typeof data === 'object') {
@@ -209,7 +233,7 @@ export class RouteSpotHandler {
                             spotId: spotItem.id || spotItem.name || `${fileName}_spot_${index}`,
                             coordinates: this.extractCoordinates(spotItem)
                         };
-                        
+
                         spots.push(spot);
                     });
                 } else if (data.features && Array.isArray(data.features)) {
@@ -221,7 +245,7 @@ export class RouteSpotHandler {
                             spotId: feature.properties?.id || feature.properties?.name || `${fileName}_spot_${index}`,
                             coordinates: coords ? { lat: coords[1], lng: coords[0] } : this.extractCoordinates(feature.properties)
                         };
-                        
+
                         spots.push(spot);
                     });
                 } else {
@@ -231,16 +255,16 @@ export class RouteSpotHandler {
                         spotId: data.id || data.name || `${fileName}_spot_0`,
                         coordinates: this.extractCoordinates(data)
                     };
-                    
+
                     spots.push(spot);
                 }
             }
-            
-            
+
+
         } catch (error) {
             this.logger.error(`スポットデータ処理エラー: ${fileName}`, error);
         }
-        
+
         return spots;
     }
 
@@ -253,7 +277,7 @@ export class RouteSpotHandler {
                 id: route.routeInfo.startPoint
             };
         }
-        
+
         if (route.points && Array.isArray(route.points) && route.points.length > 0) {
             const firstPoint = route.points[0];
             return {
@@ -263,7 +287,7 @@ export class RouteSpotHandler {
                 id: firstPoint.id || firstPoint.name || firstPoint.pointId || null
             };
         }
-        
+
         if (route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0) {
             const firstCoord = route.coordinates[0];
             if (Array.isArray(firstCoord) && firstCoord.length >= 2) {
@@ -275,7 +299,7 @@ export class RouteSpotHandler {
                 };
             }
         }
-        
+
         if (route.geometry && route.geometry.coordinates && Array.isArray(route.geometry.coordinates) && route.geometry.coordinates.length > 0) {
             const firstCoord = route.geometry.coordinates[0];
             if (Array.isArray(firstCoord) && firstCoord.length >= 2) {
@@ -287,7 +311,7 @@ export class RouteSpotHandler {
                 };
             }
         }
-        
+
         return null;
     }
 
@@ -300,7 +324,7 @@ export class RouteSpotHandler {
                 id: route.routeInfo.endPoint
             };
         }
-        
+
         if (route.points && Array.isArray(route.points) && route.points.length > 0) {
             const lastPoint = route.points[route.points.length - 1];
             return {
@@ -310,7 +334,7 @@ export class RouteSpotHandler {
                 id: lastPoint.id || lastPoint.name || lastPoint.pointId || null
             };
         }
-        
+
         if (route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 0) {
             const lastCoord = route.coordinates[route.coordinates.length - 1];
             if (Array.isArray(lastCoord) && lastCoord.length >= 2) {
@@ -322,7 +346,7 @@ export class RouteSpotHandler {
                 };
             }
         }
-        
+
         if (route.geometry && route.geometry.coordinates && Array.isArray(route.geometry.coordinates) && route.geometry.coordinates.length > 0) {
             const lastCoord = route.geometry.coordinates[route.geometry.coordinates.length - 1];
             if (Array.isArray(lastCoord) && lastCoord.length >= 2) {
@@ -334,7 +358,7 @@ export class RouteSpotHandler {
                 };
             }
         }
-        
+
         return null;
     }
 
@@ -352,7 +376,7 @@ export class RouteSpotHandler {
             // 画像座標からGPS座標に変換
             return this.convertImageCoordsToGps(spot.imageX, spot.imageY);
         }
-        
+
         return null;
     }
 
@@ -372,7 +396,7 @@ export class RouteSpotHandler {
 
             const result = mathUtils.convertImageCoordsToGps(imageX, imageY, imageBounds, imageWidth, imageHeight);
             return result ? { lat: result[0], lng: result[1] } : null;
-            
+
         } catch (error) {
             return null;
         }
@@ -382,20 +406,20 @@ export class RouteSpotHandler {
         const merged = [...existingData];
         let addedCount = 0;
         let updatedCount = 0;
-        
+
         newData.forEach(newItem => {
             let duplicateIndex = -1;
-            
+
             if (type === 'route') {
-                duplicateIndex = merged.findIndex(existing => 
+                duplicateIndex = merged.findIndex(existing =>
                     this.isSameRoute(existing, newItem)
                 );
             } else if (type === 'spot') {
-                duplicateIndex = merged.findIndex(existing => 
+                duplicateIndex = merged.findIndex(existing =>
                     this.isSameSpot(existing, newItem)
                 );
             }
-            
+
             if (duplicateIndex === -1) {
                 // 新規追加
                 merged.push(newItem);
@@ -419,8 +443,8 @@ export class RouteSpotHandler {
                 updatedCount++;
             }
         });
-        
-        
+
+
         return merged;
     }
 
@@ -429,36 +453,36 @@ export class RouteSpotHandler {
         const end1 = route1.endPoint;
         const start2 = route2.startPoint;
         const end2 = route2.endPoint;
-        
+
         // 座標データがない場合はIDで比較
         if (!start1 || !end1 || !start2 || !end2) {
             return false;
         }
-        
+
         // ID比較も追加（座標だけでなくIDも考慮）
         const start1Id = start1.id || start1.name;
         const end1Id = end1.id || end1.name;
         const start2Id = start2.id || start2.name;
         const end2Id = end2.id || end2.name;
-        
+
         // IDによる比較
         if (start1Id && end1Id && start2Id && end2Id) {
             // 正方向の比較（開始ID→終了IDが同じ）
             const sameDirectionById = (start1Id === start2Id && end1Id === end2Id);
-            
+
             // 逆方向の比較（開始ID→終了IDが逆）
             const reverseDirectionById = (start1Id === end2Id && end1Id === start2Id);
-            
-            
+
+
             return sameDirectionById || reverseDirectionById;
         }
-        
+
         // 座標による比較
         const tolerance = 0.0001;
-        
-        if (start1.lat && start1.lng && end1.lat && end1.lng && 
+
+        if (start1.lat && start1.lng && end1.lat && end1.lng &&
             start2.lat && start2.lng && end2.lat && end2.lng) {
-            
+
             // 正方向の比較（開始点→終了点が同じ）
             const sameDirection = (
                 Math.abs(start1.lat - start2.lat) < tolerance &&
@@ -466,7 +490,7 @@ export class RouteSpotHandler {
                 Math.abs(end1.lat - end2.lat) < tolerance &&
                 Math.abs(end1.lng - end2.lng) < tolerance
             );
-            
+
             // 逆方向の比較（開始点→終了点が逆）
             const reverseDirection = (
                 Math.abs(start1.lat - end2.lat) < tolerance &&
@@ -474,39 +498,39 @@ export class RouteSpotHandler {
                 Math.abs(end1.lat - start2.lat) < tolerance &&
                 Math.abs(end1.lng - start2.lng) < tolerance
             );
-            
-            
+
+
             return sameDirection || reverseDirection;
         }
-        
+
         return false;
     }
 
     isSameSpot(spot1, spot2) {
         // imageX, imageYが両方ある場合はそれで比較（優先）
-        if (spot1.imageX !== undefined && spot1.imageY !== undefined && 
+        if (spot1.imageX !== undefined && spot1.imageY !== undefined &&
             spot2.imageX !== undefined && spot2.imageY !== undefined) {
-            
+
             const imageXMatch = Math.abs(spot1.imageX - spot2.imageX) < 0.1;
             const imageYMatch = Math.abs(spot1.imageY - spot2.imageY) < 0.1;
-            
-            
+
+
             return imageXMatch && imageYMatch;
         }
-        
+
         // GPS座標で比較
         const coord1 = spot1.coordinates;
         const coord2 = spot2.coordinates;
-        
+
         if (!coord1 || !coord2) {
             return false;
         }
-        
+
         const tolerance = 0.0001;
         const latMatch = Math.abs(coord1.lat - coord2.lat) < tolerance;
         const lngMatch = Math.abs(coord1.lng - coord2.lng) < tolerance;
-        
-        
+
+
         return latMatch && lngMatch;
     }
 
@@ -524,7 +548,7 @@ export class RouteSpotHandler {
                 if (type === 'route') {
                     let latLngs = [];
                     let points = [];
-                    
+
                     if (item.points && Array.isArray(item.points)) {
                         // Firebaseから読み込んだデータかどうかを判定
                         const isFirebaseData = item.fileName === 'firebase';
@@ -564,22 +588,22 @@ export class RouteSpotHandler {
                     } else if (item.coordinates && Array.isArray(item.coordinates)) {
                         latLngs = item.coordinates.map(coord => [coord[1], coord[0]]);
                         points = item.coordinates.map((coord, idx) => ({
-                            lat: coord[1], 
-                            lng: coord[0], 
+                            lat: coord[1],
+                            lng: coord[0],
                             name: `Point-${idx + 1}`,
                             type: 'waypoint'
                         }));
                     } else if (item.geometry && item.geometry.coordinates) {
                         latLngs = item.geometry.coordinates.map(coord => [coord[1], coord[0]]);
                         points = item.geometry.coordinates.map((coord, idx) => ({
-                            lat: coord[1], 
-                            lng: coord[0], 
+                            lat: coord[1],
+                            lng: coord[0],
                             name: `Point-${idx + 1}`,
                             type: 'waypoint'
                         }));
                     }
-                    
-                    
+
+
                     if (latLngs.length > 1) {
                         points.forEach((point, pointIndex) => {
                             let label = 'ポイント';
@@ -594,7 +618,7 @@ export class RouteSpotHandler {
 
                             // ルートのすべてのポイントをダイヤモンド型マーカーで統一
                             let marker = mathUtils.createCustomMarker([point.lat, point.lng], 'wayPoint', this.mapCore).addTo(this.mapCore.getMap());
-                            
+
                             // マーカーに元座標系メタを付与
                             if (marker) {
                                 // __originを優先的に使用（上で正しく設定済み）
@@ -614,16 +638,16 @@ export class RouteSpotHandler {
                                 pointIndex
                             );
                             marker.bindPopup(pointInfo);
-                            
+
                             if (!this.routeMarkers) this.routeMarkers = [];
                             this.routeMarkers.push(marker);
                         });
-                        
+
                         displayCount++;
                     }
                 } else if (type === 'spot') {
                     let latLng = null;
-                    
+
                     if (item.coordinates && typeof item.coordinates === 'object') {
                         if (item.coordinates.lat && item.coordinates.lng) {
                             latLng = [item.coordinates.lat, item.coordinates.lng];
@@ -636,14 +660,14 @@ export class RouteSpotHandler {
                         const coords = item.geometry.coordinates;
                         latLng = [coords[1], coords[0]];
                     }
-                    
-                    
+
+
                     if (latLng && latLng[0] && latLng[1]) {
                         const marker = mathUtils.createCustomMarker(latLng, 'spot', this.mapCore).addTo(this.mapCore.getMap());
-                        
+
                         const spotInfo = CoordinateDisplay.createSpotPopupContent(item, latLng);
                         marker.bindPopup(spotInfo);
-                        
+
                         // スポットにも元座標系メタを付与
                         // Firebaseから読み込んだデータかどうかを判定
                         const isFirebase = item.fileName === 'firebase';
@@ -671,7 +695,7 @@ export class RouteSpotHandler {
                 }
             });
 
-            
+
         } catch (error) {
             this.logger.error('ルート・スポット地図表示エラー', error);
             throw error;
@@ -690,206 +714,9 @@ export class RouteSpotHandler {
         return Array.isArray(this.spotData) ? this.spotData.length : 0;
     }
 
-    /**
-     * Firebaseから取得したデータを地図に表示
-     * @param {Array} points - Firebaseから取得したポイントデータ
-     * @param {Array} routes - Firebaseから取得したルートデータ
-     * @param {Array} spots - Firebaseから取得したスポットデータ
-     * @param {Object} imageOverlay - ImageOverlayインスタンス
-     */
-    async loadFromFirebaseData(points, routes, spots, imageOverlay) {
-        try {
-            this.logger.info('Firebaseデータから地図表示を開始');
 
-            // ImageOverlayインスタンスを更新
-            if (imageOverlay) {
-                this.imageOverlay = imageOverlay;
-            }
 
-            // 既存のマーカーをクリア
-            this.clearAllMarkers();
 
-            // ルートデータを処理
-            const processedRoutes = [];
-            this.logger.info(`処理するルート数: ${(routes || []).length}`);
-
-            for (const route of (routes || [])) {
-                this.logger.info(`ルート処理中: ${route.routeName || route.name || 'Unnamed'}, waypoints数: ${(route.waypoints || []).length}`);
-
-                const processedRoute = {
-                    name: route.routeName || route.name || route.id || 'Route',
-                    routeId: route.id || route.firestoreId,
-                    fileName: 'firebase',
-                    routeInfo: {
-                        startPoint: route.startPoint || '',
-                        endPoint: route.endPoint || ''
-                    },
-                    points: (route.waypoints || [])
-                        .map((waypoint, index) => {
-                            // Firebaseのデータは画像座標（x, y）の形式
-                            if (!waypoint || (typeof waypoint.x !== 'number' && !waypoint.coordinates)) {
-                                this.logger.warn('無効なwaypoint:', waypoint);
-                                return null;
-                            }
-
-                            let lat, lng, elevation, imageX, imageY;
-
-                            // 画像座標（x, y）の場合
-                            if (typeof waypoint.x === 'number' && typeof waypoint.y === 'number') {
-                                imageX = waypoint.x;
-                                imageY = waypoint.y;
-                                elevation = waypoint.elevation;
-
-                                // 画像境界ベースで仮のGPS座標を計算（ジオリファレンス前の表示用）
-                                const tempGpsCoords = this.convertImageCoordsToGps(imageX, imageY);
-                                lat = tempGpsCoords ? tempGpsCoords.lat : null;
-                                lng = tempGpsCoords ? tempGpsCoords.lng : null;
-                            }
-                            // GPS座標（coordinates配列）の場合（後方互換性）
-                            else if (waypoint.coordinates && waypoint.coordinates.length >= 2) {
-                                [lng, lat, elevation] = waypoint.coordinates;
-
-                                // GPS座標から画像座標に変換
-                                const imgCoords = this.convertGpsToImageCoords(lat, lng);
-                                imageX = imgCoords ? imgCoords.x : undefined;
-                                imageY = imgCoords ? imgCoords.y : undefined;
-                            } else {
-                                this.logger.warn('waypointに座標データがありません:', waypoint);
-                                return null;
-                            }
-
-                            return {
-                                lat: lat,
-                                lng: lng,
-                                elevation: elevation,
-                                name: waypoint.name || `Waypoint-${index + 1}`,
-                                type: 'waypoint',
-                                imageX: imageX,
-                                imageY: imageY
-                            };
-                        })
-                        .filter(point => point !== null)
-                };
-
-                this.logger.info(`フィルタリング後のポイント数: ${processedRoute.points.length}`);
-
-                // ポイントが1つ以上ある場合のみ追加
-                if (processedRoute.points.length > 0) {
-                    processedRoutes.push(processedRoute);
-                } else {
-                    this.logger.warn(`ルート "${processedRoute.name}" はポイントがないためスキップされました`);
-                }
-            }
-
-            // スポットデータを処理
-            const processedSpots = [];
-            this.logger.info(`処理するスポット数: ${(spots || []).length}`);
-
-            for (const spot of (spots || [])) {
-                // 座標が有効かチェック
-                if (!spot || (typeof spot.x !== 'number' && (!spot.coordinates || spot.coordinates.length < 2))) {
-                    this.logger.warn('無効なスポット:', spot);
-                    continue; // 無効なスポットはスキップ
-                }
-
-                let lat, lng, elevation, imageX, imageY;
-
-                // 画像座標（x, y）の場合
-                if (typeof spot.x === 'number' && typeof spot.y === 'number') {
-                    imageX = spot.x;
-                    imageY = spot.y;
-                    elevation = spot.elevation;
-
-                    // 画像境界ベースで仮のGPS座標を計算（ジオリファレンス前の表示用）
-                    const tempGpsCoords = this.convertImageCoordsToGps(imageX, imageY);
-                    lat = tempGpsCoords ? tempGpsCoords.lat : null;
-                    lng = tempGpsCoords ? tempGpsCoords.lng : null;
-                }
-                // GPS座標（coordinates配列）の場合（後方互換性）
-                else if (spot.coordinates && spot.coordinates.length >= 2) {
-                    [lng, lat, elevation] = spot.coordinates;
-
-                    // GPS座標から画像座標に変換
-                    const imgCoords = this.convertGpsToImageCoords(lat, lng);
-                    imageX = imgCoords ? imgCoords.x : undefined;
-                    imageY = imgCoords ? imgCoords.y : undefined;
-                }
-
-                const processedSpot = {
-                    name: spot.name || 'Spot',
-                    spotId: spot.id || spot.firestoreId,
-                    fileName: 'firebase',
-                    description: spot.description || '',
-                    coordinates: {
-                        lat: lat,
-                        lng: lng
-                    },
-                    elevation: elevation,
-                    imageX: imageX,
-                    imageY: imageY
-                };
-
-                processedSpots.push(processedSpot);
-            }
-
-            // ポイントデータを処理
-            const processedPoints = [];
-            this.logger.info(`処理するポイント数: ${(points || []).length}`);
-
-            for (const point of (points || [])) {
-                // 座標が有効かチェック
-                if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
-                    this.logger.warn('無効なポイント:', point);
-                    continue;
-                }
-
-                const imageX = point.x;
-                const imageY = point.y;
-
-                // 画像境界ベースで仮のGPS座標を計算（ジオリファレンス前の表示用）
-                const tempGpsCoords = this.convertImageCoordsToGps(imageX, imageY);
-
-                const processedPoint = {
-                    id: point.id || point.firestoreId || 'Point',
-                    pointId: point.firestoreId,
-                    imageX: imageX,
-                    imageY: imageY,
-                    index: point.index || 0,
-                    isMarker: point.isMarker || false,
-                    // 仮のGPS座標（ジオリファレンス後に正確な座標に更新）
-                    lat: tempGpsCoords ? tempGpsCoords.lat : null,
-                    lng: tempGpsCoords ? tempGpsCoords.lng : null,
-                    isGeoreferenced: false  // ジオリファレンス済みフラグ
-                };
-
-                processedPoints.push(processedPoint);
-            }
-
-            // データを保存
-            this.pointData = processedPoints;
-            this.routeData = processedRoutes;
-            this.spotData = processedSpots;
-
-            // 地図に表示
-            if (processedRoutes.length > 0) {
-                await this.displayRouteSpotOnMap(processedRoutes, 'route');
-            }
-
-            if (processedSpots.length > 0) {
-                await this.displayRouteSpotOnMap(processedSpots, 'spot');
-            }
-
-            if (processedPoints.length > 0) {
-                await this.displayPointsOnMap(processedPoints);
-            }
-
-            this.logger.info(`Firebase読み込み完了: ポイント ${processedPoints.length}件、ルート ${processedRoutes.length}本、スポット ${processedSpots.length}個`);
-
-        } catch (error) {
-            this.logger.error('Firebaseデータ表示エラー', error);
-            throw error;
-        }
-    }
 
     /**
      * GPS座標から画像座標に変換
@@ -1008,7 +835,7 @@ export class RouteSpotHandler {
     }
 
     /**
-     * Firebaseポイントを地図に表示（赤いマーカー）
+     * ポイントを地図に表示（赤いマーカー）
      * @param {Array} points - ポイントデータ配列
      */
     async displayPointsOnMap(points) {
@@ -1042,7 +869,7 @@ export class RouteSpotHandler {
                 // マーカーにメタ情報を付与
                 if (marker) {
                     marker.__meta = {
-                        origin: 'firebase',
+                        origin: 'json',
                         imageX: point.imageX,
                         imageY: point.imageY,
                         pointId: point.pointId,

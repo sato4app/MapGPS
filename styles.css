@@ -112,6 +112,13 @@ h1 {
     color: #2c3e50;
 }
 
+/* 版の日付 */
+.app-version {
+    font-size: 0.7em;
+    font-weight: 400;
+    color: #95a5a6;
+}
+
 /* アプリケーション説明 */
 .app-description {
     color: #7f8c8d;

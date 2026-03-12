@@ -789,6 +789,163 @@ export class FirestoreDataManager {
     }
 
     // ========================================
+    // エリア管理
+    // ========================================
+
+    /**
+     * エリアを追加（重複チェック付き）
+     * @param {string} projectId - プロジェクトID
+     * @param {Object} area - エリアデータ {areaName, vertices}
+     * @returns {Promise<Object>} {status: 'success'|'duplicate', firestoreId?, existing?, attempted?}
+     */
+    async addArea(projectId, area) {
+        try {
+            // 重複チェック（名前で一致確認）
+            const existingArea = await this.findAreaByName(projectId, area.areaName);
+
+            if (existingArea) {
+                return {
+                    status: 'duplicate',
+                    type: 'area',
+                    existing: existingArea,
+                    attempted: area
+                };
+            }
+
+            // 新規追加
+            const docRef = await this.db
+                .collection('projects')
+                .doc(projectId)
+                .collection('areas')
+                .add({
+                    areaName: area.areaName || '',
+                    vertices: area.vertices || [],
+                    vertexCount: (area.vertices || []).length,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+            // プロジェクトのエリア数を更新
+            await this.incrementCounter(projectId, 'areaCount', 1);
+
+            return {
+                status: 'success',
+                firestoreId: docRef.id
+            };
+        } catch (error) {
+            console.error('エリア追加失敗:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * エリア名でエリアを検索
+     * @param {string} projectId - プロジェクトID
+     * @param {string} areaName - エリア名
+     * @returns {Promise<Object|null>}
+     */
+    async findAreaByName(projectId, areaName) {
+        try {
+            const snapshot = await this.db
+                .collection('projects')
+                .doc(projectId)
+                .collection('areas')
+                .where('areaName', '==', areaName)
+                .limit(1)
+                .get();
+
+            if (snapshot.empty) {
+                return null;
+            }
+
+            const doc = snapshot.docs[0];
+            return {
+                firestoreId: doc.id,
+                ...doc.data()
+            };
+        } catch (error) {
+            console.error('エリア検索失敗:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * エリアを更新
+     * @param {string} projectId - プロジェクトID
+     * @param {string} firestoreId - FirestoreドキュメントID
+     * @param {Object} updates - 更新データ
+     * @returns {Promise<void>}
+     */
+    async updateArea(projectId, firestoreId, updates) {
+        try {
+            // verticesが更新される場合、vertexCountも更新
+            if (updates.vertices) {
+                updates.vertexCount = updates.vertices.length;
+            }
+
+            await this.db
+                .collection('projects')
+                .doc(projectId)
+                .collection('areas')
+                .doc(firestoreId)
+                .update({
+                    ...updates,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+        } catch (error) {
+            console.error('エリア更新失敗:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * エリアを削除
+     * @param {string} projectId - プロジェクトID
+     * @param {string} firestoreId - FirestoreドキュメントID
+     * @returns {Promise<void>}
+     */
+    async deleteArea(projectId, firestoreId) {
+        try {
+            await this.db
+                .collection('projects')
+                .doc(projectId)
+                .collection('areas')
+                .doc(firestoreId)
+                .delete();
+
+            // プロジェクトのエリア数を更新
+            await this.incrementCounter(projectId, 'areaCount', -1);
+        } catch (error) {
+            console.error('エリア削除失敗:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * すべてのエリアを取得
+     * @param {string} projectId - プロジェクトID
+     * @returns {Promise<Array>}
+     */
+    async getAreas(projectId) {
+        try {
+            const snapshot = await this.db
+                .collection('projects')
+                .doc(projectId)
+                .collection('areas')
+                .orderBy('createdAt', 'asc')
+                .get();
+
+            return snapshot.docs.map(doc => ({
+                firestoreId: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('エリア取得失敗:', error);
+            throw error;
+        }
+    }
+
+    // ========================================
     // ユーティリティ
     // ========================================
 
