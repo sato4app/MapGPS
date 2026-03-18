@@ -97,11 +97,23 @@ document.querySelectorAll('input[name="mode"]').forEach(radio => {
 
 // 絞り込みドロップダウンの変更イベントリスナー
 document.getElementById('routeStart').addEventListener('change', function () {
+    const prevRoute = document.getElementById('routePath').value;
     RouteEditor.updateRouteLongDropdown(getLoadedData());
+    if (prevRoute && document.getElementById('routePath').value !== prevRoute) {
+        if (RouteEditor.state.isAddMoveMode) RouteEditor.exitAddMoveMode(markerMap, map);
+        if (RouteEditor.state.isDeleteMode) RouteEditor.exitDeleteMode(markerMap);
+        RouteEditor.resetRouteHighlight(markerMap, map, getLoadedData());
+    }
 });
 
 document.getElementById('routeEnd').addEventListener('change', function () {
+    const prevRoute = document.getElementById('routePath').value;
     RouteEditor.updateRoutePathDropdown(getLoadedData());
+    if (prevRoute && document.getElementById('routePath').value !== prevRoute) {
+        if (RouteEditor.state.isAddMoveMode) RouteEditor.exitAddMoveMode(markerMap, map);
+        if (RouteEditor.state.isDeleteMode) RouteEditor.exitDeleteMode(markerMap);
+        RouteEditor.resetRouteHighlight(markerMap, map, getLoadedData());
+    }
 });
 
 // route-dropdown-fullの変更イベントリスナー（ルートハイライト）
@@ -146,6 +158,10 @@ document.getElementById('addMoveRouteBtn').addEventListener('click', function ()
     // 追加・移動モードを開始
     RouteEditor.state.isAddMoveMode = true;
     this.classList.add('active');
+
+    // ルートを最適化してラインを再描画
+    RouteEditor.optimizeRoute(path, false, getLoadedData(), markerMap);
+    RouteEditor.redrawRouteLine(path, getLoadedData(), map);
 
     // カーソルを十字に変更
     map.getContainer().style.cursor = 'crosshair';
@@ -301,8 +317,12 @@ document.getElementById('clearRouteBtn').addEventListener('click', async functio
 
 // リセットボタン
 document.getElementById('resetDropdownBtn').addEventListener('click', function () {
+    // モードが有効な場合は解除
+    if (RouteEditor.state.isAddMoveMode) RouteEditor.exitAddMoveMode(markerMap, map);
+    if (RouteEditor.state.isDeleteMode) RouteEditor.exitDeleteMode(markerMap);
+
     // ハイライトをリセット
-    RouteEditor.resetRouteHighlight(markerMap, map);
+    RouteEditor.resetRouteHighlight(markerMap, map, getLoadedData());
 
     document.getElementById('routeStart').value = '';
     document.getElementById('routeEnd').value = '';
@@ -508,9 +528,10 @@ if (areaNameInput) {
         AreaEditor.updateAreaDropdown();
         areaSelect.value = currentIndex;
 
-        // 選択中レイヤーのポップアップも更新
+        // 選択中レイヤーのポップアップとラベルも更新
         if (AreaEditor.selectedAreaLayer) {
             AreaEditor.selectedAreaLayer.bindPopup(`<b>${newName}</b>`);
+            AreaEditor.bindAreaLabel(AreaEditor.selectedAreaFeature, AreaEditor.selectedAreaLayer);
         }
 
         showMessage('エリア名を更新しました', 'success');

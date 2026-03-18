@@ -31,15 +31,15 @@ export function extractPointsAndRoutes(geoJsonData) {
         const featureType = feature.properties && feature.properties.type;
         const geometryType = feature.geometry && feature.geometry.type;
 
-        // ポイントGPSを収集
-        if (geometryType === 'Point' && featureType === 'ポイントGPS') {
+        // ポイントGPS / point を収集
+        if (geometryType === 'Point' && (featureType === 'ポイントGPS' || featureType === 'point')) {
             const pointId = feature.properties && feature.properties.id;
             if (pointId) {
                 state.allPoints.push(pointId);
             }
         }
 
-        // ルート中間点からroute_idを収集
+        // ルート中間点(Point)からroute_idを収集
         if (geometryType === 'Point' && featureType === 'route_waypoint') {
             const routeId = feature.properties && feature.properties.route_id;
             if (routeId) {
@@ -47,8 +47,16 @@ export function extractPointsAndRoutes(geoJsonData) {
             }
         }
 
-        // LineString ルート (type='route') からも route_id を収集（GeoReferencer形式互換）
+        // LineString ルート (type='route') からも route_id を収集
         if (geometryType === 'LineString' && featureType === 'route') {
+            const routeId = feature.properties && feature.properties.id;
+            if (routeId) {
+                routeIdSet.add(routeId);
+            }
+        }
+
+        // LineString ルート (type='route_waypoint') からも route_id を収集（GeoReferencer形式）
+        if (geometryType === 'LineString' && featureType === 'route_waypoint') {
             const routeId = feature.properties && feature.properties.id;
             if (routeId) {
                 routeIdSet.add(routeId);
@@ -58,12 +66,12 @@ export function extractPointsAndRoutes(geoJsonData) {
 
     // route_idからルートを構築
     routeIdSet.forEach(routeId => {
-        const match = routeId.match(/^route_(.+)_to_(.+)$/);
-        if (match) {
+        const ids = getStartEndIds(routeId, geoJsonData);
+        if (ids) {
             state.allRoutes.push({
                 routeId: routeId,
-                startId: match[1],
-                endId: match[2]
+                startId: ids.startId,
+                endId: ids.endId
             });
         }
     });
@@ -136,13 +144,8 @@ export function updateRouteLongDropdown(loadedData) {
         routeEndSelect.value = previousEndSelection;
     }
 
-    const routePathSelect = document.getElementById('routePath');
-    const previousSelection = routePathSelect.value;
     updateRoutePathDropdown(loadedData);
 
-    if (previousSelection && routePathSelect.value !== previousSelection) {
-        resetRouteHighlight();
-    }
 }
 
 export function updateRoutePathDropdown(loadedData) {
@@ -167,6 +170,11 @@ export function updateRoutePathDropdown(loadedData) {
         );
     }
 
+    filteredRoutes = [...filteredRoutes].sort((a, b) => {
+        const cmp = a.startId.localeCompare(b.startId, undefined, { numeric: true });
+        return cmp !== 0 ? cmp : a.endId.localeCompare(b.endId, undefined, { numeric: true });
+    });
+
     routePathSelect.innerHTML = '<option value="">開始 ～ 終了ポイント</option>';
     filteredRoutes.forEach(route => {
         const waypointCount = loadedData.features.filter(f =>
@@ -183,9 +191,57 @@ export function updateRoutePathDropdown(loadedData) {
         routePathSelect.value = previousSelection;
     }
 
-    if (previousSelection && routePathSelect.value !== previousSelection) {
-        resetRouteHighlight();
+}
+
+// routeId から startId / endId を取得
+// type='route' LineString の startPoint/endPoint を優先し、なければ routeId の正規表現にフォールバック
+function getStartEndIds(routeId, loadedData) {
+    if (loadedData && loadedData.features) {
+        const routeFeature = loadedData.features.find(f =>
+            f.properties && f.properties.type === 'route' &&
+            f.properties.id === routeId &&
+            f.geometry && f.geometry.type === 'LineString'
+        );
+        if (routeFeature && routeFeature.properties.startPoint && routeFeature.properties.endPoint) {
+            return { startId: routeFeature.properties.startPoint, endId: routeFeature.properties.endPoint };
+        }
     }
+    const match = routeId.match(/^route_(.+)_to_(.+)$/);
+    if (!match) return null;
+    return { startId: match[1], endId: match[2] };
+}
+
+// ポイントIDからフィーチャーを取得（ポイントGPS優先、スポットにフォールバック）
+function getPointFeature(id, loadedData) {
+    if (!loadedData || !loadedData.features) return null;
+    return loadedData.features.find(f => f.properties && f.properties.type === 'ポイントGPS' && (f.properties.id === id || f.properties.pointId === id))
+        || loadedData.features.find(f => f.properties && f.properties.type === 'point' && (f.properties.id === id || f.properties.pointId === id))
+        || loadedData.features.find(f => f.properties && f.properties.type === 'spot' && (f.properties.id === id || f.properties.name === id) && f.geometry && f.geometry.type === 'Point');
+}
+
+// スポットを名前またはIDで検索（全マッチを返す）
+function findSpotsByNameOrId(nameOrId, loadedData) {
+    if (!loadedData || !loadedData.features) return [];
+    return loadedData.features.filter(f =>
+        f.properties && f.properties.type === 'spot' &&
+        f.geometry && f.geometry.type === 'Point' &&
+        (f.properties.id === nameOrId || f.properties.name === nameOrId)
+    );
+}
+
+// 基準座標に最も近いフィーチャーを返す
+function findNearestFeature(features, refLat, refLng) {
+    if (features.length === 0) return null;
+    if (features.length === 1) return features[0];
+    let nearest = null;
+    let minDist = Infinity;
+    features.forEach(f => {
+        if (!f.geometry || !f.geometry.coordinates) return;
+        const [lng, lat] = f.geometry.coordinates;
+        const d = (lat - refLat) ** 2 + (lng - refLng) ** 2;
+        if (d < minDist) { minDist = d; nearest = f; }
+    });
+    return nearest;
 }
 
 // GeoJSONから座標を取得
@@ -193,15 +249,37 @@ export function getCoordinatesFromGeoJSON(routeId, loadedData) {
     if (!loadedData || !loadedData.features) return null;
 
     const coordinates = [];
-    const match = routeId.match(/^route_(.+)_to_(.+)$/);
-    if (!match) return null;
+    const ids = getStartEndIds(routeId, loadedData);
+    if (!ids) return null;
 
-    const startId = match[1];
-    const endId = match[2];
+    const startId = ids.startId;
+    const endId = ids.endId;
 
-    const startFeature = loadedData.features.find(f =>
-        f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === startId
-    );
+    // type='ポイントGPS' を優先、なければ type='point' にフォールバック（spotは含まない）
+    function findGpsOrPoint(id) {
+        return loadedData.features.find(f => f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === id)
+            || loadedData.features.find(f => f.properties && f.properties.type === 'point' && f.properties.id === id);
+    }
+
+    let startFeature = findGpsOrPoint(startId);
+    let endFeature = findGpsOrPoint(endId);
+
+    // GPS/pointで見つからなかった場合、スポットにフォールバック（相手の座標を参照して最近傍を選択）
+    if (!startFeature) {
+        const refCoords = endFeature && endFeature.geometry ? endFeature.geometry.coordinates : null;
+        const spots = findSpotsByNameOrId(startId, loadedData);
+        startFeature = (spots.length <= 1 || !refCoords)
+            ? (spots[0] || null)
+            : findNearestFeature(spots, refCoords[1], refCoords[0]);
+    }
+    if (!endFeature) {
+        const refCoords = startFeature && startFeature.geometry ? startFeature.geometry.coordinates : null;
+        const spots = findSpotsByNameOrId(endId, loadedData);
+        endFeature = (spots.length <= 1 || !refCoords)
+            ? (spots[0] || null)
+            : findNearestFeature(spots, refCoords[1], refCoords[0]);
+    }
+
     if (startFeature && startFeature.geometry && startFeature.geometry.coordinates) {
         const [lng, lat] = startFeature.geometry.coordinates;
         coordinates.push([lat, lng]);
@@ -222,9 +300,20 @@ export function getCoordinatesFromGeoJSON(routeId, loadedData) {
         }
     });
 
-    const endFeature = loadedData.features.find(f =>
-        f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === endId
-    );
+    // フォールバック: route_waypoint Point がない場合、type='route_waypoint' LineString の座標を中間点として使用（GeoReferencer形式）
+    if (waypoints.length === 0) {
+        const waypointLine = loadedData.features.find(f =>
+            f.properties && f.properties.type === 'route_waypoint' &&
+            f.properties.id === routeId &&
+            f.geometry && f.geometry.type === 'LineString'
+        );
+        if (waypointLine) {
+            waypointLine.geometry.coordinates.forEach(coord => {
+                coordinates.push([coord[1], coord[0]]);
+            });
+        }
+    }
+
     if (endFeature && endFeature.geometry && endFeature.geometry.coordinates) {
         const [lng, lat] = endFeature.geometry.coordinates;
         coordinates.push([lat, lng]);
@@ -246,44 +335,72 @@ export function getCoordinatesFromGeoJSON(routeId, loadedData) {
     return null;
 }
 
+// 全ルートの背景ポリラインを初期化（選択状態によらず常に表示）
+export function initAllRouteLines(loadedData, geoJsonLayer) {
+    state.allRoutes.forEach(({ routeId }) => {
+        const coordinates = getCoordinatesFromGeoJSON(routeId, loadedData);
+        if (coordinates && coordinates.length >= 2) {
+            if (state.routeLineMap.has(routeId)) {
+                state.routeLineMap.get(routeId).setLatLngs(coordinates);
+            } else {
+                const line = L.polyline(coordinates, { color: '#f58220', weight: 2, opacity: 0.7 });
+                geoJsonLayer.addLayer(line);
+                state.routeLineMap.set(routeId, line);
+            }
+        }
+    });
+}
+
 // ルートハイライト
 export function highlightRoute(routeId, loadedData, markerMap, map) {
-    resetRouteHighlight(markerMap, map);
+    resetRouteHighlight(markerMap, map, loadedData);
 
     if (!routeId) return;
 
     state.selectedRouteId = routeId;
 
-    const match = routeId.match(/^route_(.+)_to_(.+)$/);
-    if (!match) return;
+    const ids = getStartEndIds(routeId, loadedData);
+    if (!ids) return;
 
-    const startId = match[1];
-    const endId = match[2];
+    const startId = ids.startId;
+    const endId = ids.endId;
 
     const startMarker = markerMap.get(startId);
     const endMarker = markerMap.get(endId);
 
+    // ポイントGPS・スポットはアクア、geojsonポイントはピンクでハイライト
+    const startFeature = getPointFeature(startId, loadedData);
+    const endFeature = getPointFeature(endId, loadedData);
+    const startType = startFeature && startFeature.properties.type;
+    const endType = endFeature && endFeature.properties.type;
+    const startColor = (startType === 'ポイントGPS') ? '#00FF00' : '#ff69b4';
+    const endColor = (endType === 'ポイントGPS') ? '#00FF00' : '#ff69b4';
+
     if (startMarker && startMarker.setStyle) {
-        startMarker.setStyle({ fillColor: '#ff0000', color: '#ff0000' });
+        startMarker.setStyle({ fillColor: startColor, color: startColor });
+        if (startMarker.setRadius) startMarker.setRadius(6.5);
+    } else if (startType === 'spot' && startMarker && startMarker.setIcon) {
+        startMarker.setIcon(L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div class="marker-pin marker-square" style="background-color: #00FFFF; border-color: #00FFFF;"></div>',
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+        }));
     }
     if (endMarker && endMarker.setStyle) {
-        endMarker.setStyle({ fillColor: '#ff0000', color: '#ff0000' });
+        endMarker.setStyle({ fillColor: endColor, color: endColor });
+        if (endMarker.setRadius) endMarker.setRadius(6.5);
+    } else if (endType === 'spot' && endMarker && endMarker.setIcon) {
+        endMarker.setIcon(L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div class="marker-pin marker-square" style="background-color: #00FFFF; border-color: #00FFFF;"></div>',
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+        }));
     }
 
-    const waypointMarkers = markerMap.get(routeId);
-    if (Array.isArray(waypointMarkers)) {
-        waypointMarkers.forEach(marker => {
-            if (marker && marker.getElement) {
-                const element = marker.getElement();
-                if (element) {
-                    const div = element.querySelector('div');
-                    if (div) {
-                        div.style.backgroundColor = '#ef454a';
-                    }
-                }
-            }
-        });
-    }
+    // 中間点マーカーをサイズ拡大（radius=3）・色変更して再描画
+    redrawWaypointMarkers(routeId, loadedData, markerMap, window.geoJsonLayer);
 
     const coordinates = getCoordinatesFromGeoJSON(routeId, loadedData);
     if (coordinates) {
@@ -295,38 +412,53 @@ export function highlightRoute(routeId, loadedData, markerMap, map) {
 }
 
 // ルートハイライトのリセット
-export function resetRouteHighlight(markerMap, map) {
+export function resetRouteHighlight(markerMap, map, loadedData) {
     if (!state.selectedRouteId) return;
 
-    const match = state.selectedRouteId.match(/^route_(.+)_to_(.+)$/);
-    if (match) {
-        const startId = match[1];
-        const endId = match[2];
+    const prevRouteId = state.selectedRouteId;
+
+    const ids = getStartEndIds(prevRouteId, loadedData);
+    if (ids) {
+        const startId = ids.startId;
+        const endId = ids.endId;
 
         const startMarker = markerMap.get(startId);
         const endMarker = markerMap.get(endId);
 
+        // タイプに応じたデフォルトスタイルに戻す
+        const startFeature = loadedData ? getPointFeature(startId, loadedData) : null;
+        const endFeature = loadedData ? getPointFeature(endId, loadedData) : null;
+        const startType = startFeature && startFeature.properties.type;
+        const endType = endFeature && endFeature.properties.type;
+        const startDefaultStyle = (startType === 'point')
+            ? DEFAULTS.FEATURE_STYLES['point']
+            : DEFAULTS.FEATURE_STYLES['ポイントGPS'];
+        const endDefaultStyle = (endType === 'point')
+            ? DEFAULTS.FEATURE_STYLES['point']
+            : DEFAULTS.FEATURE_STYLES['ポイントGPS'];
+
         if (startMarker && startMarker.setStyle) {
-            startMarker.setStyle(DEFAULTS.FEATURE_STYLES['ポイントGPS']);
+            startMarker.setStyle(startDefaultStyle);
+            if (startMarker.setRadius) startMarker.setRadius(startDefaultStyle.radius);
+        } else if (startType === 'spot' && startMarker && startMarker.setIcon) {
+            startMarker.setIcon(L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div class="marker-pin marker-square" style="width: 10px; height: 10px;"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+            }));
         }
         if (endMarker && endMarker.setStyle) {
-            endMarker.setStyle(DEFAULTS.FEATURE_STYLES['ポイントGPS']);
+            endMarker.setStyle(endDefaultStyle);
+            if (endMarker.setRadius) endMarker.setRadius(endDefaultStyle.radius);
+        } else if (endType === 'spot' && endMarker && endMarker.setIcon) {
+            endMarker.setIcon(L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div class="marker-pin marker-square" style="width: 10px; height: 10px;"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+            }));
         }
-    }
-
-    const waypointMarkers = markerMap.get(state.selectedRouteId);
-    if (Array.isArray(waypointMarkers)) {
-        waypointMarkers.forEach(marker => {
-            if (marker && marker.getElement) {
-                const element = marker.getElement();
-                if (element) {
-                    const div = element.querySelector('div');
-                    if (div) {
-                        div.style.backgroundColor = '#f58220';
-                    }
-                }
-            }
-        });
     }
 
     if (state.selectedRouteLine) {
@@ -335,6 +467,11 @@ export function resetRouteHighlight(markerMap, map) {
     }
 
     state.selectedRouteId = null;
+
+    // 中間点マーカーをデフォルトサイズ・色に戻す
+    if (loadedData && window.geoJsonLayer) {
+        redrawWaypointMarkers(prevRouteId, loadedData, markerMap, window.geoJsonLayer);
+    }
 }
 
 // 中間点を追加
@@ -392,6 +529,13 @@ export function redrawRouteLine(routeId, loadedData, map) {
         state.selectedRouteLine = null;
     }
 
+    // 背景ポリライン: 常に古い線を削除
+    const bgLine = state.routeLineMap.get(routeId);
+    if (bgLine && window.geoJsonLayer) {
+        window.geoJsonLayer.removeLayer(bgLine);
+        state.routeLineMap.delete(routeId);
+    }
+
     const coordinates = getCoordinatesFromGeoJSON(routeId, loadedData);
     if (coordinates) {
         state.selectedRouteLine = L.polyline(coordinates, {
@@ -399,10 +543,10 @@ export function redrawRouteLine(routeId, loadedData, map) {
             weight: 2
         }).addTo(map);
 
-        // 背景ポリライン（fileIO.js で geoJsonLayer に追加したもの）も更新
-        const bgLine = state.routeLineMap.get(routeId);
-        if (bgLine) {
-            bgLine.setLatLngs(coordinates);
+        if (window.geoJsonLayer) {
+            const newBgLine = L.polyline(coordinates, { color: '#f58220', weight: 2, opacity: 0.7 });
+            window.geoJsonLayer.addLayer(newBgLine);
+            state.routeLineMap.set(routeId, newBgLine);
         }
     }
 }
@@ -435,8 +579,10 @@ export function redrawWaypointMarkers(routeId, loadedData, markerMap, geoJsonLay
 
     const isSelected = state.selectedRouteId === routeId;
     const markerColor = isSelected ? '#ef454a' : '#f58220';
-    const newMarkers = [];
     const style = DEFAULTS.FEATURE_STYLES['route_waypoint'];
+    const radius = isSelected ? 3 : style.radius; // 選択中は radius=3 (6px)、それ以外はデフォルト (2.5px)
+    const markerPx = radius * 2;
+    const newMarkers = [];
 
     waypoints.forEach(wp => {
         if (wp.geometry && wp.geometry.coordinates) {
@@ -445,9 +591,9 @@ export function redrawWaypointMarkers(routeId, loadedData, markerMap, geoJsonLay
                 draggable: true,
                 icon: L.divIcon({
                     className: 'diamond-marker',
-                    html: `<div style="width: ${style.radius * 2}px; height: ${style.radius * 2}px; background-color: ${markerColor}; transform: rotate(45deg); opacity: ${style.fillOpacity};"></div>`,
-                    iconSize: [style.radius * 2, style.radius * 2],
-                    iconAnchor: [style.radius, style.radius]
+                    html: `<div style="width: ${markerPx}px; height: ${markerPx}px; background-color: ${markerColor}; transform: rotate(45deg); opacity: ${style.fillOpacity};"></div>`,
+                    iconSize: [markerPx, markerPx],
+                    iconAnchor: [radius, radius]
                 })
             }).addTo(geoJsonLayer);
             // 追加・移動モード以外ではドラッグを無効化
@@ -495,7 +641,11 @@ export function deleteWaypoint(routeId, marker, loadedData, markerMap, map) {
 
     if (waypointIndex !== -1) {
         loadedData.features.splice(waypointIndex, 1);
-        map.removeLayer(marker);
+        if (window.geoJsonLayer) {
+            window.geoJsonLayer.removeLayer(marker);
+        } else {
+            map.removeLayer(marker);
+        }
 
         const waypointMarkers = markerMap.get(routeId);
         if (Array.isArray(waypointMarkers)) {
@@ -532,18 +682,19 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 export function optimizeRoute(routeId, showMessages = true, loadedData, markerMap) {
     if (!loadedData || !loadedData.features) return;
 
-    const match = routeId.match(/^route_(.+)_to_(.+)$/);
-    if (!match) return;
+    const ids = getStartEndIds(routeId, loadedData);
+    if (!ids) return;
 
-    const startId = match[1];
-    const endId = match[2];
+    const startId = ids.startId;
+    const endId = ids.endId;
 
-    const startFeature = loadedData.features.find(f =>
-        f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === startId
-    );
-    const endFeature = loadedData.features.find(f =>
-        f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === endId
-    );
+    // type='ポイントGPS' を優先、なければ type='point'、最後に type='spot' にフォールバック
+    const startFeature = loadedData.features.find(f => f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === startId)
+        || loadedData.features.find(f => f.properties && f.properties.type === 'point' && f.properties.id === startId)
+        || findSpotsByNameOrId(startId, loadedData)[0] || null;
+    const endFeature = loadedData.features.find(f => f.properties && f.properties.type === 'ポイントGPS' && f.properties.id === endId)
+        || loadedData.features.find(f => f.properties && f.properties.type === 'point' && f.properties.id === endId)
+        || findSpotsByNameOrId(endId, loadedData)[0] || null;
 
     if (!startFeature || !endFeature) {
         if (showMessages) {

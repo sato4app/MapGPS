@@ -3,9 +3,9 @@
 import { DEFAULTS, MODES } from './constants.js';
 import { showMessage } from './message.js';
 import { updateStats, getDateString } from './stats.js';
-import { extractPointsAndRoutes, updateDropdowns, state as routeEditorState } from './routeEditor.js';
+import { extractPointsAndRoutes, updateDropdowns, initAllRouteLines, state as routeEditorState } from './routeEditor.js';
 import { extractSpots, updateSpotDropdown, highlightSpot, allSpots } from './spotEditor.js';
-import { extractAreas, updateAreaDropdown, highlightArea, allAreas } from './areaEditor.js';
+import { extractAreas, updateAreaDropdown, highlightArea, allAreas, bindAreaLabel } from './areaEditor.js';
 
 // ファイル入出力の状態管理
 let loadedDataInternal = null;
@@ -62,40 +62,48 @@ export function setupFileInput(map, geoJsonLayer, markerMap, spotMarkerMap) {
                     type: "Feature",
                     properties: {
                         type: "ポイントGPS",
+                        id: p.pointId,
                         name: p.name,
                         pointId: p.pointId,
-                        elevation: p.elevation,
                         description: p.description
                     },
                     geometry: {
                         type: "Point",
-                        coordinates: [p.lng, p.lat]
+                        coordinates: p.elevation != null ? [p.lng, p.lat, p.elevation] : [p.lng, p.lat]
                     }
                 }));
 
-                // 既存データに追加
-                data.features.push(...newFeatures);
-
-                // マーカーを表示
+                // 既存データに追加（同IDのポイントGPSがあればExcelを優先して入れ替え）
+                let replacedCount = 0;
                 newFeatures.forEach(f => {
+                    const id = f.properties.id;
+
+                    // 同じIDの既存ポイントGPSを除去
+                    const existingIndex = data.features.findIndex(
+                        ef => ef.properties && ef.properties.type === 'ポイントGPS' && ef.properties.id === id
+                    );
+                    if (existingIndex !== -1) {
+                        data.features.splice(existingIndex, 1);
+                        const oldMarker = markerMap && markerMap.get(id);
+                        if (oldMarker && geoJsonLayer) {
+                            geoJsonLayer.removeLayer(oldMarker);
+                        }
+                        if (markerMap) markerMap.delete(id);
+                        replacedCount++;
+                    }
+
+                    data.features.push(f);
+
                     const lat = f.geometry.coordinates[1];
                     const lng = f.geometry.coordinates[0];
-                    // スタイルを適用
                     const style = DEFAULTS.FEATURE_STYLES['ポイントGPS'];
-
                     const marker = L.circleMarker([lat, lng], style);
-
-                    // ポップアップを設定
-                    let popupContent = `<b>${f.properties.name}</b>`;
-                    if (f.properties.description) {
-                        popupContent += `<br>${f.properties.description}`;
-                    }
-                    if (f.properties.elevation) {
-                        popupContent += `<br>標高: ${f.properties.elevation}m`;
-                    }
+                    const popupContent = `${f.properties.id}<br>${f.properties.name}<br>(PointGPS)`;
                     marker.bindPopup(popupContent);
-
                     geoJsonLayer.addLayer(marker);
+                    if (id && markerMap) {
+                        markerMap.set(id, marker);
+                    }
                 });
 
                 // 統計情報を更新
@@ -103,7 +111,11 @@ export function setupFileInput(map, geoJsonLayer, markerMap, spotMarkerMap) {
                 updateFileCount();
                 updateStats(data);
 
-                showMessage(`${newFeatures.length}件のポイントGPSを読み込みました`, 'success');
+                const addedCount = newFeatures.length - replacedCount;
+                const msg = replacedCount > 0
+                    ? `${newFeatures.length}件のポイントGPSを読み込みました（${replacedCount}件をExcelで上書き、${addedCount}件を新規追加）`
+                    : `${newFeatures.length}件のポイントGPSを読み込みました`;
+                showMessage(msg, 'success');
 
                 // 地図の範囲を調整（オプション）
                 // 箕面大滝を中心（初期表示）とするため、ここでは移動しない
@@ -194,25 +206,33 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
     // ボタンではなく、隠しファイル入力要素のchangeイベントを監視
     // ラベルをクリックすると、関連付けられたinputが動作する
     document.getElementById('geoJsonInput').addEventListener('change', async function (e) {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        // 全ファイルのフィーチャーを収集
+        const allFeatures = [];
+        for (const file of files) {
+            try {
+                const text = await file.text();
+                const json = JSON.parse(text);
+                if (!json.features || !Array.isArray(json.features)) {
+                    showMessage(`読み込みエラー (${file.name}): 有効なGeoJSONフォーマットではありません`, 'error');
+                    continue;
+                }
+                allFeatures.push(...json.features);
+            } catch (parseError) {
+                showMessage(`読み込みエラー (${file.name}): ${parseError.message}`, 'error');
+            }
+        }
+        if (allFeatures.length === 0) { this.value = ''; return; }
 
         try {
-            const text = await file.text();
-            const json = JSON.parse(text);
-
-            if (!json.features || !Array.isArray(json.features)) {
-                throw new Error('有効なGeoJSONフォーマットではありません');
-            }
-
-            const allFeatures = json.features;
-
-            // 読み込み種別選択モーダルを表示
+            // 読み込み種別選択モーダルを1回だけ表示（全ファイルの合計数）
             const selection = await showImportTypeModal(allFeatures);
-            if (!selection) return; // キャンセル
+            if (!selection) { this.value = ''; return; }
 
             // 選択に応じてフィーチャーをフィルタリング
-            const features = allFeatures.filter(f => {
+            let features = allFeatures.filter(f => {
                 if (!f.geometry) return false;
                 const type = f.properties && f.properties.type;
                 const geomType = f.geometry.type;
@@ -229,6 +249,36 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
             // データ初期化 (追加モード)
             let data = initData();
 
+            // 既存ポイントIDと重複するポイントを除外
+            const existingPointIds = new Set(
+                data.features
+                    .filter(f => f.properties && f.properties.type === 'point' && f.properties.id != null)
+                    .map(f => f.properties.id)
+            );
+            const existingGpsIds = new Set(
+                data.features
+                    .filter(f => f.properties && f.properties.type === 'ポイントGPS' && f.properties.id != null)
+                    .map(f => f.properties.id)
+            );
+            let skippedCount = 0;
+            features = features.filter(f => {
+                if (f.properties && f.properties.type === 'point' && f.properties.id != null) {
+                    if (existingPointIds.has(f.properties.id)) {
+                        skippedCount++;
+                        return false;
+                    }
+                    existingPointIds.add(f.properties.id); // バッチ内重複も除外
+                }
+                if (f.properties && f.properties.type === 'ポイントGPS' && f.properties.id != null) {
+                    if (existingGpsIds.has(f.properties.id)) {
+                        skippedCount++;
+                        return false;
+                    }
+                    existingGpsIds.add(f.properties.id); // バッチ内重複も除外
+                }
+                return true;
+            });
+
             data.features.push(...features);
 
             // マーカー/レイヤーの表示
@@ -238,39 +288,34 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                 const props = f.properties || {};
                 const type = props.type;
 
-                // 0. ポイントGPS (type="ポイントGPS") -> 緑色の丸型マーカー、markerMapにpointIdで登録
-                if (type === 'ポイントGPS' && f.geometry.type === 'Point') {
-                    const lat = f.geometry.coordinates[1];
-                    const lng = f.geometry.coordinates[0];
-                    const style = DEFAULTS.FEATURE_STYLES['ポイントGPS'];
-
-                    const marker = L.circleMarker([lat, lng], style);
-
-                    let popupContent = `<b>${props.name || '名称未設定'}</b>`;
-                    if (props.description) popupContent += `<br>${props.description}`;
-                    if (props.elevation) popupContent += `<br>標高: ${props.elevation}m`;
-                    marker.bindPopup(popupContent);
-
-                    geoJsonLayer.addLayer(marker);
-
-                    // markerMapにpointIdをキーとして登録（ルート編集で開始・終了点のハイライトに使用）
-                    if (props.id && markerMap) {
-                        markerMap.set(props.id, marker);
-                    }
-                }
                 // 1. ポイント (type="point") -> 赤色の丸型
-                else if (type === 'point' && f.geometry.type === 'Point') {
+                if (type === 'point' && f.geometry.type === 'Point') {
                     const lat = f.geometry.coordinates[1];
                     const lng = f.geometry.coordinates[0];
                     const style = DEFAULTS.FEATURE_STYLES['point'] || DEFAULTS.FEATURE_STYLES['ポイントGPS'];
 
                     const marker = L.circleMarker([lat, lng], style);
 
-                    let popupContent = `<b>${props.name || '名称未設定'}</b>`;
-                    if (props.description) popupContent += `<br>${props.description}`;
+                    marker.bindPopup(`${props.id || props.pointId || ''}<br>(Point)`);
+
+                    geoJsonLayer.addLayer(marker);
+                }
+                // 1b. ポイントGPS (type="ポイントGPS") -> circleMarker + markerMap登録
+                else if (type === 'ポイントGPS' && f.geometry.type === 'Point') {
+                    const lat = f.geometry.coordinates[1];
+                    const lng = f.geometry.coordinates[0];
+                    const style = DEFAULTS.FEATURE_STYLES['ポイントGPS'];
+
+                    const marker = L.circleMarker([lat, lng], style);
+
+                    const popupContent = `${props.id || ''}<br>${props.name || ''}<br>(PointGPS)`;
                     marker.bindPopup(popupContent);
 
                     geoJsonLayer.addLayer(marker);
+
+                    if (props.id && markerMap) {
+                        markerMap.set(props.id, marker);
+                    }
                 }
                 // 2. ルート (type="route") -> route_X_to_Y パターンはポリライン表示（変換処理でマーカー作成）
                 //                           それ以外は全座標に菱形マーカー表示
@@ -285,15 +330,12 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                     if (isEditableRoute) {
                         // 編集用ルート: ポリラインで参考表示（変換処理でポイントGPS/route_waypointマーカーを別途作成）
                         const line = L.polyline(latLngs, { color: '#f58220', weight: 2, opacity: 0.6 });
-                        let popupContent = `<b>${props.name || 'ルート'}</b>`;
-                        if (props.description) popupContent += `<br>${props.description}`;
-                        line.bindPopup(popupContent);
                         geoJsonLayer.addLayer(line);
                         // 背景ポリラインを routeLineMap に登録（waypoint削除時に再描画できるよう）
                         routeEditorState.routeLineMap.set(routeId, line);
                     } else {
                         // 非編集用ルート: 全ての座標に菱形マーカーを表示（従来動作）
-                        latLngs.forEach((latLng, index) => {
+                        latLngs.forEach((latLng) => {
                             const icon = L.divIcon({
                                 className: 'custom-div-icon',
                                 html: '<div class="marker-pin marker-diamond"></div>',
@@ -302,12 +344,6 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                             });
 
                             const marker = L.marker(latLng, { icon: icon });
-
-                            let popupContent = `<b>${props.name || 'ルート'}</b><br>No. ${index + 1}`;
-                            if (props.description) popupContent += `<br>${props.description}`;
-                            if (coords[index][2] !== undefined) popupContent += `<br>標高: ${coords[index][2]}m`;
-                            marker.bindPopup(popupContent);
-
                             geoJsonLayer.addLayer(marker);
                         });
                     }
@@ -317,19 +353,17 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                     const lat = f.geometry.coordinates[1];
                     const lng = f.geometry.coordinates[0];
 
-                    // 正方形マーカー (CSSクラスを使用)
+                    // 正方形マーカー (CSSクラスを使用, 10x10px)
                     const icon = L.divIcon({
                         className: 'custom-div-icon',
-                        html: '<div class="marker-pin marker-square"></div>',
-                        iconSize: [12, 12],
-                        iconAnchor: [6, 6]
+                        html: '<div class="marker-pin marker-square" style="width: 10px; height: 10px;"></div>',
+                        iconSize: [10, 10],
+                        iconAnchor: [5, 5]
                     });
 
                     const marker = L.marker([lat, lng], { icon: icon });
 
-                    let popupContent = `<b>${props.name || 'スポット'}</b>`;
-                    if (props.description) popupContent += `<br>${props.description}`;
-                    marker.bindPopup(popupContent);
+                    marker.bindPopup(`${props.name || 'スポット'}<br>(Spot)`);
 
                     // スポットモードでクリックしたときにドロップダウンと連動
                     marker.on('click', function(e) {
@@ -347,6 +381,12 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
 
                     if (spotMarkerMap) {
                         spotMarkerMap.set(f, marker);
+                    }
+
+                    // markerMapにスポットを登録（ルート編集での開始・終了点ハイライト用）
+                    if (markerMap) {
+                        if (props.name) markerMap.set(props.name, marker);
+                        if (props.id && props.id !== props.name) markerMap.set(props.id, marker);
                     }
                 }
                 // エリア (type="area") -> Polygon
@@ -384,6 +424,7 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                         });
 
                         geoJsonLayer.addLayer(polygon);
+                        bindAreaLabel(f, polygon);
 
                         if (areaLayerMap) {
                             areaLayerMap.set(f, polygon);
@@ -464,7 +505,8 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                 const waypointMarkers = [];
 
                 coords.forEach((coord, index) => {
-                    const [wLng, wLat] = coord;
+                    const [wLng, wLat, wEle] = coord;
+                    const wpCoords = wEle !== undefined ? [wLng, wLat, wEle] : [wLng, wLat];
                     const wpFeature = {
                         type: 'Feature',
                         properties: {
@@ -472,7 +514,7 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
                             route_id: routeId,
                             waypoint_number: (index + 1).toString()
                         },
-                        geometry: { type: 'Point', coordinates: [wLng, wLat] }
+                        geometry: { type: 'Point', coordinates: wpCoords }
                     };
                     data.features.push(wpFeature);
 
@@ -496,6 +538,7 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
             // ルート編集ドロップダウンを更新（GeoJSON読み込み後に選択可能にする）
             extractPointsAndRoutes(data);
             updateDropdowns(data);
+            initAllRouteLines(data, geoJsonLayer);
 
             // スポット編集ドロップダウンを更新
             extractSpots(data);
@@ -509,14 +552,17 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
             loadedFileCount++;
             updateFileCount();
             updateStats(data);
-            showMessage(`${features.length}件のデータを読み込みました`, 'success');
+            const msg = skippedCount > 0
+                ? `${features.length}件のデータを読み込みました（${skippedCount}件の重複ポイントをスキップ）`
+                : `${features.length}件のデータを読み込みました`;
+            showMessage(msg, 'success');
 
         } catch (error) {
             console.error('GeoJSON load error:', error);
             showMessage(`読み込みエラー: ${error.message}`, 'error');
-        } finally {
-            this.value = '';
         }
+
+        this.value = '';
     });
 }
 
@@ -562,13 +608,44 @@ export function setupFileExport() {
         const routeCount = parseInt(document.getElementById('routeCount').value) || 0;
         const spotCount = parseInt(document.getElementById('spotCount').value) || 0;
 
-        // type="route" の LineString は route_waypoint Point に変換済みのため除外
+        // route_waypoint Point をルートIDでグループ化し、ルートLineStringを生成
+        const waypointsByRoute = {};
+        loadedDataInternal.features
+            .filter(f => f.properties && f.properties.type === 'route_waypoint'
+                      && f.geometry && f.geometry.type === 'Point')
+            .forEach(f => {
+                const routeId = f.properties.route_id;
+                if (!waypointsByRoute[routeId]) waypointsByRoute[routeId] = [];
+                waypointsByRoute[routeId].push(f);
+            });
+
+        const routeLineFeatures = Object.entries(waypointsByRoute).map(([routeId, waypoints]) => {
+            waypoints.sort((a, b) =>
+                parseInt(a.properties.waypoint_number) - parseInt(b.properties.waypoint_number)
+            );
+            const coordinates = waypoints.map(wp => wp.geometry.coordinates);
+            const match = routeId.match(/^route_(.+)_to_(.+)$/);
+            const startPoint = match ? match[1] : '';
+            const endPoint = match ? match[2] : '';
+            return {
+                type: 'Feature',
+                properties: { type: 'route', id: routeId, startPoint, endPoint },
+                geometry: { type: 'LineString', coordinates }
+            };
+        });
+
+        // 個別route_waypoint PointとLineString routeを除外し、生成したLineStringを追加
         const exportData = {
             ...loadedDataInternal,
-            features: loadedDataInternal.features.filter(f =>
-                !(f.properties && f.properties.type === 'route' &&
-                  f.geometry && f.geometry.type === 'LineString')
-            )
+            features: [
+                ...loadedDataInternal.features.filter(f =>
+                    !(f.properties && (
+                        (f.properties.type === 'route_waypoint' && f.geometry && f.geometry.type === 'Point') ||
+                        (f.properties.type === 'route' && f.geometry && f.geometry.type === 'LineString')
+                    ))
+                ),
+                ...routeLineFeatures
+            ]
         };
 
         const dataStr = JSON.stringify(exportData, null, 2);
