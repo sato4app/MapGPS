@@ -48,13 +48,13 @@
                 <!-- ファイル操作: JSONデータの読み込み・保存 -->
                 <div id="file-operations-container" class="file-input-wrapper"
                     style="display: none; align-items: center; gap: 12px;">
-                    <button type="button" id="loadJsonBtn" class="file-input-label"
-                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="JSONファイルからデータを読み込み"
+                    <button type="button" id="loadDatabaseBtn" class="file-input-label"
+                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="データベースからデータを読み込み"
                         aria-label="読み込み">
                         読み込み
                     </button>
-                    <button type="button" id="saveJsonBtn" class="file-input-label"
-                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="JSONファイルにデータを保存"
+                    <button type="button" id="saveDatabaseBtn" class="file-input-label"
+                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="データベースにデータを保存"
                         aria-label="保存">
                         保存
                     </button>
@@ -233,7 +233,7 @@
                 <!-- タブ切り替えボタン -->
                 <div class="settings-tabs">
                     <button class="settings-tab-btn active" data-tab="marker-settings">マーカーサイズ設定</button>
-                    <button class="settings-tab-btn" data-tab="database-settings">ファイル入出力</button>
+                    <button class="settings-tab-btn" data-tab="file-io-settings">ファイル入出力</button>
                 </div>
 
                 <!-- マーカーサイズ設定タブ -->
@@ -308,18 +308,18 @@
                     </div>
                 </div>
 
-                <!-- データベースタブ -->
-                <div id="tab-database-settings" class="settings-tab-content">
+                <!-- ファイル入出力タブ -->
+                <div id="tab-file-io-settings" class="settings-tab-content">
                     <p class="settings-dialog-message">JSONファイルの入出力を行います</p>
                     <div class="settings-dialog-controls"
                         style="display: flex; gap: 10px; justify-content: flex-end; padding: 20px 0; flex-direction: row;">
-                        <button id="databaseLoadBtn" class="settings-dialog-btn settings-dialog-btn-ok">
+                        <button id="fileIoLoadBtn" class="settings-dialog-btn settings-dialog-btn-ok">
                             📂 読み込み
                         </button>
-                        <button id="databaseExportBtn" class="settings-dialog-btn settings-dialog-btn-ok">
+                        <button id="fileIoExportBtn" class="settings-dialog-btn settings-dialog-btn-ok">
                             💾 保存
                         </button>
-                        <button id="databaseCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">
+                        <button id="fileIoCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">
                             キャンセル
                         </button>
                     </div>

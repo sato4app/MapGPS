@@ -66,10 +66,10 @@ export class MarkerSettingsManager {
         this.tabs = document.querySelectorAll('.settings-tab-btn');
         this.tabContents = document.querySelectorAll('.settings-tab-content');
 
-        // データベース操作ボタン
-        this.databaseLoadBtn = document.getElementById('databaseLoadBtn');
-        this.databaseExportBtn = document.getElementById('databaseExportBtn');
-        this.databaseCancelBtn = document.getElementById('databaseCancelBtn');
+        // ファイル入出力操作ボタン
+        this.fileIoLoadBtn = document.getElementById('fileIoLoadBtn');
+        this.fileIoExportBtn = document.getElementById('fileIoExportBtn');
+        this.fileIoCancelBtn = document.getElementById('fileIoCancelBtn');
 
         // フッター要素
         this.dialogFooter = this.dialog.querySelector('.settings-dialog-footer');
@@ -140,9 +140,9 @@ export class MarkerSettingsManager {
             }
         });
 
-        // データベースタブのキャンセルボタン
-        if (this.databaseCancelBtn) {
-            this.databaseCancelBtn.addEventListener('click', () => {
+        // ファイル入出力タブのキャンセルボタン
+        if (this.fileIoCancelBtn) {
+            this.fileIoCancelBtn.addEventListener('click', () => {
                 this.closeDialog();
             });
         }
@@ -172,7 +172,7 @@ export class MarkerSettingsManager {
 
     /**
      * タブを切り替える
-     * @param {string} tabId - タブID ('marker-settings' | 'database-settings')
+     * @param {string} tabId - タブID ('marker-settings' | 'file-io-settings')
      */
     switchTab(tabId) {
         // ボタンのアクティブ状態を更新
@@ -194,7 +194,7 @@ export class MarkerSettingsManager {
         });
 
         // フッターの表示切り替え
-        if (tabId === 'database-settings') {
+        if (tabId === 'file-io-settings') {
             this.dialogFooter.style.display = 'none';
         } else {
             this.dialogFooter.style.display = 'flex';
@@ -202,15 +202,15 @@ export class MarkerSettingsManager {
     }
 
     /**
-     * データベース操作のリスナーを設定
+     * ファイル入出力操作のリスナーを設定
      * @param {Object} callbacks - { onLoad: Function, onExport: Function }
      */
-    setupDatabaseListeners(callbacks) {
-        if (this.databaseLoadBtn && callbacks.onLoad) {
-            this.databaseLoadBtn.addEventListener('click', callbacks.onLoad);
+    setupFileIoListeners(callbacks) {
+        if (this.fileIoLoadBtn && callbacks.onLoad) {
+            this.fileIoLoadBtn.addEventListener('click', callbacks.onLoad);
         }
-        if (this.databaseExportBtn && callbacks.onExport) {
-            this.databaseExportBtn.addEventListener('click', callbacks.onExport);
+        if (this.fileIoExportBtn && callbacks.onExport) {
+            this.fileIoExportBtn.addEventListener('click', callbacks.onExport);
         }
     }
 

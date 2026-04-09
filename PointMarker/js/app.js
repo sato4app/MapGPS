@@ -442,10 +442,10 @@ export class PointMarkerApp {
         }
 
         // データベース読み込み（メインパネル）
-        const loadJsonBtn = document.getElementById('loadJsonBtn');
-        if (loadJsonBtn) {
+        const loadDatabaseBtn = document.getElementById('loadDatabaseBtn');
+        if (loadDatabaseBtn) {
             let isLoading = false;
-            loadJsonBtn.addEventListener('click', async (e) => {
+            loadDatabaseBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 if (isLoading) {
                     UIHelper.showMessage('読み込み中です。完了までお待ちください', 'warning');
@@ -471,10 +471,10 @@ export class PointMarkerApp {
         }
 
         // データベース保存（メインパネル）
-        const saveJsonBtn = document.getElementById('saveJsonBtn');
-        if (saveJsonBtn) {
+        const saveDatabaseBtn = document.getElementById('saveDatabaseBtn');
+        if (saveDatabaseBtn) {
             let isSaving = false;
-            saveJsonBtn.addEventListener('click', async (e) => {
+            saveDatabaseBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 if (isSaving) {
                     UIHelper.showMessage('保存中です。完了までお待ちください', 'warning');
@@ -559,7 +559,7 @@ export class PointMarkerApp {
         });
 
         // ファイル入出力操作のリスナー設定（設定ダイアログ）
-        this.markerSettingsManager.setupDatabaseListeners({
+        this.markerSettingsManager.setupFileIoListeners({
             onLoad: async (e) => {
                 e.preventDefault();
                 await this.handleInput();
