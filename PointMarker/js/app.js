@@ -441,21 +441,59 @@ export class PointMarkerApp {
             });
         }
 
-        // JSON読み込み
+        // データベース読み込み（メインパネル）
         const loadJsonBtn = document.getElementById('loadJsonBtn');
         if (loadJsonBtn) {
+            let isLoading = false;
             loadJsonBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                await this.handleInput();
+                if (isLoading) {
+                    UIHelper.showMessage('読み込み中です。完了までお待ちください', 'warning');
+                    return;
+                }
+                isLoading = true;
+                try {
+                    if (window.connectFirebase) {
+                        await window.connectFirebase();
+                    }
+                } catch (error) {
+                    isLoading = false;
+                    return;
+                }
+                try {
+                    await this.firebaseSyncManager.loadFromFirebase(() => {
+                        this.redrawCanvas();
+                    });
+                } finally {
+                    isLoading = false;
+                }
             });
         }
 
-        // JSON保存
+        // データベース保存（メインパネル）
         const saveJsonBtn = document.getElementById('saveJsonBtn');
         if (saveJsonBtn) {
+            let isSaving = false;
             saveJsonBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                await this.handleOutput();
+                if (isSaving) {
+                    UIHelper.showMessage('保存中です。完了までお待ちください', 'warning');
+                    return;
+                }
+                isSaving = true;
+                try {
+                    if (window.connectFirebase) {
+                        await window.connectFirebase();
+                    }
+                } catch (error) {
+                    isSaving = false;
+                    return;
+                }
+                try {
+                    await this.firebaseSyncManager.saveAllToFirebase();
+                } finally {
+                    isSaving = false;
+                }
             });
         }
 
@@ -520,41 +558,16 @@ export class PointMarkerApp {
             this.markerSettingsManager.openDialog();
         });
 
-        // データベース操作のリスナー設定
+        // ファイル入出力操作のリスナー設定（設定ダイアログ）
         this.markerSettingsManager.setupDatabaseListeners({
             onLoad: async (e) => {
                 e.preventDefault();
-                // 読み込み時にFirebaseへ接続（未接続の場合のみ）
-                try {
-                    if (window.connectFirebase) {
-                        await window.connectFirebase();
-                    }
-                } catch (error) {
-                    return; // 接続失敗時は処理中断
-                }
-                // FirebaseSyncManager側でデータがある場合のみ確認が入るので、ここは直接呼び出す
-                await this.firebaseSyncManager.loadFromFirebase((points, routes, spots) => {
-                    // 読み込み完了時の処理
-                    this.redrawCanvas();
-                    this.markerSettingsManager.closeDialog();
-                });
+                await this.handleInput();
+                this.markerSettingsManager.closeDialog();
             },
             onExport: async (e) => {
                 e.preventDefault();
-                // 保存確認
-                if (!confirm('現在のデータをデータベースに上書き保存しますか？')) {
-                    return;
-                }
-                // 保存時にFirebaseへ接続（未接続の場合のみ）
-                try {
-                    if (window.connectFirebase) {
-                        await window.connectFirebase();
-                    }
-                } catch (error) {
-                    return; // 接続失敗時は処理中断
-                }
-                await this.firebaseSyncManager.saveAllToFirebase();
-                // 保存後はダイアログを閉じる
+                await this.handleOutput();
                 this.markerSettingsManager.closeDialog();
             }
         });
@@ -716,6 +729,14 @@ export class PointMarkerApp {
                 }, 100);
             }
         });
+
+        // マップコンテナのスクロール時にポップアップ位置を更新
+        const mapContainer = document.querySelector('.map-container');
+        if (mapContainer) {
+            mapContainer.addEventListener('scroll', () => {
+                this.viewportManager.updatePopupPositions();
+            });
+        }
     }
 
     /**
@@ -820,7 +841,7 @@ export class PointMarkerApp {
                     areaManager: this.areaManager
                 },
                 file,
-                this.canvas.width, this.canvas.height, // 現在のキャンバスサイズ
+                this.canvasRenderer.baseWidth, this.canvasRenderer.baseHeight, // ベースキャンバスサイズ（zoom非依存）
                 this.currentImage.width, this.currentImage.height // 元画像サイズ
             );
 
@@ -943,7 +964,7 @@ export class PointMarkerApp {
                     areaManager: this.areaManager
                 },
                 this.fileHandler.getCurrentImageFileName() + '.png',
-                this.canvas.width, this.canvas.height,
+                this.canvasRenderer.baseWidth, this.canvasRenderer.baseHeight, // ベースキャンバスサイズ（zoom非依存）
                 this.currentImage.width, this.currentImage.height,
                 filename,
                 saveOptions
@@ -1178,7 +1199,8 @@ export class PointMarkerApp {
             this.routeManager,
             this.spotManager,
             this.viewportManager,
-            () => this.redrawCanvas()
+            () => this.redrawCanvas(),
+            this.areaManager
         );
     }
 

@@ -19,20 +19,22 @@ export class ResizeHandler {
      * @param {Function} redrawCallback - 再描画コールバック
      */
     handleResize(currentImage, canvas, canvasRenderer, layoutManager,
-                 pointManager, routeManager, spotManager, viewportManager, redrawCallback) {
+                 pointManager, routeManager, spotManager, viewportManager, redrawCallback, areaManager = null) {
         if (!currentImage) return;
 
-        const oldWidth = canvas.width;
-        const oldHeight = canvas.height;
+        // ベースサイズ（ズーム前のサイズ）を旧サイズとして記録する。
+        // canvas.width/height はズーム中は scale 倍になっているため使用しない。
+        const oldWidth = canvasRenderer.baseWidth;
+        const oldHeight = canvasRenderer.baseHeight;
 
         canvasRenderer.setupCanvas(layoutManager.getCurrentLayout());
 
-        const newWidth = canvas.width;
-        const newHeight = canvas.height;
+        const newWidth = canvasRenderer.baseWidth;
+        const newHeight = canvasRenderer.baseHeight;
 
-        if (oldWidth !== newWidth || oldHeight !== newHeight) {
+        if (oldWidth > 0 && oldHeight > 0 && (oldWidth !== newWidth || oldHeight !== newHeight)) {
             this.scaleCoordinates(oldWidth, oldHeight, newWidth, newHeight,
-                                pointManager, routeManager, spotManager);
+                                pointManager, routeManager, spotManager, areaManager);
         }
 
         // ポップアップ位置を更新
@@ -54,7 +56,7 @@ export class ResizeHandler {
      * @param {Object} spotManager - SpotManagerインスタンス
      */
     scaleCoordinates(oldWidth, oldHeight, newWidth, newHeight,
-                    pointManager, routeManager, spotManager) {
+                    pointManager, routeManager, spotManager, areaManager = null) {
         const scaleX = newWidth / oldWidth;
         const scaleY = newHeight / oldHeight;
 
@@ -80,6 +82,18 @@ export class ResizeHandler {
             spot.x = Math.round(spot.x * scaleX);
             spot.y = Math.round(spot.y * scaleY);
         });
+
+        // エリア頂点座標のスケーリング
+        if (areaManager) {
+            areaManager.getAllAreas().forEach(area => {
+                if (area.vertices) {
+                    area.vertices.forEach(vertex => {
+                        vertex.x = Math.round(vertex.x * scaleX);
+                        vertex.y = Math.round(vertex.y * scaleY);
+                    });
+                }
+            });
+        }
     }
 
     /**

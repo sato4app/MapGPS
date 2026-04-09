@@ -100,7 +100,7 @@ header p {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
+    overflow: auto;
     position: relative;
     flex: 1;
     width: calc(100vw - var(--sidebar-width));
@@ -116,6 +116,7 @@ header p {
     /* 上寄せ */
     padding: 10px;
     /* 余白を最小限に */
+    overflow: auto;
 }
 
 .map-canvas {
@@ -123,25 +124,21 @@ header p {
     cursor: crosshair;
     object-fit: contain;
     transition: border-color 0.2s ease;
-    max-width: calc(100vw - var(--sidebar-width) - 20px);
-    max-height: calc(100vh - 20px);
 }
 
-/* オーバーレイモード用のキャンバス */
+/* オーバーレイモード用のキャンバス（ズーム時に拡大するためmax-width/height制限なし） */
 .main-content[data-layout="overlay"] .map-canvas {
-    max-width: calc(100vw - 20px);
-    /* 余白を最小限に（2px padding × 2） */
-    max-height: calc(100vh - 20px);
-    /* 余白を最小限に（2px padding × 2） */
+    max-width: none;
+    max-height: none;
 }
 
 .map-canvas:hover {
     border-color: var(--primary-color);
 }
 
-/* 画像ファイル名表示（左下） */
+/* 画像ファイル名表示（左下固定） */
 .image-filename-display {
-    position: absolute;
+    position: fixed;
     bottom: 15px;
     left: 15px;
     background-color: rgba(255, 255, 255, 0.85);
@@ -972,6 +969,12 @@ header p {
     background-color: #f44336;
     color: white;
     border: 2px solid #d32f2f;
+}
+
+.message-overlay.message-success {
+    background-color: #b3e5fc;
+    color: #0d47a1;
+    border: 2px solid #4fc3f7;
 }
 
 @keyframes messageSlideIn {

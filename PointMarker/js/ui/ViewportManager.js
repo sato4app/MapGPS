@@ -39,16 +39,20 @@ export class ViewportManager {
     }
 
     /**
-     * パン処理
+     * パン処理（コンテナをスクロール）
      * @param {string} direction - パン方向 ('up' | 'down' | 'left' | 'right')
      * @param {Function} onUpdate - 更新時のコールバック（再描画など）
      */
     handlePan(direction, onUpdate) {
+        const container = this.canvasRenderer.canvas.closest('.map-container')
+            || this.canvasRenderer.canvas.parentElement;
+        const step = this.canvasRenderer.panStep;
+
         const panMethods = {
-            'up': () => this.canvasRenderer.panUp(),
-            'down': () => this.canvasRenderer.panDown(),
-            'left': () => this.canvasRenderer.panLeft(),
-            'right': () => this.canvasRenderer.panRight()
+            'up':    () => container.scrollBy(0, -step),
+            'down':  () => container.scrollBy(0,  step),
+            'left':  () => container.scrollBy(-step, 0),
+            'right': () => container.scrollBy( step, 0)
         };
 
         if (panMethods[direction]) {
@@ -62,11 +66,19 @@ export class ViewportManager {
     }
 
     /**
-     * 表示リセット処理
+     * 表示リセット処理（canvasをベースサイズに戻し、スクロールを原点に戻す）
      * @param {Function} onUpdate - 更新時のコールバック（ボタン状態更新、再描画など）
      */
     handleResetView(onUpdate) {
         this.canvasRenderer.resetTransform();
+
+        // コンテナのスクロールを原点に戻す
+        const container = this.canvasRenderer.canvas.closest('.map-container')
+            || this.canvasRenderer.canvas.parentElement;
+        if (container) {
+            container.scrollTo(0, 0);
+        }
+
         this.updatePopupPositions();
 
         if (onUpdate) {

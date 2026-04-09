@@ -227,13 +227,13 @@
         <div class="settings-dialog">
             <div class="settings-dialog-header">
                 <span class="settings-dialog-icon">⚙️</span>
-                <h3>マーカーサイズ設定／データベース</h3>
+                <h3>マーカーサイズ／ファイル入出力</h3>
             </div>
             <div class="settings-dialog-body">
                 <!-- タブ切り替えボタン -->
                 <div class="settings-tabs">
                     <button class="settings-tab-btn active" data-tab="marker-settings">マーカーサイズ設定</button>
-                    <button class="settings-tab-btn" data-tab="database-settings">データベース</button>
+                    <button class="settings-tab-btn" data-tab="database-settings">ファイル入出力</button>
                 </div>
 
                 <!-- マーカーサイズ設定タブ -->
@@ -310,21 +310,19 @@
 
                 <!-- データベースタブ -->
                 <div id="tab-database-settings" class="settings-tab-content">
-                    <p class="settings-dialog-message">Firebaseデータベースとの連携を行います</p>
+                    <p class="settings-dialog-message">JSONファイルの入出力を行います</p>
                     <div class="settings-dialog-controls"
                         style="display: flex; gap: 10px; justify-content: flex-end; padding: 20px 0; flex-direction: row;">
                         <button id="databaseLoadBtn" class="settings-dialog-btn settings-dialog-btn-ok">
-                            ☁️ 読み込み
+                            📂 読み込み
                         </button>
                         <button id="databaseExportBtn" class="settings-dialog-btn settings-dialog-btn-ok">
-                            ☁️ 保存
+                            💾 保存
                         </button>
                         <button id="databaseCancelBtn" class="settings-dialog-btn settings-dialog-btn-cancel">
                             キャンセル
                         </button>
                     </div>
-                    <p style="font-size: 11px; color: #666; text-align: center;">※ 現在の画像ファイル名に基づくプロジェクトIDで、読み込み・保存されます
-                    </p>
                 </div>
             </div>
             <div class="settings-dialog-footer">

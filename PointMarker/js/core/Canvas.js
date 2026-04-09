@@ -24,6 +24,10 @@ export class CanvasRenderer {
         this.zoomStep = 0.2;
         this.panStep = 50;  // ピクセル単位での移動量
 
+        // ベースキャンバスサイズ（scale=1.0時のサイズ）
+        this.baseWidth = 0;
+        this.baseHeight = 0;
+
         // マーカーサイズ設定（デフォルト値）
         this.markerSizes = {
             point: 6,
@@ -70,15 +74,8 @@ export class CanvasRenderer {
 
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // 変換を適用（ズーム・パン）
-        this.ctx.save();
-        this.ctx.translate(this.offsetX, this.offsetY);
-        this.ctx.scale(this.scale, this.scale);
-
-        // キャンバスサイズに合わせて画像を描画
+        // キャンバスサイズ全体に画像を描画（canvas要素がズーム済みサイズ）
         this.ctx.drawImage(this.currentImage, 0, 0, this.canvas.width, this.canvas.height);
-
-        this.ctx.restore();
     }
 
     /**
@@ -368,9 +365,8 @@ export class CanvasRenderer {
     redraw(points = [], routePoints = [], spots = [], areas = [], options = {}) {
         this.drawImage();
 
-        // マーカー描画時にズーム・パン変換を適用
+        // マーカー描画時にスケール変換を適用（canvas要素はズーム済みサイズ）
         this.ctx.save();
-        this.ctx.translate(this.offsetX, this.offsetY);
         this.ctx.scale(this.scale, this.scale);
 
         // 現在のスケール値をマーカー描画メソッドに渡す
@@ -425,14 +421,14 @@ export class CanvasRenderer {
             canvasWidth = canvasHeight / imageAspectRatio;
         }
 
-        this.canvas.width = canvasWidth;
-        this.canvas.height = canvasHeight;
-        this.canvas.style.width = canvasWidth + 'px';
-        this.canvas.style.height = canvasHeight + 'px';
+        // ベースサイズを記録してからリセット
+        this.baseWidth = canvasWidth;
+        this.baseHeight = canvasHeight;
+
         this.canvas.style.display = 'block';
         this.canvas.style.visibility = 'visible';
 
-        // ズーム・パン状態をリセット
+        // ズーム・パン状態をリセット（canvas.width/heightもここで設定）
         this.resetTransform();
     }
 
@@ -441,6 +437,7 @@ export class CanvasRenderer {
      */
     zoomIn() {
         this.scale = Math.min(this.scale + this.zoomStep, this.maxScale);
+        this._resizeCanvas();
     }
 
     /**
@@ -448,6 +445,20 @@ export class CanvasRenderer {
      */
     zoomOut() {
         this.scale = Math.max(this.scale - this.zoomStep, this.minScale);
+        this._resizeCanvas();
+    }
+
+    /**
+     * スケールに応じてcanvas要素のサイズを変更
+     */
+    _resizeCanvas() {
+        if (this.baseWidth === 0) return;
+        const w = Math.round(this.baseWidth * this.scale);
+        const h = Math.round(this.baseHeight * this.scale);
+        this.canvas.width = w;
+        this.canvas.height = h;
+        this.canvas.style.width = w + 'px';
+        this.canvas.style.height = h + 'px';
     }
 
     /**
@@ -479,12 +490,18 @@ export class CanvasRenderer {
     }
 
     /**
-     * 変換をリセット
+     * 変換をリセット（canvas要素をベースサイズに戻す）
      */
     resetTransform() {
         this.scale = 1.0;
         this.offsetX = 0;
         this.offsetY = 0;
+        if (this.baseWidth > 0) {
+            this.canvas.width = this.baseWidth;
+            this.canvas.height = this.baseHeight;
+            this.canvas.style.width = this.baseWidth + 'px';
+            this.canvas.style.height = this.baseHeight + 'px';
+        }
     }
 
     /**
@@ -500,8 +517,7 @@ export class CanvasRenderer {
 
         ctx.save();
 
-        // 変換を適用
-        ctx.translate(this.offsetX, this.offsetY);
+        // スケール変換を適用（canvas要素はズーム済みサイズ）
         ctx.scale(canvasScale, canvasScale);
 
         // 左上座標と幅・高さを計算
