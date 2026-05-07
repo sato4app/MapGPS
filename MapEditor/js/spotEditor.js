@@ -12,6 +12,13 @@ export let isAddMoveSpotMode = false;
 export let spotMapClickHandler = null;
 export let draggableSpotMarker = null;
 
+// 重複スポット抽出モードの状態管理
+export let isExtractDuplicateMode = false;
+let duplicateExtractHandlers = null; // { mousedown, mousemove, mouseup }
+let duplicateExtractRectangle = null; // ドラッグ中/直近の長方形レイヤー
+const duplicateMarkedSpots = new Set(); // アクア色に変えたマーカー(featureを保持)
+const duplicateClickHandlerMap = new Map(); // feature -> 削除用clickハンドラ
+
 // 状態変更用のセッター関数
 export function setSelectedSpotFeature(value) {
     selectedSpotFeature = value;
@@ -256,6 +263,8 @@ export function addSpotToMap(latlng, loadedData, spotMarkerMap, geoJsonLayer) {
     marker.bindPopup(`${newSpotName}<br>(Spot)`);
 
     marker.on('click', function(e) {
+        // 重複スポット抽出モード中はドロップダウン選択を行わない
+        if (isExtractDuplicateMode) return;
         const currentMode = document.querySelector('input[name="mode"]:checked').value;
         if (currentMode === MODES.SPOT) {
             const spotIndex = allSpots.findIndex(spot => spot.feature === newSpotFeature);
@@ -342,5 +351,268 @@ export function exitAddMoveSpotMode(map) {
         setDraggableSpotMarker(null);
     }
 
+    map.getContainer().style.cursor = '';
+}
+
+// スポットマーカーの色をアクアに変更
+function applySpotAquaColor(marker) {
+    if (!marker) return;
+    if (marker.getElement) {
+        const element = marker.getElement();
+        if (element) {
+            const div = element.querySelector('div');
+            if (div) {
+                div.style.setProperty('background-color', '#00ffff', 'important');
+            }
+        }
+    } else if (marker.setStyle) {
+        marker.setStyle({ fillColor: '#00ffff', color: '#00ffff' });
+    }
+}
+
+// 長方形内の重複スポットを抽出
+function findDuplicateSpotsInBounds(bounds, spotMarkerMap) {
+    const distanceLimit = DEFAULTS.DUPLICATE_SPOT_DISTANCE_M;
+    const candidates = [];
+
+    spotMarkerMap.forEach((marker, feature) => {
+        if (!marker || !marker.getLatLng) return;
+        const latlng = marker.getLatLng();
+        if (!bounds.contains(latlng)) return;
+        const name = feature.properties && feature.properties.name;
+        if (!name) return;
+        candidates.push({ feature, marker, latlng, name });
+    });
+
+    const duplicateSet = new Set();
+    for (let i = 0; i < candidates.length; i++) {
+        for (let j = i + 1; j < candidates.length; j++) {
+            if (candidates[i].name !== candidates[j].name) continue;
+            const dist = candidates[i].latlng.distanceTo(candidates[j].latlng);
+            if (dist <= distanceLimit) {
+                duplicateSet.add(candidates[i]);
+                duplicateSet.add(candidates[j]);
+            }
+        }
+    }
+    return Array.from(duplicateSet);
+}
+
+// 重複と判定されたスポットを削除する内部処理
+function removeDuplicateSpot(feature, marker, map, spotMarkerMap, getLoadedData, geoJsonLayer) {
+    // GeoJSONデータから削除
+    const data = getLoadedData && getLoadedData();
+    if (data && data.features) {
+        const idx = data.features.findIndex(f => f === feature);
+        if (idx !== -1) data.features.splice(idx, 1);
+    }
+
+    // 地図からマーカー削除
+    if (marker) {
+        if (geoJsonLayer && geoJsonLayer.hasLayer && geoJsonLayer.hasLayer(marker)) {
+            geoJsonLayer.removeLayer(marker);
+        }
+        if (map && map.hasLayer && map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    }
+
+    // spotMarkerMap から削除
+    if (spotMarkerMap) spotMarkerMap.delete(feature);
+
+    // allSpots から削除
+    const sIdx = allSpots.findIndex(s => s.feature === feature);
+    if (sIdx !== -1) allSpots.splice(sIdx, 1);
+
+    // 内部状態を整理
+    duplicateMarkedSpots.delete(feature);
+    duplicateClickHandlerMap.delete(feature);
+
+    // 選択中スポットだった場合は解除
+    if (selectedSpotFeature === feature) {
+        setSelectedSpotFeature(null);
+        setSelectedSpotMarker(null);
+        const nameInput = document.getElementById('selectedSpotName');
+        if (nameInput) nameInput.value = '';
+        const categorySelect = document.getElementById('spotCategory');
+        if (categorySelect) categorySelect.value = '';
+        const spotSelect = document.getElementById('spotSelect');
+        if (spotSelect) spotSelect.value = '';
+    }
+
+    // ドロップダウンと統計を更新
+    updateSpotDropdown();
+    updateStats(data);
+}
+
+// スポットマーカーの色を既定色に強制リセット
+function resetSpotMarkerColor(marker, feature) {
+    if (!marker) return;
+    const defaultColor = (DEFAULTS && DEFAULTS.FEATURE_STYLES && DEFAULTS.FEATURE_STYLES['spot'] && DEFAULTS.FEATURE_STYLES['spot'].fillColor) || '#0000ff';
+    if (marker.getElement) {
+        const element = marker.getElement();
+        if (element) {
+            const div = element.querySelector('div');
+            if (div) {
+                div.style.removeProperty('background-color');
+                div.style.setProperty('background-color', defaultColor, 'important');
+            }
+        }
+    } else if (marker.setStyle) {
+        marker.setStyle({ fillColor: defaultColor, color: defaultColor });
+    }
+}
+
+// 重複マーカーの色とclickハンドラを全て解除
+function clearDuplicateMarkings(spotMarkerMap) {
+    duplicateClickHandlerMap.forEach(({ marker, handler }) => {
+        if (marker && marker.off) marker.off('click', handler);
+    });
+    duplicateClickHandlerMap.clear();
+
+    duplicateMarkedSpots.forEach(feature => {
+        const marker = spotMarkerMap && spotMarkerMap.get(feature);
+        if (marker) resetSpotMarkerColor(marker, feature);
+    });
+    duplicateMarkedSpots.clear();
+}
+
+// 指定された長方形内で重複抽出を実行(既存の重複表示はクリアして再抽出)
+function applyDuplicateExtraction(bounds, map, spotMarkerMap, getLoadedData, geoJsonLayer) {
+    clearDuplicateMarkings(spotMarkerMap);
+
+    const duplicates = findDuplicateSpotsInBounds(bounds, spotMarkerMap);
+    duplicates.forEach(d => {
+        applySpotAquaColor(d.marker);
+        duplicateMarkedSpots.add(d.feature);
+
+        const handler = (ev) => {
+            if (!isExtractDuplicateMode) return;
+            if (!duplicateMarkedSpots.has(d.feature)) return;
+            const name = (d.feature.properties && d.feature.properties.name) || '';
+            // bindPopupで開いたポップアップを閉じる(隣接する残存スポットを覆い隠さないように)
+            if (map && map.closePopup) map.closePopup();
+            removeDuplicateSpot(d.feature, d.marker, map, spotMarkerMap, getLoadedData, geoJsonLayer);
+            showMessage(`重複スポット「${name}」を削除しました`, 'success');
+            if (ev && ev.originalEvent) {
+                L.DomEvent.stopPropagation(ev.originalEvent);
+            }
+            // 削除後、一旦重複判定をクリアする
+            clearDuplicateMarkings(spotMarkerMap);
+
+            if (duplicateExtractRectangle) {
+                const bounds = duplicateExtractRectangle.getBounds();
+                // 抽出を再実行して再度判定する (UIにクリアが反映されるように少し遅延させる)
+                setTimeout(() => {
+                    if (isExtractDuplicateMode) {
+                        const count = applyDuplicateExtraction(bounds, map, spotMarkerMap, getLoadedData, geoJsonLayer);
+                        if (count > 0) {
+                            showMessage(`再判定: 重複スポットが ${count} 件残っています`, 'info');
+                        } else {
+                            showMessage(`この範囲の重複スポットはなくなりました`, 'success');
+                        }
+                    }
+                }, 100);
+            }
+        };
+        d.marker.on('click', handler);
+        duplicateClickHandlerMap.set(d.feature, { marker: d.marker, handler });
+    });
+    return duplicates.length;
+}
+
+// 重複スポット抽出モードを開始
+export function enterExtractDuplicateMode(map, spotMarkerMap, getLoadedData, geoJsonLayer) {
+    if (isExtractDuplicateMode) return;
+    isExtractDuplicateMode = true;
+
+    const btn = document.getElementById('extractDuplicateSpotsBtn');
+    if (btn) btn.classList.add('active');
+
+    // 地図ドラッグ・ボックスズームを無効化(長方形描画と競合するため)
+    if (map.dragging) map.dragging.disable();
+    if (map.boxZoom) map.boxZoom.disable();
+    map.getContainer().style.cursor = 'crosshair';
+
+    let startLatLng = null;
+    let isDrawing = false;
+    let hasMoved = false;
+
+    const onMouseDown = (e) => {
+        isDrawing = true;
+        hasMoved = false;
+        startLatLng = e.latlng;
+        // マウスクリックのみで長方形が消えてしまうのを防ぐため、ここでは削除しない
+    };
+
+    const onMouseMove = (e) => {
+        if (!isDrawing || !startLatLng) return;
+        hasMoved = true;
+        const bounds = L.latLngBounds(startLatLng, e.latlng);
+        if (duplicateExtractRectangle) {
+            duplicateExtractRectangle.setBounds(bounds);
+        } else {
+            duplicateExtractRectangle = L.rectangle(bounds, {
+                color: '#ff69b4',
+                weight: 1,
+                fillColor: '#ffb6c1',
+                fillOpacity: 0.3,
+                interactive: false
+            }).addTo(map);
+        }
+    };
+
+    const onMouseUp = (e) => {
+        if (!isDrawing) return;
+        isDrawing = false;
+        startLatLng = null;
+
+        // 実際にドラッグが行われなかった場合（単なるクリック）は、抽出を再実行しない
+        if (!hasMoved || !duplicateExtractRectangle) {
+            return;
+        }
+
+        const bounds = duplicateExtractRectangle.getBounds();
+        const count = applyDuplicateExtraction(bounds, map, spotMarkerMap, getLoadedData, geoJsonLayer);
+        showMessage(`重複スポットを${count}件抽出しました`, 'success');
+    };
+
+    map.on('mousedown', onMouseDown);
+    map.on('mousemove', onMouseMove);
+    map.on('mouseup', onMouseUp);
+
+    duplicateExtractHandlers = { onMouseDown, onMouseMove, onMouseUp };
+}
+
+// 重複スポット抽出モードを解除
+export function exitExtractDuplicateMode(map, spotMarkerMap) {
+    if (!isExtractDuplicateMode) return;
+    isExtractDuplicateMode = false;
+
+    const btn = document.getElementById('extractDuplicateSpotsBtn');
+    if (btn) btn.classList.remove('active');
+
+    if (duplicateExtractHandlers) {
+        map.off('mousedown', duplicateExtractHandlers.onMouseDown);
+        map.off('mousemove', duplicateExtractHandlers.onMouseMove);
+        map.off('mouseup', duplicateExtractHandlers.onMouseUp);
+        duplicateExtractHandlers = null;
+    }
+
+    if (duplicateExtractRectangle) {
+        map.removeLayer(duplicateExtractRectangle);
+        duplicateExtractRectangle = null;
+    }
+
+    // 重複マーカーの色とclickハンドラをクリア
+    clearDuplicateMarkings(spotMarkerMap);
+
+    // 現在選択中のスポットがリセットされた場合は再ハイライト
+    if (selectedSpotMarker && selectedSpotFeature) {
+        applySpotAquaColor(selectedSpotMarker);
+    }
+
+    if (map.dragging) map.dragging.enable();
+    if (map.boxZoom) map.boxZoom.enable();
     map.getContainer().style.cursor = '';
 }

@@ -160,6 +160,20 @@ body {
     text-align: right;
 }
 
+/* ポイント数の内訳（追加・除外） */
+#pointBreakdownField {
+    flex: 1;
+    min-width: 0;
+    margin-left: 4px;
+    padding: 4px 6px;
+    border: 1px solid #d5dbdb;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    color: #6c757d;
+    font-size: 11px;
+    text-align: center;
+}
+
 #pointIdField {
     width: 60px;
     flex: none;
@@ -186,6 +200,138 @@ body {
     font-size: 12px;
     color: #7f8c8d;
     white-space: nowrap;
+}
+
+/* タイル削減モード切替ボタン群（ポイント数行の下） */
+.reduction-mode-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.reduction-mode-btn {
+    flex: 1;
+    padding: 6px 10px;
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.reduction-mode-btn:hover {
+    background-color: #dfe6e9;
+    border-color: #95a5a6;
+}
+
+.reduction-mode-btn.active {
+    background-color: #16a34a;
+    color: #ffffff;
+    border-color: #15803d;
+}
+
+.reduction-mode-btn.active:hover {
+    background-color: #15803d;
+}
+
+/* ズーム別タイル統計 */
+.tile-stats-container {
+    margin-top: 12px;
+    padding: 8px 10px;
+    background-color: rgba(236, 240, 241, 0.6);
+    border: 1px solid #d5dbdb;
+    border-radius: 6px;
+}
+
+.tile-stats-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 3px;
+}
+
+.tile-stats-row:last-child {
+    margin-bottom: 0;
+}
+
+.tile-stats-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #7f8c8d;
+    border-bottom: 1px solid #d5dbdb;
+    padding-bottom: 3px;
+    margin-bottom: 5px;
+}
+
+.tile-stats-header .tile-stats-label {
+    width: 60px;
+}
+
+.tile-stats-header .tile-stats-count-label {
+    width: 60px;
+    text-align: right;
+    margin-left: auto;
+    margin-right: 44px; /* データ行の「(gap+枚+gap+MB)」分を補完して右揃えを揃える */
+}
+
+.tile-stats-header .tile-stats-size-label {
+    width: 60px;
+    text-align: right;
+    padding-right: 22px;
+}
+
+.tile-stats-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #34495e;
+    width: 60px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.tile-stats-row input.tile-stats-count {
+    margin-left: auto;
+}
+
+.tile-stats-row input.tile-stats-count,
+.tile-stats-row input.tile-stats-size {
+    width: 60px;
+    padding: 3px 5px;
+    border: 1px solid #bdc3c7;
+    border-radius: 3px;
+    font-size: 11px;
+    background-color: #f8f9fa;
+    color: #6c757d;
+    text-align: right;
+    flex: none;
+}
+
+.tile-stats-row .unit-label {
+    font-size: 11px;
+    width: 18px;
+}
+
+.tile-stats-total {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid #bdc3c7;
+    font-weight: 600;
+}
+
+.tile-stats-total .tile-stats-label {
+    color: #2c3e50;
+}
+
+.tile-stats-total input.tile-stats-count,
+.tile-stats-total input.tile-stats-size {
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    font-weight: 600;
 }
 
 /* ポイント情報コンテナ */
@@ -227,6 +373,16 @@ body {
     border-radius: 3px;
     font-size: 12px;
     min-width: 0;
+}
+
+.info-field-row select {
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid #bdc3c7;
+    border-radius: 3px;
+    font-size: 12px;
+    min-width: 0;
+    background-color: #fff;
 }
 
 .info-field-row input[readonly] {
@@ -275,8 +431,12 @@ body {
     align-items: flex-start;
 }
 
+.export-control-row + .export-control-row {
+    margin-top: 12px;
+}
+
 .export-buttons .control-button {
-    width: 180px;
+    width: 100%;
     margin-bottom: 0;
     background-color: #e67e22;
     flex-shrink: 0;
@@ -286,6 +446,16 @@ body {
 .export-buttons .control-button:hover {
     background-color: #d35400;
 }
+
+/* ポイント出力(Excel)ボタンは青（読み込みボタンと同色） */
+#exportPointsExcelBtn {
+    background-color: #3498db;
+}
+
+#exportPointsExcelBtn:hover {
+    background-color: #2980b9;
+}
+
 
 /* チュートリアルボタン */
 .tutorial-button {
@@ -494,57 +664,4 @@ select:focus {
     border: 1px solid #777 !important;
     color: #333 !important;
     font-size: 11px !important;
-}
-
-/* カスタム確認ダイアログ（window.confirm の代替） */
-.custom-confirm-dialog {
-    border: none;
-    border-radius: 8px;
-    padding: 24px 28px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-    min-width: 320px;
-    max-width: 480px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 14px;
-    color: #333;
-}
-
-.custom-confirm-dialog::backdrop {
-    background-color: rgba(0, 0, 0, 0.4);
-}
-
-.custom-confirm-dialog p {
-    margin: 0 0 20px 0;
-    line-height: 1.5;
-    white-space: pre-wrap;
-}
-
-.custom-confirm-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-.custom-confirm-btn {
-    padding: 8px 20px;
-    border: 1px solid #999;
-    border-radius: 4px;
-    background-color: #fff;
-    cursor: pointer;
-    font-size: 14px;
-    min-width: 80px;
-}
-
-.custom-confirm-btn:hover {
-    background-color: #f0f0f0;
-}
-
-.custom-confirm-yes {
-    background-color: #32cd32;
-    color: #fff;
-    border-color: #32cd32;
-}
-
-.custom-confirm-yes:hover {
-    background-color: #28a428;
 }

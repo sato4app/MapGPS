@@ -223,8 +223,8 @@ export class ElevationFetcher {
                 const elevation = await this.fetchElevation(vertex.lng, vertex.lat);
 
                 if (elevation !== null) {
-                    // AreaHandlerに標高を設定
-                    areaHandler.setVertexElevation(vertex.areaName, vertex.vertexIndex, elevation);
+                    // AreaHandlerに標高を設定（areaId は一意、areaName はログ用）
+                    areaHandler.setVertexElevation(vertex.areaId, vertex.vertexIndex, elevation, vertex.areaName);
                     fetchedCount++;
                     this.logger.info(`標高設定成功: area=${vertex.areaName}, index=${vertex.vertexIndex}, elevation=${elevation}m`);
                 } else {

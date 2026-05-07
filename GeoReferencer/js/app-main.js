@@ -522,85 +522,25 @@ class GeoReferencerApp {
                 }
             }
 
-            // 2. ルート（ジオリファレンス変換済み）を収集
-            if (this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
-                // ルートデータから開始・終了ポイント情報を取得
-                const routeGroupMap = new Map();
-
-                for (const marker of this.routeSpotHandler.routeMarkers) {
-                    const meta = marker.__meta;
-                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase')) { // firebase origin means loaded from external
-                        const routeId = meta.routeId || 'unknown_route';
-
-                        if (!routeGroupMap.has(routeId)) {
-                            routeGroupMap.set(routeId, []);
-                        }
-                        routeGroupMap.get(routeId).push(marker);
-                    }
-                }
-
-                // 各ルートグループごとに処理
-                for (const [routeId, markers] of routeGroupMap) {
-                    // ルートデータから開始・終了ポイント情報を検索
-                    let startPoint = 'unknown_start';
-                    let endPoint = 'unknown_end';
-
-                    if (this.routeSpotHandler.routeData) {
-                        const routeData = this.routeSpotHandler.routeData.find(route =>
-                            (route.routeId === routeId) ||
-                            (route.name === routeId) ||
-                            (route.fileName && route.fileName.replace('.json', '') === routeId)
-                        );
-
-                        if (routeData) {
-                            startPoint = (routeData.startPoint && routeData.startPoint.id) ||
-                                (routeData.routeInfo && routeData.routeInfo.startPoint) ||
-                                'unknown_start';
-                            endPoint = (routeData.endPoint && routeData.endPoint.id) ||
-                                (routeData.routeInfo && routeData.routeInfo.endPoint) ||
-                                'unknown_end';
+            // ポイント/スポットID/名称 → GPS座標 のルックアップマップを構築するヘルパー
+            // ルートのstartPoint/endPointのGPS値を取得するために使用
+            // ルートのstart/endはポイントだけでなくスポットを指す場合もあるため、両方を対象にする
+            const buildPointGpsMap = () => {
+                const map = new Map();
+                for (const f of features) {
+                    if (f.properties && (f.properties.type === 'point' || f.properties.type === 'spot')) {
+                        const coords = f.geometry.coordinates;
+                        if (f.properties.id) map.set(f.properties.id, coords);
+                        if (f.properties.name && f.properties.name !== f.properties.id) {
+                            map.set(f.properties.name, coords);
                         }
                     }
-
-                    const fullRouteId = `route_${startPoint}_to_${endPoint}`;
-                    const lineCoordinates = [];
-
-                    // マーカーを順番に処理
-                    markers.forEach((marker, index) => {
-                        const latLng = marker.getLatLng();
-                        const waypointName = `waypoint_${String(index + 1).padStart(2, '0')}`;
-                        const elevation = marker.__meta && marker.__meta.elevation;
-
-                        let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
-                        if (elevation !== undefined && elevation !== null) {
-                            coords.push(this.roundCoordinate(elevation));
-                        }
-                        lineCoordinates.push(coords);
-
-                        // 中間点もPointとして出力したければここに追加可能だが、LineStringにする
-                    });
-
-                    // LineStringとして出力
-                    features.push({
-                        type: 'Feature',
-                        properties: {
-                            id: fullRouteId,
-                            name: `${startPoint} ～ ${endPoint}`,
-                            type: 'route',
-                            startPoint: startPoint,
-                            endPoint: endPoint,
-                            source: 'image_transformed',
-                            description: 'ルート（GPS変換済）'
-                        },
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: lineCoordinates
-                        }
-                    });
                 }
-            }
+                return map;
+            };
 
-            // 3. スポット（ジオリファレンス変換済み）を収集
+            // 2. スポット（ジオリファレンス変換済み）を収集
+            // ※ ルートのstart/endがスポットIDを指す場合があるため、ルートより先に収集する
             if (this.routeSpotHandler && this.routeSpotHandler.spotMarkers) {
                 const latestSpots = this.getLatestSpots(this.routeSpotHandler.spotMarkers);
                 let spotCounter = 1;
@@ -633,6 +573,104 @@ class GeoReferencerApp {
                         });
                         spotCounter++;
                     }
+                }
+            }
+
+            // 3. ルート（ジオリファレンス変換済み）を収集
+            if (this.routeSpotHandler && this.routeSpotHandler.routeMarkers) {
+                const pointGpsMap = buildPointGpsMap();
+
+                // ルートデータから開始・終了ポイント情報を取得
+                const routeGroupMap = new Map();
+
+                for (const marker of this.routeSpotHandler.routeMarkers) {
+                    const meta = marker.__meta;
+                    if (meta && (meta.origin === 'image' || meta.origin === 'firebase')) { // firebase origin means loaded from external
+                        const routeId = meta.routeId || 'unknown_route';
+
+                        if (!routeGroupMap.has(routeId)) {
+                            routeGroupMap.set(routeId, []);
+                        }
+                        routeGroupMap.get(routeId).push(marker);
+                    }
+                }
+
+                // 各ルートグループごとに処理
+                for (const [routeId, markers] of routeGroupMap) {
+                    // ルートデータから開始・終了ポイント情報を検索
+                    let startPoint = 'unknown_start';
+                    let endPoint = 'unknown_end';
+                    let routeDataMatched = null;
+
+                    if (this.routeSpotHandler.routeData) {
+                        routeDataMatched = this.routeSpotHandler.routeData.find(route =>
+                            (route.routeId === routeId) ||
+                            (route.name === routeId) ||
+                            (route.fileName && route.fileName.replace('.json', '') === routeId)
+                        );
+
+                        if (routeDataMatched) {
+                            startPoint = (routeDataMatched.startPoint && routeDataMatched.startPoint.id) ||
+                                (routeDataMatched.routeInfo && routeDataMatched.routeInfo.startPoint) ||
+                                'unknown_start';
+                            endPoint = (routeDataMatched.endPoint && routeDataMatched.endPoint.id) ||
+                                (routeDataMatched.routeInfo && routeDataMatched.routeInfo.endPoint) ||
+                                'unknown_end';
+                        }
+                    }
+
+                    const fullRouteId = `route_${startPoint}_to_${endPoint}`;
+                    const lineCoordinates = [];
+
+                    // マーカーを順番に処理
+                    markers.forEach((marker, index) => {
+                        const latLng = marker.getLatLng();
+                        const waypointName = `waypoint_${String(index + 1).padStart(2, '0')}`;
+                        const elevation = marker.__meta && marker.__meta.elevation;
+
+                        let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                        if (elevation !== undefined && elevation !== null) {
+                            coords.push(this.roundCoordinate(elevation));
+                        }
+                        lineCoordinates.push(coords);
+
+                        // 中間点もPointとして出力したければここに追加可能だが、LineStringにする
+                    });
+
+                    // 開始・終了ポイントのGPS値を取得
+                    // 優先順: ① ポイント/スポット収集結果(features)からのIDルックアップ
+                    //         ② routeData.startPoint/endPoint オブジェクトに含まれるlat/lng
+                    //         ③ 取得できなければ null
+                    const resolvePointGps = (id, fallbackPointObj) => {
+                        const fromMap = pointGpsMap.get(id);
+                        if (fromMap) return fromMap;
+                        if (fallbackPointObj && fallbackPointObj.lat != null && fallbackPointObj.lng != null) {
+                            return [this.roundCoordinate(fallbackPointObj.lng), this.roundCoordinate(fallbackPointObj.lat)];
+                        }
+                        return null;
+                    };
+                    const startPointGPS = resolvePointGps(startPoint, routeDataMatched && routeDataMatched.startPoint);
+                    const endPointGPS = resolvePointGps(endPoint, routeDataMatched && routeDataMatched.endPoint);
+
+                    // LineStringとして出力
+                    features.push({
+                        type: 'Feature',
+                        properties: {
+                            id: fullRouteId,
+                            name: `${startPoint} ～ ${endPoint}`,
+                            type: 'route',
+                            startPoint: startPoint,
+                            endPoint: endPoint,
+                            startPointGPS: startPointGPS,
+                            endPointGPS: endPointGPS,
+                            source: 'image_transformed',
+                            description: 'ルート（GPS変換済）'
+                        },
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: lineCoordinates
+                        }
+                    });
                 }
             }
 
@@ -669,53 +707,8 @@ class GeoReferencerApp {
                     }
                 }
 
-                // 4b. ルート中間点（waypoint型）→ ルート名でグループ化してLineStringとして出力
-                if (waypointInfos.length > 0 && (!this.routeSpotHandler.routeMarkers || this.routeSpotHandler.routeMarkers.length === 0)) {
-                    const routeGroups = new Map();
-                    for (const markerInfo of waypointInfos) {
-                        const routeName = markerInfo.data.name || 'unknown_route';
-                        if (!routeGroups.has(routeName)) {
-                            routeGroups.set(routeName, []);
-                        }
-                        routeGroups.get(routeName).push(markerInfo);
-                    }
-                    for (const [, markerInfos] of routeGroups) {
-                        const lineCoordinates = [];
-                        for (const markerInfo of markerInfos) {
-                            const latLng = markerInfo.marker.getLatLng();
-                            const elevation = markerInfo.data.elevation;
-                            let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
-                            if (elevation !== undefined && elevation !== null) {
-                                coords.push(this.roundCoordinate(elevation));
-                            }
-                            lineCoordinates.push(coords);
-                        }
-                        if (lineCoordinates.length > 0) {
-                            const firstData = markerInfos[0].data;
-                            const spStart = firstData.startPoint || 'unknown_start';
-                            const spEnd = firstData.endPoint || 'unknown_end';
-                            const routeId = `route_${spStart}_to_${spEnd}`;
-                            features.push({
-                                type: 'Feature',
-                                properties: {
-                                    id: routeId,
-                                    name: `${spStart} ～ ${spEnd}`,
-                                    type: 'route',
-                                    startPoint: spStart,
-                                    endPoint: spEnd,
-                                    source: 'image_transformed',
-                                    description: 'ルート（GPS変換済）'
-                                },
-                                geometry: {
-                                    type: 'LineString',
-                                    coordinates: lineCoordinates
-                                }
-                            });
-                        }
-                    }
-                }
-
-                // 4c. スポット（spot型）
+                // 4b. スポット（spot型）
+                // ※ ルートのstart/endがスポットIDを指す場合があるため、ルートより先に収集する
                 if (spotInfosCombined.length > 0 && (!this.routeSpotHandler.spotMarkers || this.routeSpotHandler.spotMarkers.length === 0)) {
                     let spotCounter = 1;
                     for (const markerInfo of spotInfosCombined) {
@@ -741,6 +734,57 @@ class GeoReferencerApp {
                             }
                         });
                         spotCounter++;
+                    }
+                }
+
+                // 4c. ルート中間点（waypoint型）→ ルート名でグループ化してLineStringとして出力
+                if (waypointInfos.length > 0 && (!this.routeSpotHandler.routeMarkers || this.routeSpotHandler.routeMarkers.length === 0)) {
+                    const pointGpsMapCombined = buildPointGpsMap();
+                    const routeGroups = new Map();
+                    for (const markerInfo of waypointInfos) {
+                        const routeName = markerInfo.data.name || 'unknown_route';
+                        if (!routeGroups.has(routeName)) {
+                            routeGroups.set(routeName, []);
+                        }
+                        routeGroups.get(routeName).push(markerInfo);
+                    }
+                    for (const [, markerInfos] of routeGroups) {
+                        const lineCoordinates = [];
+                        for (const markerInfo of markerInfos) {
+                            const latLng = markerInfo.marker.getLatLng();
+                            const elevation = markerInfo.data.elevation;
+                            let coords = [this.roundCoordinate(latLng.lng), this.roundCoordinate(latLng.lat)];
+                            if (elevation !== undefined && elevation !== null) {
+                                coords.push(this.roundCoordinate(elevation));
+                            }
+                            lineCoordinates.push(coords);
+                        }
+                        if (lineCoordinates.length > 0) {
+                            const firstData = markerInfos[0].data;
+                            const spStart = firstData.startPoint || 'unknown_start';
+                            const spEnd = firstData.endPoint || 'unknown_end';
+                            const routeId = `route_${spStart}_to_${spEnd}`;
+                            const startPointGPS = pointGpsMapCombined.get(spStart) || null;
+                            const endPointGPS = pointGpsMapCombined.get(spEnd) || null;
+                            features.push({
+                                type: 'Feature',
+                                properties: {
+                                    id: routeId,
+                                    name: `${spStart} ～ ${spEnd}`,
+                                    type: 'route',
+                                    startPoint: spStart,
+                                    endPoint: spEnd,
+                                    startPointGPS: startPointGPS,
+                                    endPointGPS: endPointGPS,
+                                    source: 'image_transformed',
+                                    description: 'ルート（GPS変換済）'
+                                },
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: lineCoordinates
+                                }
+                            });
+                        }
                     }
                 }
             }

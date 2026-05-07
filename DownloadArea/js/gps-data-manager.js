@@ -35,26 +35,24 @@ export class GPSDataManager {
         }
 
         const headerRow = jsonData[0];
-        
+
         // ヘッダー行から列のインデックスを特定
         const columnIndexes = this.identifyColumns(headerRow);
-        
+
         // 必須項目（ポイントID、名称、緯度、経度）がすべて存在するかチェック
         const requiredColumns = ['id', 'location', 'lat', 'lng'];
-        const missingColumns = requiredColumns.filter(col => 
+        const missingColumns = requiredColumns.filter(col =>
             columnIndexes[col] === undefined || columnIndexes[col] === null
         );
-        
+
         if (missingColumns.length > 0) {
-            const missingNames = missingColumns.map(col => {
-                switch(col) {
-                    case 'id': return 'ポイントID';
-                    case 'location': return '名称';
-                    case 'lat': return '緯度';
-                    case 'lng': return '経度';
-                    default: return col;
-                }
-            });
+            const headerMap = {
+                id: CONFIG.EXCEL_HEADERS.ID,
+                location: CONFIG.EXCEL_HEADERS.LOCATION,
+                lat: CONFIG.EXCEL_HEADERS.LAT,
+                lng: CONFIG.EXCEL_HEADERS.LNG
+            };
+            const missingNames = missingColumns.map(col => headerMap[col] || col);
             throw new Error(`必須項目が不足しています: ${missingNames.join(', ')}`);
         }
         
@@ -86,13 +84,14 @@ export class GPSDataManager {
                 continue; // 無効な座標の行はスキップ
             }
             
+            const categoryValue = DataUtils.getCellValue(row, columnIndexes.category);
             const point = {
                 id: idValue,
                 lat: lat,
                 lng: lng,
                 elevation: DataUtils.normalizeElevation(DataUtils.getCellValue(row, columnIndexes.elevation)),
                 location: locationValue,
-                remarks: DataUtils.getCellValue(row, columnIndexes.remarks) || ''
+                category: categoryValue || CONFIG.CATEGORIES.GPS
             };
 
             this.gpsPoints.push(point);
@@ -102,47 +101,60 @@ export class GPSDataManager {
     // ヘッダー行から各列のインデックスを特定（完全一致）
     identifyColumns(headerRow) {
         const indexes = {};
-        
+        const H = CONFIG.EXCEL_HEADERS;
+
         for (let i = 0; i < headerRow.length; i++) {
             const header = String(headerRow[i]).trim();
-            
+
             // 完全一致判定
-            if (header === 'ポイントID') {
+            if (header === H.ID) {
                 indexes.id = i;
             }
-            else if (header === '名称') {
+            else if (header === H.LOCATION) {
                 indexes.location = i;
             }
-            else if (header === '緯度') {
+            else if (header === H.LAT) {
                 indexes.lat = i;
             }
-            else if (header === '経度') {
+            else if (header === H.LNG) {
                 indexes.lng = i;
             }
-            else if (header === '標高') {
+            else if (header === H.ELEVATION) {
                 indexes.elevation = i;
             }
-            else if (header === '備考') {
-                indexes.remarks = i;
+            else if (header === H.CATEGORY) {
+                indexes.category = i;
             }
         }
-        
+
         return indexes;
     }
 
 
 
     // ポイントを追加
-    addPoint(lat, lng, id = null, elevation = '', location = '', remarks = '') {
+    addPoint(lat, lng, id = null, elevation = '', location = '') {
+        const finalId = id || this.generateTemporaryId();
+
+        // 名称が未指定で仮IDを生成した場合は、IDの番号部を使って既定名称を組み立てる
+        let finalLocation = location;
+        if (!location && !id) {
+            const { PREFIX, LOCATION_PREFIX } = CONFIG.TEMPORARY_ID;
+            const numPart = finalId.startsWith(PREFIX) ? finalId.substring(PREFIX.length) : '';
+            if (numPart) {
+                finalLocation = `${LOCATION_PREFIX}${numPart}`;
+            }
+        }
+
         const point = {
-            id: id || this.generateTemporaryId(),
+            id: finalId,
             lat: lat,
             lng: lng,
             elevation: DataUtils.normalizeElevation(elevation),
-            location: location,
-            remarks: remarks
+            location: finalLocation,
+            category: CONFIG.CATEGORIES.ADDED
         };
-        
+
         this.gpsPoints.push(point);
         return point;
     }
@@ -172,43 +184,17 @@ export class GPSDataManager {
 
         return point.elevation;
     }
-
-    // 標高未取得（blankまたは0）のポイント一覧を取得
-    getPointsWithoutElevation() {
-        return this.gpsPoints.filter(p => ElevationAPI.needsElevationFromAPI(p.elevation));
-    }
-
-    // 標高未取得ポイントの標高を一括取得（連続呼び出し時はレート制限のため間隔を空ける）
-    async fetchElevationForUnfetchedPoints(onProgress = null) {
-        const targets = this.getPointsWithoutElevation();
-        let successCount = 0;
-
-        for (let i = 0; i < targets.length; i++) {
-            const point = targets[i];
-            if (onProgress) {
-                onProgress(i + 1, targets.length, point);
-            }
-            const result = await this.ensureValidElevation(point.id);
-            if (result && parseFloat(result) > 0) {
-                successCount++;
-            }
-            // 国土地理院APIへの連続アクセスを避けるため間隔を空ける
-            if (i < targets.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-        }
-
-        return { total: targets.length, success: successCount };
-    }
     
-    // 仮IDを生成（仮01から始まる連番）
+    // 仮IDを生成（Z#01から始まる連番）
     generateTemporaryId() {
+        const { PREFIX, PAD_WIDTH } = CONFIG.TEMPORARY_ID;
+        const idPattern = new RegExp(`^${PREFIX}\\d{${PAD_WIDTH}}$`);
         const existingTempIds = this.gpsPoints
             .map(p => p.id)
-            .filter(id => id.match(/^仮\d{2}$/))
-            .map(id => parseInt(id.substring(1)))
+            .filter(id => idPattern.test(id))
+            .map(id => parseInt(id.substring(PREFIX.length)))
             .sort((a, b) => a - b);
-        
+
         let nextNum = 1;
         for (const num of existingTempIds) {
             if (num === nextNum) {
@@ -217,8 +203,8 @@ export class GPSDataManager {
                 break;
             }
         }
-        
-        return `仮${nextNum.toString().padStart(2, '0')}`;
+
+        return `${PREFIX}${nextNum.toString().padStart(PAD_WIDTH, '0')}`;
     }
 
     // ポイントを更新
@@ -261,51 +247,26 @@ export class GPSDataManager {
         return this.gpsPoints.find(p => p.id === id);
     }
 
-    // Excelファイルとして出力（beforeWrite: 保存先確定後・データ生成前に走る非同期処理）
-    async exportToExcel(filename = 'gps_points', beforeWrite = null) {
-        if (!this.fileHandler) {
-            throw new Error('FileHandlerが設定されていません');
-        }
-
-        const buildData = () => {
-            const data = [
-                ['ポイントID', '名称', '緯度', '経度', '標高', '備考'] // ヘッダー
+    // Excel出力用の二次元配列を生成（読み込み形式に「ポイント区分」列を追加）
+    // 追加ポイントの緯度・経度は COORDINATE_DECIMAL_DIGITS 桁(=5桁)に丸める。
+    // それ以外（読み込んだGPSポイント等）は元の値をそのまま保持。
+    buildExcelExportData() {
+        const H = CONFIG.EXCEL_HEADERS;
+        const digits = CONFIG.COORDINATE_DECIMAL_DIGITS;
+        const header = [H.ID, H.LOCATION, H.LAT, H.LNG, H.ELEVATION, H.CATEGORY];
+        const rows = this.gpsPoints.map(p => {
+            const isAdded = p.category === CONFIG.CATEGORIES.ADDED;
+            const lat = isAdded ? Number(p.lat.toFixed(digits)) : p.lat;
+            const lng = isAdded ? Number(p.lng.toFixed(digits)) : p.lng;
+            return [
+                p.id,
+                p.location,
+                lat,
+                lng,
+                p.elevation,
+                p.category || ''
             ];
-
-            this.gpsPoints.forEach(point => {
-                // 標高を数値に変換（空文字の場合は空文字のまま）
-                let elevationValue = '';
-                if (point.elevation && point.elevation !== '') {
-                    const numValue = parseFloat(point.elevation);
-                    if (!isNaN(numValue)) {
-                        elevationValue = numValue; // 数値として出力
-                    } else {
-                        elevationValue = point.elevation; // 数値でない場合はそのまま
-                    }
-                }
-
-                data.push([
-                    point.id,
-                    point.location,
-                    parseFloat(point.lat.toFixed(5)), // 小数点以下5桁まで
-                    parseFloat(point.lng.toFixed(5)), // 小数点以下5桁まで
-                    elevationValue,
-                    point.remarks
-                ]);
-            });
-
-            return data;
-        };
-
-        return await this.fileHandler.saveExcelWithUserChoice(
-            async () => {
-                if (beforeWrite) {
-                    await beforeWrite();
-                }
-                return buildData();
-            },
-            filename
-        );
+        });
+        return [header, ...rows];
     }
-
 }

@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="国土地理院地図上でGPSポイントの表示・編集・管理を行うWebアプリケーション">
-    <meta name="keywords" content="GPS, 地図, 国土地理院, ポイント編集">
-    <meta name="author" content="PointGPS">
-    <title>PointGPS - ポイント(GPS)編集アプリ</title>
+    <meta name="description" content="オフライン対応用ダウンロード領域の編集を行うWebアプリケーション">
+    <meta name="keywords" content="GPS, 地図, 国土地理院, ダウンロード領域">
+    <meta name="author" content="DownloadArea">
+    <title>オフライン対応用ダウンロード領域の編集</title>
 
     <!-- セキュリティとパフォーマンスのためのメタタグ -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -36,10 +36,10 @@
     <main id="map" role="main" aria-label="国土地理院地図"></main>
 
     <!-- アプリケーション制御パネル -->
-    <aside class="overlay-controls" role="complementary" aria-label="ポイント(GPS)編集ツール">
-        <!-- GPS ポイント編集パネル -->
+    <aside class="overlay-controls" role="complementary" aria-label="オフライン対応用ダウンロード領域の編集ツール">
+        <!-- ダウンロード領域編集パネル -->
         <section id="pointGpsEditor" class="editor-panel" aria-labelledby="gps-editor-title">
-            <h2 id="gps-editor-title">ポイント(GPS)編集</h2>
+            <h2 id="gps-editor-title">オフライン用Download領域の編集</h2>
             
             <!-- データ読み込みボタン -->
             <div class="import-buttons">
@@ -57,14 +57,71 @@
                 </div>
             </div>
             <div id="load-help" class="visually-hidden">選択したファイル形式でGPS座標データを読み込みます</div>
-            <div id="export-help" class="visually-hidden">選択したファイル形式でGPS座標データを出力します</div>
             
             <!-- ポイント数表示フィールド -->
             <div class="info-field-container">
                 <label for="pointCountField">ポイント数</label>
                 <input type="text" id="pointCountField" readonly value="0" aria-describedby="point-count-help">
                 <span class="unit-label" aria-hidden="true">個</span>
+                <input type="text" id="pointBreakdownField" class="point-breakdown" readonly
+                       value="(追加:0個、除外:0個)"
+                       aria-label="追加・除外ポイントの内訳">
                 <div id="point-count-help" class="visually-hidden">現在読み込まれているGPSポイントの数</div>
+            </div>
+
+            <!-- タイル削減モード切替ボタン -->
+            <div class="reduction-mode-buttons" role="group" aria-label="ダウンロードタイル削減モード">
+                <button id="clusterMergeToggleBtn"
+                        type="button"
+                        class="reduction-mode-btn"
+                        aria-pressed="false"
+                        title="近接ポイントを1つの円に統合し、ダウンロードタイル数を削減します">
+                    クラスタ統合
+                </button>
+                <button id="dynamicBufferToggleBtn"
+                        type="button"
+                        class="reduction-mode-btn"
+                        aria-pressed="false"
+                        title="近接ポイントの円バッファを縮小して、ダウンロードタイル数を削減します">
+                    動的バッファ削減
+                </button>
+            </div>
+
+            <!-- ズーム別タイル統計 -->
+            <div id="tileStatsContainer" class="tile-stats-container" aria-label="ズーム別ダウンロードタイル統計">
+                <div class="tile-stats-row tile-stats-header">
+                    <span class="tile-stats-label">ズームレベル</span>
+                    <span class="tile-stats-count-label">タイル枚数</span>
+                    <span class="tile-stats-size-label">サイズ</span>
+                </div>
+                <div class="tile-stats-row" data-zoom="10-16">
+                    <span class="tile-stats-label">z=10〜16</span>
+                    <input type="text" id="tileCountZ10to16" class="tile-stats-count" readonly value="0">
+                    <span class="unit-label">枚</span>
+                    <input type="text" id="tileSizeZ10to16" class="tile-stats-size" readonly value="0.0">
+                    <span class="unit-label">MB</span>
+                </div>
+                <div class="tile-stats-row" data-zoom="17">
+                    <span class="tile-stats-label">z=17</span>
+                    <input type="text" id="tileCountZ17" class="tile-stats-count" readonly value="0">
+                    <span class="unit-label">枚</span>
+                    <input type="text" id="tileSizeZ17" class="tile-stats-size" readonly value="0.0">
+                    <span class="unit-label">MB</span>
+                </div>
+                <div class="tile-stats-row" data-zoom="18">
+                    <span class="tile-stats-label">z=18</span>
+                    <input type="text" id="tileCountZ18" class="tile-stats-count" readonly value="0">
+                    <span class="unit-label">枚</span>
+                    <input type="text" id="tileSizeZ18" class="tile-stats-size" readonly value="0.0">
+                    <span class="unit-label">MB</span>
+                </div>
+                <div class="tile-stats-row tile-stats-total">
+                    <span class="tile-stats-label">合計</span>
+                    <input type="text" id="tileCountTotal" class="tile-stats-count" readonly value="0">
+                    <span class="unit-label">枚</span>
+                    <input type="text" id="tileSizeTotal" class="tile-stats-size" readonly value="0.0">
+                    <span class="unit-label">MB</span>
+                </div>
             </div>
             
             <!-- ポイント(GPS)情報枠 -->
@@ -108,10 +165,15 @@
                     <span class="unit-label">m</span>
                 </div>
                 
-                <!-- 備考 -->
+                <!-- 区分 -->
                 <div class="info-field-row">
-                    <label for="remarksField">備考</label>
-                    <input type="text" id="remarksField" placeholder="備考を入力" maxlength="50" tabindex="3">
+                    <label for="categoryField">区分</label>
+                    <select id="categoryField" tabindex="3">
+                        <option value=""></option>
+                        <option value="ポイントGPS">ポイントGPS</option>
+                        <option value="追加ポイント">追加ポイント</option>
+                        <option value="領域の算出から除外">領域の算出から除外</option>
+                    </select>
                 </div>
                 
                 <!-- ポイント操作ボタン -->
@@ -125,19 +187,19 @@
             <!-- データ出力ボタン -->
             <div class="export-buttons">
                 <div class="export-control-row">
-                    <button id="exportBtn"
+                    <button id="exportPointsExcelBtn"
                             type="button"
-                            title="ポイントのデータ(GPS値、名称等)を出力(Excel形式)"
-                            aria-describedby="export-help"
+                            title="現在のポイントをExcel形式（区分付き）で出力"
                             class="control-button">
                         ポイント出力(Excel)
                     </button>
-                    <button id="helpBtn"
+                </div>
+                <div class="export-control-row">
+                    <button id="exportDownloadAreaBtn"
                             type="button"
-                            title="チュートリアルを開く"
-                            class="tutorial-button"
-                            aria-label="チュートリアル">
-                        ？
+                            title="ダウンロード領域の指定ファイルを出力"
+                            class="control-button">
+                        Download領域の指定ファイルを出力
                     </button>
                 </div>
             </div>
@@ -146,15 +208,6 @@
 
     <!-- メッセージ表示エリア -->
     <div id="messageArea" class="message-area" style="display: none;"></div>
-
-    <!-- 確認ダイアログ（confirm()の代替: ユーザーアクティベーションを消費しない） -->
-    <dialog id="confirmDialog" class="custom-confirm-dialog" aria-labelledby="confirmDialogMessage">
-        <p id="confirmDialogMessage"></p>
-        <div class="custom-confirm-buttons">
-            <button type="button" id="confirmDialogYes" class="custom-confirm-btn custom-confirm-yes">はい</button>
-            <button type="button" id="confirmDialogNo" class="custom-confirm-btn custom-confirm-no">いいえ</button>
-        </div>
-    </dialog>
 
     <!-- 分離したJavaScriptファイルを読み込む -->
     <!-- type="module"により、ES6モジュールとして読み込む -->

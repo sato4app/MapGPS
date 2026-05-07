@@ -4,7 +4,7 @@ import { DEFAULTS, MODES } from './constants.js';
 import { showMessage } from './message.js';
 import { updateStats, getDateString } from './stats.js';
 import { extractPointsAndRoutes, updateDropdowns, initAllRouteLines, state as routeEditorState } from './routeEditor.js';
-import { extractSpots, updateSpotDropdown, highlightSpot, allSpots } from './spotEditor.js';
+import { extractSpots, updateSpotDropdown, highlightSpot, allSpots, isExtractDuplicateMode } from './spotEditor.js';
 import { extractAreas, updateAreaDropdown, highlightArea, allAreas, bindAreaLabel } from './areaEditor.js';
 
 // ファイル入出力の状態管理
@@ -367,6 +367,8 @@ export function setupGeoJsonLoad(map, geoJsonLayer, markerMap, spotMarkerMap, ar
 
                     // スポットモードでクリックしたときにドロップダウンと連動
                     marker.on('click', function(e) {
+                        // 重複スポット抽出モード中はドロップダウン選択を行わない(削除ハンドラに委ねる)
+                        if (isExtractDuplicateMode) return;
                         const currentMode = document.querySelector('input[name="mode"]:checked').value;
                         if (currentMode === MODES.SPOT) {
                             const spotIndex = allSpots.findIndex(spot => spot.feature === f);
@@ -619,6 +621,46 @@ export function setupFileExport() {
                 waypointsByRoute[routeId].push(f);
             });
 
+        // ID から現在座標を解決（[4.2.3 ID 解決順序] に準拠）
+        // refLngLat: 同名スポット複数時に近傍探索の基準とする相手端点座標（[lng, lat]）
+        const features = loadedDataInternal.features;
+        function resolveCoordsById(id, refLngLat) {
+            if (!id) return null;
+            const gps = features.find(f =>
+                f.properties && f.properties.type === 'ポイントGPS' &&
+                (f.properties.id === id || f.properties.pointId === id) &&
+                f.geometry && f.geometry.type === 'Point'
+            );
+            if (gps) return gps.geometry.coordinates;
+
+            const pt = features.find(f =>
+                f.properties && f.properties.type === 'point' &&
+                f.properties.id === id &&
+                f.geometry && f.geometry.type === 'Point'
+            );
+            if (pt) return pt.geometry.coordinates;
+
+            const spots = features.filter(f =>
+                f.properties && f.properties.type === 'spot' &&
+                (f.properties.id === id || f.properties.name === id) &&
+                f.geometry && f.geometry.type === 'Point'
+            );
+            if (spots.length === 1) return spots[0].geometry.coordinates;
+            if (spots.length > 1 && refLngLat) {
+                const [refLng, refLat] = refLngLat;
+                let nearest = null;
+                let minDist = Infinity;
+                spots.forEach(s => {
+                    const [lng, lat] = s.geometry.coordinates;
+                    const d = (lat - refLat) ** 2 + (lng - refLng) ** 2;
+                    if (d < minDist) { minDist = d; nearest = s; }
+                });
+                if (nearest) return nearest.geometry.coordinates;
+            }
+            if (spots.length > 0) return spots[0].geometry.coordinates;
+            return null;
+        }
+
         const routeLineFeatures = Object.entries(waypointsByRoute).map(([routeId, waypoints]) => {
             waypoints.sort((a, b) =>
                 parseInt(a.properties.waypoint_number) - parseInt(b.properties.waypoint_number)
@@ -627,9 +669,24 @@ export function setupFileExport() {
             const match = routeId.match(/^route_(.+)_to_(.+)$/);
             const startPoint = match ? match[1] : '';
             const endPoint = match ? match[2] : '';
+
+            // 同名スポット解決のため、まず曖昧でない側を引き、その座標を相手側の参照に使う
+            let endCoords = resolveCoordsById(endPoint, null);
+            const startCoords = resolveCoordsById(startPoint, endCoords ? [endCoords[0], endCoords[1]] : null);
+            if (startCoords) {
+                endCoords = resolveCoordsById(endPoint, [startCoords[0], startCoords[1]]);
+            }
+
             return {
                 type: 'Feature',
-                properties: { type: 'route', id: routeId, startPoint, endPoint },
+                properties: {
+                    type: 'route',
+                    id: routeId,
+                    startPoint,
+                    endPoint,
+                    startPointGPS: startCoords || null,
+                    endPointGPS: endCoords || null
+                },
                 geometry: { type: 'LineString', coordinates }
             };
         });

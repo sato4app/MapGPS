@@ -4,6 +4,7 @@ import { GPSDataManager } from './gps-data-manager.js';
 import { PointManager } from './point-manager.js';
 import { FileHandler } from './file-handler.js';
 import { DataUtils } from './data-utils.js';
+import { DownloadAreaManager } from './download-area.js';
 import { CONFIG } from './config.js';
 
 class PointGPSApp {
@@ -29,7 +30,11 @@ class PointGPSApp {
             // ポイント管理初期化
             this.pointManager = new PointManager(this.mapManager, this.gpsDataManager);
             this.pointManager.setAppInstance(this);
-            
+
+            // Download領域管理初期化（円描画とファイル出力）
+            this.downloadAreaManager = new DownloadAreaManager(this.mapManager, this.gpsDataManager);
+            this.pointManager.onPointsChanged = () => this.downloadAreaManager.updateCircles();
+
             // イベントハンドラー設定
             this.setupEventHandlers();
             
@@ -100,65 +105,76 @@ class PointGPSApp {
             }
         });
 
-        // Excel出力ボタン
-        const exportBtn = document.getElementById('exportBtn');
+        // クラスタ統合トグルボタン
+        const clusterMergeToggleBtn = document.getElementById('clusterMergeToggleBtn');
+        clusterMergeToggleBtn.addEventListener('click', () => {
+            const next = !this.downloadAreaManager.isClusterMergeEnabled();
+            this.downloadAreaManager.setClusterMergeEnabled(next);
 
-        exportBtn.addEventListener('click', async () => {
+            clusterMergeToggleBtn.classList.toggle('active', next);
+            clusterMergeToggleBtn.setAttribute('aria-pressed', String(next));
+            clusterMergeToggleBtn.textContent = next ? 'クラスタ統合解除' : 'クラスタ統合';
+
+            this.showMessage(next ? 'クラスタ統合を適用しました' : 'クラスタ統合を解除しました');
+        });
+
+        // 動的バッファ削減トグルボタン
+        const dynamicBufferToggleBtn = document.getElementById('dynamicBufferToggleBtn');
+        dynamicBufferToggleBtn.addEventListener('click', () => {
+            const next = !this.downloadAreaManager.isDynamicBufferEnabled();
+            this.downloadAreaManager.setDynamicBufferEnabled(next);
+
+            dynamicBufferToggleBtn.classList.toggle('active', next);
+            dynamicBufferToggleBtn.setAttribute('aria-pressed', String(next));
+            dynamicBufferToggleBtn.textContent = next ? '動的バッファ解除' : '動的バッファ削減';
+
+            this.showMessage(next ? '動的バッファ削減を適用しました' : '動的バッファ削減を解除しました');
+        });
+
+        // ポイント出力(Excel)ボタン
+        const exportPointsExcelBtn = document.getElementById('exportPointsExcelBtn');
+        exportPointsExcelBtn.addEventListener('click', async () => {
             try {
-                // 標高未取得のポイントがあれば確認
-                // window.confirm() は transient activation を消費して
-                // 後続の showSaveFilePicker が失敗するため、カスタムダイアログを使う
-                const unfetched = this.gpsDataManager.getPointsWithoutElevation();
-                let shouldFetch = false;
-                if (unfetched.length > 0) {
-                    shouldFetch = await this.showConfirmDialog(
-                        `${unfetched.length}個のポイントで標高が未取得です。取得して出力しますか？`
-                    );
+                const data = this.gpsDataManager.buildExcelExportData();
+                if (data.length <= 1) {
+                    this.showError(CONFIG.MESSAGES.DOWNLOAD_AREA_EMPTY);
+                    return;
                 }
-
-                // 保存ダイアログを先に表示し、確定後に標高取得→書き込みを実行
-                // （長時間の非同期処理後はユーザーアクティベーションが切れて保存ダイアログが出なくなるため）
-                const defaultFileName = this.fileHandler.getDefaultFileName();
-                const result = await this.gpsDataManager.exportToExcel(
-                    defaultFileName,
-                    shouldFetch ? async () => {
-                        this.showMessage(`標高を取得しています... (0/${unfetched.length})`);
-                        const fetchResult = await this.gpsDataManager.fetchElevationForUnfetchedPoints(
-                            (current, total) => {
-                                this.showMessage(`標高を取得しています... (${current}/${total})`);
-                            }
-                        );
-                        // 選択中ポイントの標高表示を更新
-                        if (this.pointManager.selectedPointId) {
-                            const selectedPoint = this.gpsDataManager.getPointById(this.pointManager.selectedPointId);
-                            if (selectedPoint) {
-                                document.getElementById('elevationField').value = selectedPoint.elevation;
-                            }
-                        }
-                        this.showMessage(`標高取得が完了しました（${fetchResult.success}/${fetchResult.total}件成功）`);
-                    } : null
-                );
-
+                const defaultFilename = `ポイントGPS区分付-${this.fileHandler.getTodayString()}`;
+                const result = await this.fileHandler.saveExcelWithUserChoice(data, defaultFilename);
                 if (result.success) {
-                    this.showMessage(`Excelファイルを保存しました:\n${result.filename}`);
+                    this.showMessage(`Excelファイル「${result.filename}」を出力しました`);
                 } else if (result.error !== 'キャンセル') {
-                    this.showError(`保存エラー: ${result.error}`);
+                    this.showError(`ファイル出力に失敗しました: ${result.error}`);
                 }
             } catch (error) {
-                console.error('ファイル出力エラー:', error);
+                console.error('Excel出力エラー:', error);
                 this.showError(CONFIG.MESSAGES.EXPORT_ERROR);
             }
         });
 
-        // チュートリアルボタン
-        const helpBtn = document.getElementById('helpBtn');
+        // ダウンロード領域の指定ファイル出力ボタン
+        const exportDownloadAreaBtn = document.getElementById('exportDownloadAreaBtn');
 
-        helpBtn.addEventListener('click', () => {
-            window.open('tutorial/tutorial.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        exportDownloadAreaBtn.addEventListener('click', () => {
+            try {
+                const result = this.downloadAreaManager.exportFiles();
+                if (result.success) {
+                    this.showMessage(
+                        `tile_buffers.geojson と tile_manifest.json を出力しました\n` +
+                        `対象: ${result.pointCount}ポイント / z17:${result.z17Count}枚 / z18:${result.z18Count}枚`
+                    );
+                } else {
+                    this.showError(result.error);
+                }
+            } catch (error) {
+                console.error('ファイル出力エラー:', error);
+                this.showError(CONFIG.MESSAGES.DOWNLOAD_AREA_EXPORT_ERROR);
+            }
         });
 
         // ポイント情報フィールドの変更イベント
-        ['locationField', 'remarksField'].forEach(fieldId => {
+        ['locationField', 'categoryField'].forEach(fieldId => {
             document.getElementById(fieldId).addEventListener('change', () => {
                 this.pointManager.updateSelectedPointInfo();
             });
@@ -231,47 +247,6 @@ class PointGPSApp {
 
     showError(message) {
         this.showMessage(message, 'error');
-    }
-
-    // window.confirm() の代替（transient user activation を消費しない）
-    // ダイアログ内のボタンクリックで新たなアクティベーションが得られるため、
-    // resolve 後に showSaveFilePicker を呼んでも保存ダイアログが開く
-    showConfirmDialog(message) {
-        return new Promise((resolve) => {
-            const dialog = document.getElementById('confirmDialog');
-            const messageEl = document.getElementById('confirmDialogMessage');
-            const yesBtn = document.getElementById('confirmDialogYes');
-            const noBtn = document.getElementById('confirmDialogNo');
-
-            messageEl.textContent = message;
-
-            const cleanup = (result) => {
-                yesBtn.removeEventListener('click', onYes);
-                noBtn.removeEventListener('click', onNo);
-                dialog.removeEventListener('cancel', onCancel);
-                if (dialog.open) {
-                    dialog.close();
-                }
-                resolve(result);
-            };
-            const onYes = () => cleanup(true);
-            const onNo = () => cleanup(false);
-            const onCancel = (e) => {
-                e.preventDefault();
-                cleanup(false);
-            };
-
-            yesBtn.addEventListener('click', onYes);
-            noBtn.addEventListener('click', onNo);
-            dialog.addEventListener('cancel', onCancel);
-
-            if (typeof dialog.showModal === 'function') {
-                dialog.showModal();
-            } else {
-                // 非対応ブラウザ用フォールバック
-                resolve(window.confirm(message));
-            }
-        });
     }
 
     // 移動ボタンの背景色をリセット
