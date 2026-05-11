@@ -46,14 +46,20 @@
                 <input type="file" id="gpsCsvInput" accept=".xlsx" aria-label="GPSデータExcelファイル選択" style="display: none;">
                 
                 <div class="import-control-row">
-                    <button id="loadBtn" 
-                            type="button" 
+                    <button id="loadBtn"
+                            type="button"
                             title="GPS値の格納されているポイントデータ(Excel形式)の読み込み"
-                            aria-describedby="load-help" 
+                            aria-describedby="load-help"
                             class="import-button">
                         ポイント読み込み(Excel)
                     </button>
-                    
+                    <button id="toggleAreaDisplayBtn"
+                            type="button"
+                            title="ダウンロード領域の円バッファを地図上に描画します"
+                            aria-pressed="false"
+                            class="import-button area-display-btn">
+                        領域表示
+                    </button>
                 </div>
             </div>
             <div id="load-help" class="visually-hidden">選択したファイル形式でGPS座標データを読み込みます</div>

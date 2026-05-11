@@ -105,8 +105,9 @@ body {
 }
 
 .import-button {
-    width: 180px;
-    padding: 8px 16px;
+    flex: 0 0 auto;
+    width: auto;
+    padding: 8px 12px;
     background-color: #3498db;
     color: white;
     border: none;
@@ -116,7 +117,7 @@ body {
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
-    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .import-button:hover {
@@ -127,6 +128,30 @@ body {
 
 .import-button:active {
     transform: translateY(0);
+}
+
+/* 「領域を表示」ボタン: 切替ボタンとして地味な配色（OFF状態） */
+.area-display-btn {
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #bdc3c7;
+}
+
+.area-display-btn:hover {
+    background-color: #dfe6e9;
+    color: #2c3e50;
+    box-shadow: 0 2px 8px rgba(149, 165, 166, 0.3);
+}
+
+.area-display-btn.active {
+    background-color: #16a34a;
+    color: #ffffff;
+    border-color: #15803d;
+}
+
+.area-display-btn.active:hover {
+    background-color: #15803d;
+    color: #ffffff;
 }
 
 

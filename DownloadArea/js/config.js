@@ -2,7 +2,7 @@
 export const CONFIG = {
     // 地図設定
     MAP_CENTER: [34.853667, 135.472041], // 箕面大滝
-    MAP_ZOOM: 15,
+    MAP_ZOOM: 13,
 
     // 国土地理院タイル設定
     GSI_TILE_URL: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',

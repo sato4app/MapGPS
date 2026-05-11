@@ -105,6 +105,19 @@ class PointGPSApp {
             }
         });
 
+        // 「領域を表示」トグルボタン
+        const toggleAreaDisplayBtn = document.getElementById('toggleAreaDisplayBtn');
+        toggleAreaDisplayBtn.addEventListener('click', () => {
+            const next = !this.downloadAreaManager.isAreaDisplayEnabled();
+            this.downloadAreaManager.setAreaDisplayEnabled(next);
+
+            toggleAreaDisplayBtn.classList.toggle('active', next);
+            toggleAreaDisplayBtn.setAttribute('aria-pressed', String(next));
+            toggleAreaDisplayBtn.textContent = next ? '領域非表示' : '領域表示';
+
+            this.showMessage(next ? 'ダウンロード領域を表示しました' : 'ダウンロード領域を非表示にしました');
+        });
+
         // クラスタ統合トグルボタン
         const clusterMergeToggleBtn = document.getElementById('clusterMergeToggleBtn');
         clusterMergeToggleBtn.addEventListener('click', () => {
