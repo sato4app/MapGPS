@@ -235,27 +235,10 @@ export class InputManager {
 
         this.positionInputBox(container, point);
 
-        // input時はリアルタイムで変換処理と保存を行う
+        // input時は変換処理を行わず、入力値をそのまま保存（blur時に一括変換）
         input.addEventListener('input', (e) => {
-            let value = e.target.value;
-
-            // 1. 全角英数字を半角英数字に変換
-            value = value.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function (s) {
-                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-            });
-
-            // 2. 英子文字を英大文字に変換
-            value = value.toUpperCase();
-
-            // 入力値を更新（カーソル位置がずれる可能性があるため、必要な場合のみ更新）
-            if (e.target.value !== value) {
-                const selectionStart = e.target.selectionStart;
-                e.target.value = value;
-                // カーソル位置を維持（変換で長さが変わらない前提）
-                e.target.setSelectionRange(selectionStart, selectionStart);
-            }
-
-            // 変換後の値で保存（表示更新なし）
+            const value = e.target.value;
+            // 入力中は変換処理なし、そのまま保存（表示更新なし）
             this.notify('onPointIdChange', { index, id: value, skipFormatting: true, skipDisplay: true });
         });
 
