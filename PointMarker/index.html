@@ -39,7 +39,8 @@
                 <!-- 画像ファイル入力 -->
                 <!-- Stage 1: 画像読み込み -->
                 <div id="stage1-container" class="file-input-wrapper">
-                    <button type="button" id="stage1ImageBtn" class="file-input-label" title="PNG画像ファイルを選択"
+                    <button type="button" id="stage1ImageBtn" class="file-input-label"
+                        style="padding: 10px 16px;" title="PNG画像ファイルを選択"
                         aria-label="PNG画像を読み込み">
                         PNG画像を読み込み
                     </button>
@@ -47,16 +48,21 @@
 
                 <!-- ファイル操作: JSONデータの読み込み・保存 -->
                 <div id="file-operations-container" class="file-input-wrapper"
-                    style="display: none; align-items: center; gap: 12px;">
+                    style="display: none; align-items: center; gap: 4px;">
                     <button type="button" id="loadDatabaseBtn" class="file-input-label"
-                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="データベースからデータを読み込み"
-                        aria-label="読み込み">
+                        style="width: auto; padding: 10px 8px; min-width: 80px;"
+                        title="データベースからデータを読み込み" aria-label="読み込み">
                         読み込み
                     </button>
                     <button type="button" id="saveDatabaseBtn" class="file-input-label"
-                        style="width: auto; padding: 6px 12px; min-width: 80px;" title="データベースにデータを保存"
-                        aria-label="保存">
+                        style="width: auto; padding: 10px 8px; min-width: 56px;"
+                        title="データベースにデータを保存" aria-label="保存">
                         保存
+                    </button>
+                    <button type="button" id="exportJsonBtn" class="file-input-label"
+                        style="width: auto; padding: 10px 8px; min-width: 56px;"
+                        title="JSONファイルへ出力" aria-label="出力">
+                        出力
                     </button>
                 </div>
 

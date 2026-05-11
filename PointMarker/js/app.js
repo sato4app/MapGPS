@@ -497,6 +497,25 @@ export class PointMarkerApp {
             });
         }
 
+        // JSON出力（メインパネル）
+        const exportJsonBtn = document.getElementById('exportJsonBtn');
+        if (exportJsonBtn) {
+            let isExporting = false;
+            exportJsonBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (isExporting) {
+                    UIHelper.showMessage('出力中です。完了までお待ちください', 'warning');
+                    return;
+                }
+                isExporting = true;
+                try {
+                    await this.handleOutput();
+                } finally {
+                    isExporting = false;
+                }
+            });
+        }
+
         // キャンバスイベント
         this.canvas.addEventListener('mousedown', (e) => this.canvasEventHandler.handleCanvasMouseDown(e));
         this.canvas.addEventListener('mousemove', (e) => this.canvasEventHandler.handleCanvasMouseMove(e));
