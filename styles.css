@@ -111,8 +111,8 @@ h1 {
     font-weight: 600;
     color: #2c3e50;
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    flex-direction: column;
+    align-items: stretch;
 }
 
 /* 版の日付 */
@@ -120,6 +120,7 @@ h1 {
     font-size: 0.7em;
     font-weight: 400;
     color: #95a5a6;
+    text-align: right;
 }
 
 /* アプリケーション説明 */
