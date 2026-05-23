@@ -10,6 +10,7 @@ import { UIHelper } from './ui/UIHelper.js';
 import { ValidationManager } from './ui/ValidationManager.js';
 import { ViewportManager } from './ui/ViewportManager.js';
 import { MarkerSettingsManager } from './ui/MarkerSettingsManager.js';
+import { PanelDragHandler } from './ui/PanelDragHandler.js';
 import { CoordinateUtils } from './utils/Coordinates.js';
 import { Validators } from './utils/Validators.js';
 import { ObjectDetector } from './utils/ObjectDetector.js';
@@ -45,6 +46,13 @@ export class PointMarkerApp {
         this.dragDropHandler = new DragDropHandler();
         this.resizeHandler = new ResizeHandler();
         this.markerSettingsManager = new MarkerSettingsManager();
+
+        // コントロールパネルをドラッグ可能にする（タイトルh2をハンドルとして使用）
+        const controlsSidebar = document.querySelector('.controls-sidebar');
+        const sidebarHeader = controlsSidebar ? controlsSidebar.querySelector('h2') : null;
+        if (controlsSidebar && sidebarHeader) {
+            this.panelDragHandler = new PanelDragHandler(controlsSidebar, sidebarHeader);
+        }
 
         // ビューポート管理とFirebase同期の初期化
         this.viewportManager = new ViewportManager(
@@ -447,6 +455,10 @@ export class PointMarkerApp {
             let isLoading = false;
             loadDatabaseBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (this.viewportManager.isViewTransformed()) {
+                    UIHelper.showMessage('画像がズームまたは移動された状態です。\nズームボタンの左にある「反時計回りの矢印」アイコン（表示リセット）で元に戻してから実行してください', 'warning');
+                    return;
+                }
                 if (isLoading) {
                     UIHelper.showMessage('読み込み中です。完了までお待ちください', 'warning');
                     return;
@@ -476,6 +488,10 @@ export class PointMarkerApp {
             let isSaving = false;
             saveDatabaseBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (this.viewportManager.isViewTransformed()) {
+                    UIHelper.showMessage('画像がズームまたは移動された状態です。\nズームボタンの左にある「反時計回りの矢印」アイコン（表示リセット）で元に戻してから実行してください', 'warning');
+                    return;
+                }
                 if (isSaving) {
                     UIHelper.showMessage('保存中です。完了までお待ちください', 'warning');
                     return;
@@ -503,6 +519,10 @@ export class PointMarkerApp {
             let isExporting = false;
             exportJsonBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
+                if (this.viewportManager.isViewTransformed()) {
+                    UIHelper.showMessage('画像がズームまたは移動された状態です。\nズームボタンの左にある「反時計回りの矢印」アイコン（表示リセット）で元に戻してから実行してください', 'warning');
+                    return;
+                }
                 if (isExporting) {
                     UIHelper.showMessage('出力中です。完了までお待ちください', 'warning');
                     return;
@@ -581,11 +601,19 @@ export class PointMarkerApp {
         this.markerSettingsManager.setupFileIoListeners({
             onLoad: async (e) => {
                 e.preventDefault();
+                if (this.viewportManager.isViewTransformed()) {
+                    UIHelper.showMessage('画像がズームまたは移動された状態です。\nズームボタンの左にある「反時計回りの矢印」アイコン（表示リセット）で元に戻してから実行してください', 'warning');
+                    return;
+                }
                 await this.handleInput();
                 this.markerSettingsManager.closeDialog();
             },
             onExport: async (e) => {
                 e.preventDefault();
+                if (this.viewportManager.isViewTransformed()) {
+                    UIHelper.showMessage('画像がズームまたは移動された状態です。\nズームボタンの左にある「反時計回りの矢印」アイコン（表示リセット）で元に戻してから実行してください', 'warning');
+                    return;
+                }
                 await this.handleOutput();
                 this.markerSettingsManager.closeDialog();
             }

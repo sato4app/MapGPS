@@ -507,9 +507,19 @@ export class FirebaseSyncManager {
             this.spotManager.clearSpots();
             this.areaManager.clearAreas();
 
-            // ポイントを読み込み（画像座標→キャンバス座標に変換）
+            // 件数取得用に各コレクションを先読み（0件項目は処理をスキップしてメッセージも出さない）
             const points = await window.firestoreManager.getPoints(projectId);
+            const routes = await window.firestoreManager.getRoutes(projectId);
+            const spots = await window.firestoreManager.getSpots(projectId);
+            const areas = (window.firestoreManager.getAreas)
+                ? await window.firestoreManager.getAreas(projectId)
+                : [];
+
+            // ポイントを読み込み（画像座標→キャンバス座標に変換）
             let loadedPoints = 0;
+            if (points.length > 0) {
+                UIHelper.showPersistentMessage('ポイントのデータを読み込み中...', 'info');
+            }
             for (const point of points) {
                 // 空白IDはスキップ
                 if (!point.id || point.id.trim() === '') {
@@ -528,8 +538,10 @@ export class FirebaseSyncManager {
             }
 
             // ルートを読み込み（画像座標→キャンバス座標に変換）
-            const routes = await window.firestoreManager.getRoutes(projectId);
             let loadedRoutes = 0;
+            if (routes.length > 0) {
+                UIHelper.showPersistentMessage('ルートのデータを読み込み中...', 'info');
+            }
             for (const route of routes) {
                 // 中間点の座標変換
                 const convertedWaypoints = [];
@@ -556,8 +568,10 @@ export class FirebaseSyncManager {
             }
 
             // スポットを読み込み（画像座標→キャンバス座標に変換）
-            const spots = await window.firestoreManager.getSpots(projectId);
             let loadedSpots = 0;
+            if (spots.length > 0) {
+                UIHelper.showPersistentMessage('スポットのデータを読み込み中...', 'info');
+            }
             for (const spot of spots) {
                 // 空白名はスキップ
                 if (!spot.name || spot.name.trim() === '') {
@@ -577,29 +591,29 @@ export class FirebaseSyncManager {
             }
 
             // エリアを読み込み
-            if (window.firestoreManager.getAreas) {
-                const areas = await window.firestoreManager.getAreas(projectId);
-                let loadedAreas = 0;
-                for (const area of areas) {
-                    const convertedVertices = [];
-                    if (area.vertices) {
-                        for (const vertex of area.vertices) {
-                            const canvasCoords = CoordinateUtils.imageToCanvas(
-                                vertex.x, vertex.y,
-                                this.canvas.width, this.canvas.height,
-                                this.currentImage.width, this.currentImage.height
-                            );
-                            convertedVertices.push({ x: canvasCoords.x, y: canvasCoords.y });
-                        }
+            let loadedAreas = 0;
+            if (areas.length > 0) {
+                UIHelper.showPersistentMessage('エリアのデータを読み込み中...', 'info');
+            }
+            for (const area of areas) {
+                const convertedVertices = [];
+                if (area.vertices) {
+                    for (const vertex of area.vertices) {
+                        const canvasCoords = CoordinateUtils.imageToCanvas(
+                            vertex.x, vertex.y,
+                            this.canvas.width, this.canvas.height,
+                            this.currentImage.width, this.currentImage.height
+                        );
+                        convertedVertices.push({ x: canvasCoords.x, y: canvasCoords.y });
                     }
-
-                    this.areaManager.addArea({
-                        firestoreId: area.firestoreId,
-                        areaName: area.areaName,
-                        vertices: convertedVertices
-                    });
-                    loadedAreas++;
                 }
+
+                this.areaManager.addArea({
+                    firestoreId: area.firestoreId,
+                    areaName: area.areaName,
+                    vertices: convertedVertices
+                });
+                loadedAreas++;
             }
 
             // 読み込み完了コールバックを実行
@@ -607,14 +621,19 @@ export class FirebaseSyncManager {
                 onLoadComplete(loadedPoints, loadedRoutes, loadedSpots);
             }
 
-            const fbLoadParts = [];
-            if (loadedPoints > 0) fbLoadParts.push(`ポイント${loadedPoints}件`);
-            if (loadedRoutes > 0) fbLoadParts.push(`ルート${loadedRoutes}件`);
-            if (loadedSpots > 0) fbLoadParts.push(`スポット${loadedSpots}件`);
-            const fbLoadDetail = fbLoadParts.length > 0 ? fbLoadParts.join('、') : 'データなし';
-            UIHelper.showMessage(`読み込み完了: ${fbLoadDetail}`);
+            // 進捗用の永続メッセージを消去してから、完了メッセージを規定秒数表示
+            UIHelper.hidePersistentMessage();
+
+            const completionLines = ['読み込みが完了しました。'];
+            if (loadedPoints > 0) completionLines.push(`ポイント: ${loadedPoints}件`);
+            if (loadedRoutes > 0) completionLines.push(`ルート: ${loadedRoutes}件`);
+            if (loadedSpots > 0)  completionLines.push(`スポット: ${loadedSpots}件`);
+            if (loadedAreas > 0)  completionLines.push(`エリア: ${loadedAreas}件`);
+            if (completionLines.length === 1) completionLines.push('データなし');
+            UIHelper.showMessage(completionLines.join('\n'), 'success');
 
         } catch (error) {
+            UIHelper.hidePersistentMessage();
             UIHelper.showError('読み込み中にエラーが発生しました: ' + error.message);
         }
     }
@@ -653,32 +672,66 @@ export class FirebaseSyncManager {
 
             // ポイント保存
             const points = this.pointManager.getPoints();
-            for (let i = 0; i < points.length; i++) {
-                await this.updatePointToFirebase(i);
+            let savedPoints = 0;
+            if (points.length > 0) {
+                UIHelper.showPersistentMessage('ポイントのデータを保存中...', 'info');
+                for (let i = 0; i < points.length; i++) {
+                    await this.updatePointToFirebase(i);
+                    // 空白IDは updatePointToFirebase 内でスキップされるため、ここでカウントから除外
+                    const p = points[i];
+                    if (p && p.id && p.id.trim() !== '') savedPoints++;
+                }
             }
 
             // ルート保存
             const routes = this.routeManager.getAllRoutes();
-            for (let i = 0; i < routes.length; i++) {
-                await this.updateRouteToFirebase(i);
+            let savedRoutes = 0;
+            if (routes.length > 0) {
+                UIHelper.showPersistentMessage('ルートのデータを保存中...', 'info');
+                for (let i = 0; i < routes.length; i++) {
+                    await this.updateRouteToFirebase(i);
+                    savedRoutes++;
+                }
             }
 
             // スポット保存
             const spots = this.spotManager.getSpots();
-            for (let i = 0; i < spots.length; i++) {
-                await this.updateSpotToFirebase(i);
+            let savedSpots = 0;
+            if (spots.length > 0) {
+                UIHelper.showPersistentMessage('スポットのデータを保存中...', 'info');
+                for (let i = 0; i < spots.length; i++) {
+                    await this.updateSpotToFirebase(i);
+                    const s = spots[i];
+                    if (s && s.name && s.name.trim() !== '') savedSpots++;
+                }
             }
 
             // エリア保存
             const areas = this.areaManager.getAllAreas();
-            for (let i = 0; i < areas.length; i++) {
-                await this.updateAreaToFirebase(i);
+            let savedAreas = 0;
+            if (areas.length > 0) {
+                UIHelper.showPersistentMessage('エリアのデータを保存中...', 'info');
+                for (let i = 0; i < areas.length; i++) {
+                    await this.updateAreaToFirebase(i);
+                    const a = areas[i];
+                    if (a && a.areaName && a.areaName.trim() !== '') savedAreas++;
+                }
             }
 
-            UIHelper.showMessage('すべてのデータをデータベースに保存しました', 'success');
+            // 進捗用の永続メッセージを消去してから、完了メッセージを規定秒数表示
+            UIHelper.hidePersistentMessage();
+
+            const completionLines = ['保存が完了しました。'];
+            if (savedPoints > 0) completionLines.push(`ポイント: ${savedPoints}件`);
+            if (savedRoutes > 0) completionLines.push(`ルート: ${savedRoutes}件`);
+            if (savedSpots > 0)  completionLines.push(`スポット: ${savedSpots}件`);
+            if (savedAreas > 0)  completionLines.push(`エリア: ${savedAreas}件`);
+            if (completionLines.length === 1) completionLines.push('データなし');
+            UIHelper.showMessage(completionLines.join('\n'), 'success');
 
         } catch (error) {
             console.error('全データ保存エラー:', error);
+            UIHelper.hidePersistentMessage();
             UIHelper.showError('保存中にエラーが発生しました');
         }
     }

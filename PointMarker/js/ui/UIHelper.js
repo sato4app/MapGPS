@@ -69,6 +69,39 @@ export class UIHelper {
     }
 
     /**
+     * 自動消去しない永続メッセージを表示
+     * 同じIDの既存メッセージがある場合は置き換える。
+     * 明示的に hidePersistentMessage() を呼ぶまで表示し続ける。
+     * @param {string} message - 表示するメッセージ
+     * @param {string} type - メッセージタイプ ('info', 'warning', 'error', 'success')
+     */
+    static showPersistentMessage(message, type = 'info') {
+        // 既存のメッセージ要素（通常／永続）があれば削除
+        const existingMessage = document.getElementById('messageOverlay');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+
+        const messageOverlay = document.createElement('div');
+        messageOverlay.id = 'messageOverlay';
+        messageOverlay.className = `message-overlay message-${type}`;
+        messageOverlay.dataset.persistent = 'true';
+        messageOverlay.textContent = message;
+
+        document.body.appendChild(messageOverlay);
+    }
+
+    /**
+     * 永続メッセージを消去
+     */
+    static hidePersistentMessage() {
+        const existingMessage = document.getElementById('messageOverlay');
+        if (existingMessage && existingMessage.dataset.persistent === 'true') {
+            existingMessage.remove();
+        }
+    }
+
+    /**
      * 警告メッセージを表示
      * @param {string} message - 警告メッセージ
      */

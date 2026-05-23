@@ -108,6 +108,29 @@ export class ViewportManager {
     }
 
     /**
+     * 画像がズームまたは移動された状態かを判定
+     * - canvasのスケールが 1.0 以外
+     * - canvasの内部オフセット（offsetX/Y）が 0 以外
+     * - 地図コンテナがスクロールされている（パン操作で scrollBy しているため）
+     * @returns {boolean} ズームまたは移動状態なら true
+     */
+    isViewTransformed() {
+        const scale = this.canvasRenderer.getScale();
+        const offset = this.canvasRenderer.getOffset();
+
+        if (scale !== 1.0) return true;
+        if (offset.x !== 0 || offset.y !== 0) return true;
+
+        const container = this.canvasRenderer.canvas.closest('.map-container')
+            || this.canvasRenderer.canvas.parentElement;
+        if (container && (container.scrollLeft !== 0 || container.scrollTop !== 0)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * ズームボタンの状態を更新
      */
     updateZoomButtonStates() {
