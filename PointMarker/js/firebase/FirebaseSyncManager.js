@@ -718,6 +718,10 @@ export class FirebaseSyncManager {
                 }
             }
 
+            // ローカルで削除された項目をFirestoreからも削除して同期
+            UIHelper.showPersistentMessage('削除データを同期中...', 'info');
+            const deletedCount = await this.reconcileDeletions(projectId);
+
             // 進捗用の永続メッセージを消去してから、完了メッセージを規定秒数表示
             UIHelper.hidePersistentMessage();
 
@@ -726,6 +730,7 @@ export class FirebaseSyncManager {
             if (savedRoutes > 0) completionLines.push(`ルート: ${savedRoutes}件`);
             if (savedSpots > 0)  completionLines.push(`スポット: ${savedSpots}件`);
             if (savedAreas > 0)  completionLines.push(`エリア: ${savedAreas}件`);
+            if (deletedCount > 0) completionLines.push(`削除: ${deletedCount}件`);
             if (completionLines.length === 1) completionLines.push('データなし');
             UIHelper.showMessage(completionLines.join('\n'), 'success');
 
@@ -734,5 +739,75 @@ export class FirebaseSyncManager {
             UIHelper.hidePersistentMessage();
             UIHelper.showError('保存中にエラーが発生しました');
         }
+    }
+
+    /**
+     * ローカルに存在しない項目をFirestoreから削除して同期する
+     * （削除はリアルタイムでは行わず、保存ボタン実行時にまとめて同期する）
+     * @param {string} projectId - プロジェクトID
+     * @returns {Promise<number>} 削除した件数
+     */
+    async reconcileDeletions(projectId) {
+        let deletedCount = 0;
+
+        // ポイント: ローカルのID集合に無いものを削除（ID一致で判定）
+        const localPointIds = new Set(
+            this.pointManager.getPoints()
+                .map(p => (p.id || '').trim())
+                .filter(id => id !== '')
+        );
+        const remotePoints = await window.firestoreManager.getPoints(projectId);
+        for (const rp of remotePoints) {
+            if (!localPointIds.has((rp.id || '').trim())) {
+                await window.firestoreManager.deletePoint(projectId, rp.firestoreId);
+                deletedCount++;
+            }
+        }
+
+        // スポット: ローカルの名称集合に無いものを削除（名称一致で判定）
+        const localSpotNames = new Set(
+            this.spotManager.getSpots()
+                .map(s => (s.name || '').trim())
+                .filter(name => name !== '')
+        );
+        const remoteSpots = await window.firestoreManager.getSpots(projectId);
+        for (const rs of remoteSpots) {
+            if (!localSpotNames.has((rs.name || '').trim())) {
+                await window.firestoreManager.deleteSpot(projectId, rs.firestoreId);
+                deletedCount++;
+            }
+        }
+
+        // ルート: ローカルのFirestoreID集合に無いものを削除
+        const localRouteIds = new Set(
+            this.routeManager.getAllRoutes()
+                .map(r => r.firestoreId)
+                .filter(id => !!id)
+        );
+        const remoteRoutes = await window.firestoreManager.getRoutes(projectId);
+        for (const rr of remoteRoutes) {
+            if (!localRouteIds.has(rr.firestoreId)) {
+                await window.firestoreManager.deleteRoute(projectId, rr.firestoreId);
+                deletedCount++;
+            }
+        }
+
+        // エリア: ローカルのFirestoreID集合に無いものを削除
+        if (window.firestoreManager.getAreas) {
+            const localAreaIds = new Set(
+                this.areaManager.getAllAreas()
+                    .map(a => a.firestoreId)
+                    .filter(id => !!id)
+            );
+            const remoteAreas = await window.firestoreManager.getAreas(projectId);
+            for (const ra of remoteAreas) {
+                if (!localAreaIds.has(ra.firestoreId)) {
+                    await window.firestoreManager.deleteArea(projectId, ra.firestoreId);
+                    deletedCount++;
+                }
+            }
+        }
+
+        return deletedCount;
     }
 }

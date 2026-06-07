@@ -253,7 +253,7 @@ export class PointMarkerApp {
             if (!data.skipFormatting && data.id.trim() === '') {
                 const points = this.pointManager.getPoints();
                 if (data.index >= 0 && data.index < points.length) {
-                    // 画面から削除
+                    // 画面から削除（Firestoreは「データベース保存」ボタンで同期）
                     this.pointManager.removePoint(data.index);
                 }
                 return;
@@ -309,6 +309,7 @@ export class PointMarkerApp {
 
         this.inputManager.setCallback('onPointRemove', (data) => {
             if (this.layoutManager.getCurrentEditingMode() === 'point') {
+                // 画面から削除（Firestoreは「データベース保存」ボタンで同期）
                 this.pointManager.removePoint(data.index);
             }
         });
@@ -317,10 +318,9 @@ export class PointMarkerApp {
         this.inputManager.setCallback('onSpotNameChange', (data) => {
             // blur時にスポット名が空白の場合はスポットを削除
             if (!data.skipFormatting && data.name.trim() === '') {
-                // Firebaseからも削除するため、削除前に座標を取得
                 const spots = this.spotManager.getSpots();
                 if (data.index >= 0 && data.index < spots.length) {
-                    // 画面から削除
+                    // 画面から削除（Firestoreは「データベース保存」ボタンで同期）
                     this.spotManager.removeSpot(data.index);
                     return;
                 }
@@ -341,10 +341,9 @@ export class PointMarkerApp {
 
         this.inputManager.setCallback('onSpotRemove', (data) => {
             if (this.layoutManager.getCurrentEditingMode() === 'spot') {
-                // Firebaseからも削除するため、削除前に座標を取得
                 const spots = this.spotManager.getSpots();
                 if (data.index >= 0 && data.index < spots.length) {
-                    // 画面から削除
+                    // 画面から削除（Firestoreは「データベース保存」ボタンで同期）
                     this.spotManager.removeSpot(data.index);
                 }
             }
@@ -1149,12 +1148,7 @@ export class PointMarkerApp {
 
         if (confirm(`ルート「${routeName}」を削除しますか？`)) {
             try {
-                // Firebaseから削除
-                if (selectedRoute.firestoreId) {
-                    const projectId = this.fileHandler.getCurrentImageFileName();
-                }
-
-                // RouteManagerから削除
+                // Firestoreからの削除は「データベース保存」ボタンで同期するため、ここではローカル削除のみ
                 this.routeManager.deleteRoute(selectedIndex);
                 UIHelper.showMessage(`ルート「${routeName}」を削除しました`);
             } catch (error) {
@@ -1230,7 +1224,17 @@ export class PointMarkerApp {
     handleSpotNameVisibilityChange(visible, isUserAction = false) {
         // スポットデータを取得して渡す
         const spots = this.spotManager.getSpots();
+        // 表示状態を先に更新（redrawSpotInputBoxes が spotNameVisibility を参照するため）
         this.inputManager.setSpotNameVisibility(visible, spots, isUserAction);
+
+        // 表示する場合、入力ボックスが未生成のケース（スポット編集モードを経由せず
+        // ルート編集モードに入った場合など）に備えて再生成し、
+        // 生成後に現在のモードに応じた表示スタイル（通常=灰色／開始・終了=白抜き）を適用する
+        if (visible) {
+            this.inputManager.redrawSpotInputBoxes(spots).then(() => {
+                this.inputManager.updateSpotInputsState();
+            });
+        }
     }
 
     /**

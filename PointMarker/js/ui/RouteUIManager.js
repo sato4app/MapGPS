@@ -159,116 +159,31 @@ export class RouteUIManager {
     }
 
     /**
-     * すべてのルートを保存（Firebase）
+     * ルートの編集内容をローカルに確定する（更新フラグ・入力欄・一覧表示の更新）
+     *
+     * ※Firestoreへの保存はコスト削減のためリアルタイムでは行わず、
+     *   「データベース保存」ボタン（FirebaseSyncManager.saveAllToFirebase）でまとめて実行する。
+     *   そのため、ここではローカル状態の更新のみを行う。
      */
-    async handleSaveRoute() {
-        // Firebaseマネージャーの存在確認（未接続時はスキップ）
-        if (!window.firestoreManager) {
-            return;
-        }
-
+    handleSaveRoute() {
         const selectedRoute = this.app.routeManager.getSelectedRoute();
         if (!selectedRoute) {
-            UIHelper.showError('ルートが選択されていません');
             return;
         }
 
-        // 開始・終了ポイントが設定されているか確認
-        if (!selectedRoute.startPointId || !selectedRoute.endPointId) {
-            UIHelper.showError('開始ポイントと終了ポイントを設定してください');
+        // 開始・終了ポイント・中間点が揃っていない場合は確定しない（自動呼び出しのため通知は出さない）
+        if (!selectedRoute.startPointId || !selectedRoute.endPointId ||
+            !selectedRoute.routePoints || selectedRoute.routePoints.length === 0) {
             return;
         }
 
-        // 中間点が1件以上設定されているか確認
-        if (!selectedRoute.routePoints || selectedRoute.routePoints.length === 0) {
-            UIHelper.showError('中間点を1件以上設定してください');
-            return;
-        }
+        // 全ルートの更新フラグをクリアし、入力欄を読み取り専用に戻す
+        const allRoutes = this.app.routeManager.getAllRoutes();
+        allRoutes.forEach(route => { route.isModified = false; });
 
-        try {
-            // プロジェクトIDを画像ファイル名から取得
-            const projectId = this.app.fileHandler.getCurrentImageFileName();
-            if (!projectId) {
-                UIHelper.showError('画像ファイル名を取得できません');
-                return;
-            }
-
-            // すべてのルートを保存
-            const allRoutes = this.app.routeManager.getAllRoutes();
-            let savedCount = 0;
-            let updatedCount = 0;
-            let addedCount = 0;
-            const savedRouteNames = [];
-
-            for (const route of allRoutes) {
-                // 開始・終了ポイント、中間点が設定されていないルートはスキップ
-                if (!route.startPointId || !route.endPointId ||
-                    !route.routePoints || route.routePoints.length === 0) {
-                    continue;
-                }
-
-                // キャンバス座標を画像座標に変換
-                const waypoints = route.routePoints.map(point => {
-                    const imageCoords = CoordinateUtils.canvasToImage(
-                        point.x, point.y,
-                        this.app.canvas.width, this.app.canvas.height,
-                        this.app.currentImage.width, this.app.currentImage.height
-                    );
-                    return { x: imageCoords.x, y: imageCoords.y };
-                });
-
-                // Firebaseに保存するルートデータ
-                const routeData = {
-                    routeName: route.routeName || `${route.startPointId} ～ ${route.endPointId}`,
-                    startPoint: route.startPointId,
-                    endPoint: route.endPointId,
-                    waypoints: waypoints
-                };
-
-                // 更新されたルートかどうかを記録
-                const wasModified = route.isModified;
-
-                // FirestoreIDがあれば更新、なければ新規追加
-                if (route.firestoreId) {
-                    // 既存ルートを更新
-                    updatedCount++;
-                } else {
-                    // 新規ルートを追加
-                    // 開発用ダミー処理
-                    const result = { status: 'success', firestoreId: 'temp_id_' + Date.now() };
-
-                    if (result.status === 'success') {
-                        // FirestoreIDを保存
-                        route.firestoreId = result.firestoreId;
-                        addedCount++;
-                    } else if (result.status === 'duplicate') {
-                        // 重複している場合は既存のFirestoreIDを保存
-                        route.firestoreId = result.existing.firestoreId;
-                        // 既存ルートを更新
-                        updatedCount++;
-                    }
-                }
-
-                // 更新フラグをクリア
-                route.isModified = false;
-                savedCount++;
-
-                // 更新されたルートのみ一覧に追加
-                if (wasModified) {
-                    savedRouteNames.push(routeData.routeName);
-                }
-            }
-
-            // 開始・終了ポイント入力フィールドを読み取り専用にする
-            this.setRouteInputsEditable(false);
-
-            // UI更新
-            this.app.routeManager.notify('onModifiedStateChange', { isModified: false });
-            this.app.routeManager.notify('onRouteListChange', allRoutes);
-
-        } catch (error) {
-            UIHelper.showError('ルート保存中にエラーが発生しました: ' + error.message);
-        }
+        this.setRouteInputsEditable(false);
+        this.app.routeManager.notify('onModifiedStateChange', { isModified: false });
+        this.app.routeManager.notify('onRouteListChange', allRoutes);
     }
 
     /**
@@ -286,12 +201,7 @@ export class RouteUIManager {
 
         if (confirm(`ルート「${routeName}」を削除しますか？`)) {
             try {
-                // Firebaseから削除
-                if (selectedRoute.firestoreId) {
-                    const projectId = this.app.fileHandler.getCurrentImageFileName();
-                }
-
-                // RouteManagerから削除
+                // Firestoreからの削除は「データベース保存」ボタンで同期するため、ここではローカル削除のみ
                 this.app.routeManager.deleteRoute(selectedIndex);
                 UIHelper.showMessage(`ルート「${routeName}」を削除しました`);
             } catch (error) {
