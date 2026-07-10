@@ -35,6 +35,12 @@ class PointGPSApp {
             this.downloadAreaManager = new DownloadAreaManager(this.mapManager, this.gpsDataManager);
             this.pointManager.onPointsChanged = () => this.downloadAreaManager.updateCircles();
 
+            // 地図タイルバージョンの初期値（出力年月 yyyy-mm）を設定
+            const mapTileVersionField = document.getElementById('mapTileVersionField');
+            if (mapTileVersionField) {
+                mapTileVersionField.value = this.downloadAreaManager.todayVersionString();
+            }
+
             // イベントハンドラー設定
             this.setupEventHandlers();
             
@@ -66,6 +72,19 @@ class PointGPSApp {
                     this.showError(CONFIG.MESSAGES.EXCEL_LOAD_ERROR);
                 }
             }
+        });
+
+        // トップレベルのモード切替ラジオボタン
+        const panelModeRadios = document.querySelectorAll('input[name="panelMode"]');
+        const pointEditPanel = document.getElementById('pointEditPanel');
+        const downloadAreaPanel = document.getElementById('downloadAreaPanel');
+        panelModeRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                const isPointEdit = (radio.value === 'pointEdit');
+                pointEditPanel.hidden = !isPointEdit;
+                downloadAreaPanel.hidden = isPointEdit;
+            });
         });
 
         // ポイント操作ボタン
@@ -118,30 +137,120 @@ class PointGPSApp {
             this.showMessage(next ? 'ダウンロード領域を表示しました' : 'ダウンロード領域を非表示にしました');
         });
 
-        // クラスタ統合トグルボタン
-        const clusterMergeToggleBtn = document.getElementById('clusterMergeToggleBtn');
-        clusterMergeToggleBtn.addEventListener('click', () => {
-            const next = !this.downloadAreaManager.isClusterMergeEnabled();
-            this.downloadAreaManager.setClusterMergeEnabled(next);
+        // バッファ半径の設定（スライダーと数値欄を双方向同期）
+        // slider/numberField のどちらの操作でも値を共有し、半径を反映する。
+        // min/max/step/初期値は config.js の値を起動時に設定する（設定元を一元化）。
+        const setupBufferRadiusControl = (sliderId, valueId, range, applyRadius) => {
+            const slider = document.getElementById(sliderId);
+            const valueField = document.getElementById(valueId);
+            const { min, max, step, value } = range;
 
-            clusterMergeToggleBtn.classList.toggle('active', next);
-            clusterMergeToggleBtn.setAttribute('aria-pressed', String(next));
-            clusterMergeToggleBtn.textContent = next ? 'クラスタ統合解除' : 'クラスタ統合';
+            // config.js の値を min/max/step/初期値として両コントロールに反映
+            for (const el of [slider, valueField]) {
+                el.min = min;
+                el.max = max;
+                el.step = step;
+                el.value = value;
+            }
 
-            this.showMessage(next ? 'クラスタ統合を適用しました' : 'クラスタ統合を解除しました');
+            // スライダー操作 → 数値欄へ反映
+            slider.addEventListener('input', () => {
+                valueField.value = slider.value;
+                applyRadius(slider.value);
+            });
+
+            // 数値欄の確定（範囲外はクランプ）→ スライダーへ反映
+            valueField.addEventListener('change', () => {
+                let v = Number(valueField.value);
+                if (!Number.isFinite(v)) v = Number(slider.value);
+                v = Math.min(max, Math.max(min, v));
+                valueField.value = v;
+                slider.value = v;
+                applyRadius(v);
+            });
+        };
+
+        const DA = CONFIG.DOWNLOAD_AREA;
+        setupBufferRadiusControl('bufferR17Slider', 'bufferR17Value',
+            { min: DA.BUFFER_R17_MIN, max: DA.BUFFER_R17_MAX, step: DA.BUFFER_R17_STEP, value: DA.BUFFER_M_Z17 },
+            (v) => this.downloadAreaManager.setBufferR17(v));
+        setupBufferRadiusControl('bufferR18Slider', 'bufferR18Value',
+            { min: DA.BUFFER_R18_MIN, max: DA.BUFFER_R18_MAX, step: DA.BUFFER_R18_STEP, value: DA.BUFFER_M_Z18 },
+            (v) => this.downloadAreaManager.setBufferR18(v));
+
+        // ルート読み込み(GeoJSON) ボタン
+        const loadRouteBtn = document.getElementById('loadRouteBtn');
+        const routeGeoJSONInput = document.getElementById('routeGeoJSONInput');
+        loadRouteBtn.addEventListener('click', () => {
+            routeGeoJSONInput.click();
+        });
+        routeGeoJSONInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const geojson = JSON.parse(text);
+                const result = this.downloadAreaManager.loadRouteGeoJSON(geojson);
+                this.showMessage(
+                    `ルートGeoJSONを読み込みました（${result.lineCount}ライン / 中間点 ${result.pointCount}個）`
+                );
+            } catch (error) {
+                console.error('GeoJSON読み込みエラー:', error);
+                this.showError('GeoJSONファイルの読み込みに失敗しました');
+            } finally {
+                // 同じファイルを再選択しても change が発火するようリセット
+                routeGeoJSONInput.value = '';
+            }
         });
 
-        // 動的バッファ削減トグルボタン
-        const dynamicBufferToggleBtn = document.getElementById('dynamicBufferToggleBtn');
-        dynamicBufferToggleBtn.addEventListener('click', () => {
-            const next = !this.downloadAreaManager.isDynamicBufferEnabled();
-            this.downloadAreaManager.setDynamicBufferEnabled(next);
+        // タイルサイズ実測ボタン
+        const measureTileSizeBtn = document.getElementById('measureTileSizeBtn');
+        measureTileSizeBtn.addEventListener('click', async () => {
+            if (!this.downloadAreaManager.isAreaDisplayEnabled()) {
+                this.showMessage('「領域表示」をONにしてから実測してください', 'warning');
+                return;
+            }
 
-            dynamicBufferToggleBtn.classList.toggle('active', next);
-            dynamicBufferToggleBtn.setAttribute('aria-pressed', String(next));
-            dynamicBufferToggleBtn.textContent = next ? '動的バッファ解除' : '動的バッファ削減';
+            const ok = confirm(
+                'タイルを1枚ずつ国土地理院に問い合わせて実際のサイズを集計します。\n' +
+                '結果は正確ですが、タイル1000枚あたり3〜5分程度かかります。\n' +
+                '実行してもよろしいですか？'
+            );
+            if (!ok) return;
 
-            this.showMessage(next ? '動的バッファ削減を適用しました' : '動的バッファ削減を解除しました');
+            measureTileSizeBtn.disabled = true;
+            const originalLabel = measureTileSizeBtn.textContent;
+            try {
+                const result = await this.downloadAreaManager.measureTileSizes((done, total) => {
+                    measureTileSizeBtn.textContent = `${done}/${total}`;
+                });
+                if (result.success) {
+                    this.showMessage(`${result.tileCount}枚のタイル実サイズを集計しました`);
+                } else if (result.reason === 'empty') {
+                    this.showMessage('対象タイルがありません', 'warning');
+                }
+            } catch (error) {
+                console.error('タイルサイズ実測エラー:', error);
+                this.showError('タイルサイズの実測中にエラーが発生しました');
+            } finally {
+                measureTileSizeBtn.textContent = originalLabel;
+                measureTileSizeBtn.disabled = false;
+            }
+        });
+
+        // ズーム別タイルグリッド表示の選択
+        const tileGridZoomSelect = document.getElementById('tileGridZoomSelect');
+        tileGridZoomSelect.addEventListener('change', () => {
+            const value = tileGridZoomSelect.value;
+            this.downloadAreaManager.setTileGridZoom(value === '' ? null : value);
+
+            if (value === '') {
+                this.showMessage('タイルグリッドの図示を解除しました');
+            } else if (!this.downloadAreaManager.isAreaDisplayEnabled()) {
+                this.showMessage('「領域表示」をONにするとタイルグリッドが表示されます', 'warning');
+            } else {
+                this.showMessage(`z=${value} の対象タイルを地図に図示しました`);
+            }
         });
 
         // ポイント出力(Excel)ボタン
@@ -171,11 +280,15 @@ class PointGPSApp {
 
         exportDownloadAreaBtn.addEventListener('click', () => {
             try {
-                const result = this.downloadAreaManager.exportFiles();
+                const versionField = document.getElementById('mapTileVersionField');
+                const version = versionField ? versionField.value.trim() : '';
+                const result = this.downloadAreaManager.exportFiles(version || null);
                 if (result.success) {
                     this.showMessage(
                         `tile_buffers.geojson と tile_manifest.json を出力しました\n` +
-                        `対象: ${result.pointCount}ポイント / z17:${result.z17Count}枚 / z18:${result.z18Count}枚`
+                        `対象: ${result.pointCount}ポイント / ` +
+                        `z14:${result.z14Count}枚 / z15:${result.z15Count}枚 / z16:${result.z16Count}枚 / ` +
+                        `z17:${result.z17Count}枚 / z18:${result.z18Count}枚`
                     );
                 } else {
                     this.showError(result.error);

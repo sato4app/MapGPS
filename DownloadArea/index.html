@@ -39,20 +39,129 @@
     <aside class="overlay-controls" role="complementary" aria-label="オフライン対応用ダウンロード領域の編集ツール">
         <!-- ダウンロード領域編集パネル -->
         <section id="pointGpsEditor" class="editor-panel" aria-labelledby="gps-editor-title">
-            <h2 id="gps-editor-title">オフライン用Download領域の編集</h2>
+            <h2 id="gps-editor-title">オフライン用ダウンロード領域の編集</h2>
             
-            <!-- データ読み込みボタン -->
-            <div class="import-buttons">
-                <input type="file" id="gpsCsvInput" accept=".xlsx" aria-label="GPSデータExcelファイル選択" style="display: none;">
-                
+            <!-- 隠しファイル入力（Excel読み込み用） -->
+            <input type="file" id="gpsCsvInput" accept=".xlsx" aria-label="GPSデータExcelファイル選択" style="display: none;">
+
+            <!-- トップレベルのモード切替ラジオボタン -->
+            <div class="panel-mode-switch" role="radiogroup" aria-label="操作モードの選択">
+                <label class="panel-mode-option">
+                    <input type="radio" name="panelMode" value="pointEdit" checked>
+                    <span>ポイントの編集</span>
+                </label>
+                <label class="panel-mode-option">
+                    <input type="radio" name="panelMode" value="downloadArea">
+                    <span>ダウンロード領域</span>
+                </label>
+            </div>
+
+            <!-- 「ポイントの編集」モードのパネル -->
+            <div id="pointEditPanel" class="panel-mode-section">
+                <!-- データ読み込みボタン -->
+                <div class="import-buttons">
+                    <div class="import-control-row">
+                        <button id="loadBtn"
+                                type="button"
+                                title="GPS値の格納されているポイントデータ(Excel形式)の読み込み"
+                                aria-describedby="load-help"
+                                class="import-button">
+                            ポイント読み込み(Excel)
+                        </button>
+                    </div>
+                </div>
+                <div id="load-help" class="visually-hidden">選択したファイル形式でGPS座標データを読み込みます</div>
+
+                <!-- ポイント数表示フィールド -->
+                <div class="info-field-container">
+                    <label for="pointCountField">ポイント数</label>
+                    <input type="text" id="pointCountField" readonly value="0" aria-describedby="point-count-help">
+                    <span class="unit-label" aria-hidden="true">個</span>
+                    <input type="text" id="pointBreakdownField" class="point-breakdown" readonly
+                           value="(追加:0個、除外:0個)"
+                           aria-label="追加・除外ポイントの内訳">
+                    <div id="point-count-help" class="visually-hidden">現在読み込まれているGPSポイントの数</div>
+                </div>
+
+                <!-- ポイント(GPS)情報枠 -->
+                <div id="pointInfoContainer" class="point-info-container">
+                    <h3 class="point-info-title">選択したポイントの位置(GPS)情報</h3>
+
+                    <!-- ポイントID -->
+                    <div class="info-field-row">
+                        <label for="pointIdField">ポイントID</label>
+                        <input type="text" id="pointIdField" maxlength="5" tabindex="1">
+                    </div>
+
+                    <!-- 名称 -->
+                    <div class="info-field-row">
+                        <label for="locationField">名称</label>
+                        <input type="text" id="locationField" placeholder="名称を表示" maxlength="20" tabindex="2">
+                    </div>
+
+                    <!-- 緯度 -->
+                    <div class="info-field-row">
+                        <label for="latDecimalField">緯度</label>
+                        <input type="text" id="latDecimalField" readonly placeholder="10進数形式" maxlength="12" size="10" tabindex="-1">
+                    </div>
+
+                    <!-- 経度 -->
+                    <div class="info-field-row">
+                        <label for="lngDecimalField">経度</label>
+                        <input type="text" id="lngDecimalField" readonly placeholder="10進数形式" maxlength="13" size="11" tabindex="-1">
+                    </div>
+
+                    <!-- DMS -->
+                    <div class="info-field-row">
+                        <label for="dmsField">DMS</label>
+                        <input type="text" id="dmsField" readonly placeholder="DMS形式緯度/経度" maxlength="30" size="25" tabindex="-1">
+                    </div>
+
+                    <!-- 標高 -->
+                    <div class="info-field-row">
+                        <label for="elevationField">標高</label>
+                        <input type="text" id="elevationField" readonly maxlength="8" size="6" tabindex="-1">
+                        <span class="unit-label">m</span>
+                    </div>
+
+                    <!-- 区分 -->
+                    <div class="info-field-row">
+                        <label for="categoryField">区分</label>
+                        <select id="categoryField" tabindex="3">
+                            <option value=""></option>
+                            <option value="ポイントGPS">ポイントGPS</option>
+                            <option value="追加ポイント">追加ポイント</option>
+                            <option value="領域の算出から除外">領域の算出から除外</option>
+                        </select>
+                    </div>
+
+                    <!-- ポイント操作ボタン -->
+                    <div class="point-action-buttons">
+                        <button id="addPointBtn" class="point-action-btn" type="button" title="ポイントの追加">追加</button>
+                        <button id="movePointBtn" class="point-action-btn" type="button" title="ポイントの移動">移動</button>
+                        <button id="deletePointBtn" class="point-action-btn" type="button" title="ポイントの削除">削除</button>
+                    </div>
+                </div>
+
+                <!-- ポイント出力 -->
+                <div class="export-buttons">
+                    <div class="export-control-row">
+                        <button id="exportPointsExcelBtn"
+                                type="button"
+                                title="現在のポイントをExcel形式（区分付き）で出力"
+                                class="control-button">
+                            ポイント出力(Excel)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 「ダウンロード領域の指定」モードのパネル -->
+            <div id="downloadAreaPanel" class="panel-mode-section" hidden>
+                <!-- 領域表示トグル / ルート読み込み -->
+                <input type="file" id="routeGeoJSONInput" accept=".geojson,.json"
+                       aria-label="ルートGeoJSONファイル選択" style="display: none;">
                 <div class="import-control-row">
-                    <button id="loadBtn"
-                            type="button"
-                            title="GPS値の格納されているポイントデータ(Excel形式)の読み込み"
-                            aria-describedby="load-help"
-                            class="import-button">
-                        ポイント読み込み(Excel)
-                    </button>
                     <button id="toggleAreaDisplayBtn"
                             type="button"
                             title="ダウンロード領域の円バッファを地図上に描画します"
@@ -60,153 +169,134 @@
                             class="import-button area-display-btn">
                         領域表示
                     </button>
+                    <button id="loadRouteBtn"
+                            type="button"
+                            title="ルートのGeoJSONファイルを読み込み、中間点をz=17/z=18タイル対象に追加します"
+                            class="import-button">
+                        ルート読み込み(GeoJSON)
+                    </button>
                 </div>
-            </div>
-            <div id="load-help" class="visually-hidden">選択したファイル形式でGPS座標データを読み込みます</div>
-            
-            <!-- ポイント数表示フィールド -->
-            <div class="info-field-container">
-                <label for="pointCountField">ポイント数</label>
-                <input type="text" id="pointCountField" readonly value="0" aria-describedby="point-count-help">
-                <span class="unit-label" aria-hidden="true">個</span>
-                <input type="text" id="pointBreakdownField" class="point-breakdown" readonly
-                       value="(追加:0個、除外:0個)"
-                       aria-label="追加・除外ポイントの内訳">
-                <div id="point-count-help" class="visually-hidden">現在読み込まれているGPSポイントの数</div>
-            </div>
 
-            <!-- タイル削減モード切替ボタン -->
-            <div class="reduction-mode-buttons" role="group" aria-label="ダウンロードタイル削減モード">
-                <button id="clusterMergeToggleBtn"
-                        type="button"
-                        class="reduction-mode-btn"
-                        aria-pressed="false"
-                        title="近接ポイントを1つの円に統合し、ダウンロードタイル数を削減します">
-                    クラスタ統合
-                </button>
-                <button id="dynamicBufferToggleBtn"
-                        type="button"
-                        class="reduction-mode-btn"
-                        aria-pressed="false"
-                        title="近接ポイントの円バッファを縮小して、ダウンロードタイル数を削減します">
-                    動的バッファ削減
-                </button>
-            </div>
+                <!-- バッファ半径の設定（スライドバー） -->
+                <!-- min/max/step/value は config.js の値を app.js が起動時に設定する -->
+                <div class="buffer-radius-control" role="group" aria-label="バッファ半径の設定">
+                    <div class="buffer-radius-row">
+                        <label for="bufferR17Slider">z=17 半径</label>
+                        <input type="range" id="bufferR17Slider"
+                               aria-label="z=17 半径スライダー">
+                        <input type="number" id="bufferR17Value"
+                               aria-label="z=17 半径(m)" class="buffer-radius-value">
+                        <span class="unit-label">m</span>
+                    </div>
+                    <div class="buffer-radius-row">
+                        <label for="bufferR18Slider">z=18 半径</label>
+                        <input type="range" id="bufferR18Slider"
+                               aria-label="z=18 半径スライダー">
+                        <input type="number" id="bufferR18Value"
+                               aria-label="z=18 半径(m)" class="buffer-radius-value">
+                        <span class="unit-label">m</span>
+                    </div>
+                </div>
 
-            <!-- ズーム別タイル統計 -->
-            <div id="tileStatsContainer" class="tile-stats-container" aria-label="ズーム別ダウンロードタイル統計">
-                <div class="tile-stats-row tile-stats-header">
-                    <span class="tile-stats-label">ズームレベル</span>
-                    <span class="tile-stats-count-label">タイル枚数</span>
-                    <span class="tile-stats-size-label">サイズ</span>
-                </div>
-                <div class="tile-stats-row" data-zoom="10-16">
-                    <span class="tile-stats-label">z=10〜16</span>
-                    <input type="text" id="tileCountZ10to16" class="tile-stats-count" readonly value="0">
-                    <span class="unit-label">枚</span>
-                    <input type="text" id="tileSizeZ10to16" class="tile-stats-size" readonly value="0.0">
-                    <span class="unit-label">MB</span>
-                </div>
-                <div class="tile-stats-row" data-zoom="17">
-                    <span class="tile-stats-label">z=17</span>
-                    <input type="text" id="tileCountZ17" class="tile-stats-count" readonly value="0">
-                    <span class="unit-label">枚</span>
-                    <input type="text" id="tileSizeZ17" class="tile-stats-size" readonly value="0.0">
-                    <span class="unit-label">MB</span>
-                </div>
-                <div class="tile-stats-row" data-zoom="18">
-                    <span class="tile-stats-label">z=18</span>
-                    <input type="text" id="tileCountZ18" class="tile-stats-count" readonly value="0">
-                    <span class="unit-label">枚</span>
-                    <input type="text" id="tileSizeZ18" class="tile-stats-size" readonly value="0.0">
-                    <span class="unit-label">MB</span>
-                </div>
-                <div class="tile-stats-row tile-stats-total">
-                    <span class="tile-stats-label">合計</span>
-                    <input type="text" id="tileCountTotal" class="tile-stats-count" readonly value="0">
-                    <span class="unit-label">枚</span>
-                    <input type="text" id="tileSizeTotal" class="tile-stats-size" readonly value="0.0">
-                    <span class="unit-label">MB</span>
-                </div>
-            </div>
-            
-            <!-- ポイント(GPS)情報枠 -->
-            <div id="pointInfoContainer" class="point-info-container">
-                <h3 class="point-info-title">選択したポイントの位置(GPS)情報</h3>
-                
-                <!-- ポイントID -->
-                <div class="info-field-row">
-                    <label for="pointIdField">ポイントID</label>
-                    <input type="text" id="pointIdField" maxlength="5" tabindex="1">
-                </div>
-                
-                <!-- 名称 -->
-                <div class="info-field-row">
-                    <label for="locationField">名称</label>
-                    <input type="text" id="locationField" placeholder="名称を表示" maxlength="20" tabindex="2">
-                </div>
-                
-                <!-- 緯度 -->
-                <div class="info-field-row">
-                    <label for="latDecimalField">緯度</label>
-                    <input type="text" id="latDecimalField" readonly placeholder="10進数形式" maxlength="12" size="10" tabindex="-1">
-                </div>
-                
-                <!-- 経度 -->
-                <div class="info-field-row">
-                    <label for="lngDecimalField">経度</label>
-                    <input type="text" id="lngDecimalField" readonly placeholder="10進数形式" maxlength="13" size="11" tabindex="-1">
-                </div>
-                
-                <!-- DMS -->
-                <div class="info-field-row">
-                    <label for="dmsField">DMS</label>
-                    <input type="text" id="dmsField" readonly placeholder="DMS形式緯度/経度" maxlength="30" size="25" tabindex="-1">
-                </div>
-                
-                <!-- 標高 -->
-                <div class="info-field-row">
-                    <label for="elevationField">標高</label>
-                    <input type="text" id="elevationField" readonly maxlength="8" size="6" tabindex="-1">
-                    <span class="unit-label">m</span>
-                </div>
-                
-                <!-- 区分 -->
-                <div class="info-field-row">
-                    <label for="categoryField">区分</label>
-                    <select id="categoryField" tabindex="3">
-                        <option value=""></option>
-                        <option value="ポイントGPS">ポイントGPS</option>
-                        <option value="追加ポイント">追加ポイント</option>
-                        <option value="領域の算出から除外">領域の算出から除外</option>
+                <!-- ズーム別タイルグリッド表示 -->
+                <div class="tile-grid-control" role="group" aria-label="ズーム別対象タイルの図示">
+                    <label for="tileGridZoomSelect">対象タイルを地図に図示</label>
+                    <select id="tileGridZoomSelect"
+                            title="選択したズームレベルでダウンロード対象となるタイルを地図上に矩形で図示します">
+                        <option value="">表示しない</option>
+                        <option value="10">z=10</option>
+                        <option value="11">z=11</option>
+                        <option value="12">z=12</option>
+                        <option value="13">z=13</option>
+                        <option value="14">z=14</option>
+                        <option value="15">z=15</option>
+                        <option value="16">z=16</option>
+                        <option value="17">z=17</option>
+                        <option value="18">z=18</option>
                     </select>
                 </div>
-                
-                <!-- ポイント操作ボタン -->
-                <div class="point-action-buttons">
-                    <button id="addPointBtn" class="point-action-btn" type="button" title="ポイントの追加">追加</button>
-                    <button id="movePointBtn" class="point-action-btn" type="button" title="ポイントの移動">移動</button>
-                    <button id="deletePointBtn" class="point-action-btn" type="button" title="ポイントの削除">削除</button>
-                </div>
-            </div>
 
-            <!-- データ出力ボタン -->
-            <div class="export-buttons">
-                <div class="export-control-row">
-                    <button id="exportPointsExcelBtn"
-                            type="button"
-                            title="現在のポイントをExcel形式（区分付き）で出力"
-                            class="control-button">
-                        ポイント出力(Excel)
-                    </button>
+                <!-- ズーム別タイル統計 -->
+                <div id="tileStatsContainer" class="tile-stats-container" aria-label="ズーム別ダウンロードタイル統計">
+                    <div class="tile-stats-row tile-stats-header">
+                        <span class="tile-stats-label">ズームレベル</span>
+                        <span class="tile-stats-count-label">タイル枚数</span>
+                        <span class="tile-stats-size-label">サイズ</span>
+                        <button id="measureTileSizeBtn"
+                                type="button"
+                                class="measure-size-btn"
+                                title="国土地理院サーバーへタイルごとにHEADリクエストし、実サイズの合計を表示します">
+                            実測
+                        </button>
+                    </div>
+                    <div class="tile-stats-row" data-zoom="10-13">
+                        <span class="tile-stats-label">z=10〜13</span>
+                        <input type="text" id="tileCountZ10to13" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeZ10to13" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
+                    <div class="tile-stats-row" data-zoom="14">
+                        <span class="tile-stats-label">z=14</span>
+                        <input type="text" id="tileCountZ14" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeZ14" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
+                    <div class="tile-stats-row" data-zoom="15">
+                        <span class="tile-stats-label">z=15</span>
+                        <input type="text" id="tileCountZ15" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeZ15" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
+                    <div class="tile-stats-row" data-zoom="16">
+                        <span class="tile-stats-label">z=16</span>
+                        <input type="text" id="tileCountZ16" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeZ16" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
+                    <div class="tile-stats-row" data-zoom="17">
+                        <span class="tile-stats-label">z=17</span>
+                        <input type="text" id="tileCountZ17" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeZ17" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
+                    <div class="tile-stats-row" data-zoom="18">
+                        <span class="tile-stats-label">z=18</span>
+                        <input type="text" id="tileCountZ18" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeZ18" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
+                    <div class="tile-stats-row tile-stats-total">
+                        <span class="tile-stats-label">合計</span>
+                        <input type="text" id="tileCountTotal" class="tile-stats-count" readonly value="0">
+                        <span class="unit-label">枚</span>
+                        <input type="text" id="tileSizeTotal" class="tile-stats-size" readonly value="0.0">
+                        <span class="unit-label">MB</span>
+                    </div>
                 </div>
-                <div class="export-control-row">
-                    <button id="exportDownloadAreaBtn"
-                            type="button"
-                            title="ダウンロード領域の指定ファイルを出力"
-                            class="control-button">
-                        Download領域の指定ファイルを出力
-                    </button>
+
+                <!-- 地図タイルバージョン -->
+                <div class="map-tile-version-row">
+                    <label for="mapTileVersionField">地図タイルバージョン</label>
+                    <input type="text" id="mapTileVersionField" maxlength="20"
+                           title="tile_manifest.json と tile_buffers.geojson の version 値（デフォルトは出力時の年月 yyyy-mm）">
+                </div>
+
+                <!-- Download領域出力 -->
+                <div class="export-buttons">
+                    <div class="export-control-row">
+                        <button id="exportDownloadAreaBtn"
+                                type="button"
+                                title="ダウンロード領域の指定ファイルを出力"
+                                class="control-button">
+                            ダウンロード領域のファイルを出力
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>

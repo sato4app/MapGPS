@@ -757,6 +757,17 @@ export class PointMarkerApp {
             });
         }
 
+        // ルート経路描画切り替えチェックボックス
+        document.getElementById('showRoutePathCheckbox').addEventListener('change', () => {
+            this.redrawCanvas();
+        });
+
+        // ルート経路の最適化ボタン
+        document.getElementById('optimizeRouteBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.routeUIManager.handleOptimizeRoute();
+        });
+
         // ポイントID表示切り替えチェックボックス
         document.getElementById('showPointIdsCheckbox').addEventListener('change', (e) => {
             this.handlePointIdVisibilityChange(e.target.checked);
@@ -1100,11 +1111,54 @@ export class PointMarkerApp {
 
 
     /**
+     * ポイントIDまたはスポット名からキャンバス座標を解決
+     * @param {string} id - ポイントIDまたはスポット名
+     * @returns {{x:number, y:number}|null} キャンバス座標、見つからない場合はnull
+     */
+    resolveRouteEndpointCoord(id) {
+        if (!id || !id.trim()) return null;
+
+        const point = this.pointManager.getPoints().find(p => p.id === id);
+        if (point) return { x: point.x, y: point.y };
+
+        const spot = this.spotManager.findSpotByName(id);
+        if (spot) return { x: spot.x, y: spot.y };
+
+        return null;
+    }
+
+    /**
+     * 選択中ルートの経路点列（開始→中間点→終了）を構築
+     * @returns {Array|null} キャンバス座標の点列、構築できない場合はnull
+     */
+    buildSelectedRoutePath() {
+        const selectedRoute = this.routeManager.getSelectedRoute();
+        if (!selectedRoute) return null;
+
+        const startCoord = this.resolveRouteEndpointCoord(selectedRoute.startPointId);
+        const endCoord = this.resolveRouteEndpointCoord(selectedRoute.endPointId);
+        const waypoints = selectedRoute.routePoints || [];
+
+        const path = [];
+        if (startCoord) path.push(startCoord);
+        path.push(...waypoints);
+        if (endCoord) path.push(endCoord);
+
+        return path.length >= 2 ? path : null;
+    }
+
+    /**
      * キャンバスを再描画
      */
     redrawCanvas() {
         const mode = this.layoutManager.getCurrentEditingMode();
         const routePoints = this.routeManager.getStartEndPoints();
+
+        // 「ルート経路を描画」チェックオン時、選択中ルートの経路を折れ線で描画
+        const showRoutePathCheckbox = document.getElementById('showRoutePathCheckbox');
+        const routePath = (showRoutePathCheckbox && showRoutePathCheckbox.checked)
+            ? this.buildSelectedRoutePath()
+            : null;
 
         this.canvasRenderer.redraw(
             this.pointManager.getPoints(),
@@ -1118,7 +1172,8 @@ export class PointMarkerApp {
                 allRoutes: this.routeManager.getAllRoutes(),
                 selectedRouteIndex: this.routeManager.selectedRouteIndex,
                 selectedAreaIndex: this.areaManager.selectedAreaIndex, // エリア選択状態
-                showAreaEditMode: mode === 'area' // エリア編集モード
+                showAreaEditMode: mode === 'area', // エリア編集モード
+                routePath: routePath // ルート経路の折れ線（null = 非表示）
             }
         );
     }

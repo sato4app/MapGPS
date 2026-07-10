@@ -227,41 +227,120 @@ body {
     white-space: nowrap;
 }
 
-/* タイル削減モード切替ボタン群（ポイント数行の下） */
-.reduction-mode-buttons {
+/* トップレベルのモード切替ラジオボタン */
+.panel-mode-switch {
     display: flex;
+    gap: 6px;
+    margin: 12px 0;
+    padding: 8px;
+    background-color: rgba(236, 240, 241, 0.6);
+    border: 1px solid #d5dbdb;
+    border-radius: 6px;
+}
+
+.panel-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2c3e50;
+    cursor: pointer;
+}
+
+.panel-mode-option input[type="radio"] {
+    cursor: pointer;
+}
+
+/* モード別パネル（hidden 属性で表示切替） */
+.panel-mode-section[hidden] {
+    display: none;
+}
+
+/* バッファ半径の設定（スライドバー） */
+.buffer-radius-control {
+    margin-top: 16px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    background-color: rgba(236, 240, 241, 0.6);
+    border: 1px solid #d5dbdb;
+    border-radius: 6px;
+}
+
+.buffer-radius-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.buffer-radius-row + .buffer-radius-row {
+    margin-top: 6px;
+}
+
+.buffer-radius-row label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #2c3e50;
+    white-space: nowrap;
+    min-width: 54px;
+}
+
+.buffer-radius-row input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.buffer-radius-row input.buffer-radius-value {
+    width: 52px;
+    flex: none;
+    padding: 3px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #2c3e50;
+    text-align: right;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+/* ズーム別タイルグリッド表示の選択 */
+.tile-grid-control {
+    display: flex;
+    align-items: center;
     gap: 8px;
     margin-bottom: 12px;
 }
 
-.reduction-mode-btn {
+.tile-grid-control label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #2c3e50;
+    white-space: nowrap;
+    margin-right: 12px;
+}
+
+.tile-grid-control select {
     flex: 1;
-    padding: 6px 10px;
-    background-color: #ecf0f1;
+    padding: 5px 8px;
+    font-size: 12px;
     color: #2c3e50;
     border: 1px solid #bdc3c7;
     border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
+    background-color: #ffffff;
     cursor: pointer;
-    transition: all 0.2s ease;
+}
+
+/* 地図上のタイルグリッド枚数ラベル */
+.tile-grid-label span {
+    display: inline-block;
+    padding: 2px 6px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
     white-space: nowrap;
-    text-align: center;
-}
-
-.reduction-mode-btn:hover {
-    background-color: #dfe6e9;
-    border-color: #95a5a6;
-}
-
-.reduction-mode-btn.active {
-    background-color: #16a34a;
-    color: #ffffff;
-    border-color: #15803d;
-}
-
-.reduction-mode-btn.active:hover {
-    background-color: #15803d;
 }
 
 /* ズーム別タイル統計 */
@@ -298,16 +377,15 @@ body {
 }
 
 .tile-stats-header .tile-stats-count-label {
-    width: 60px;
     text-align: right;
     margin-left: auto;
-    margin-right: 44px; /* データ行の「(gap+枚+gap+MB)」分を補完して右揃えを揃える */
+    margin-right: 30px; /* データ行の「枚」ラベル＋gap分を補完して右揃えを揃える */
+    white-space: nowrap;
 }
 
 .tile-stats-header .tile-stats-size-label {
-    width: 60px;
     text-align: right;
-    padding-right: 22px;
+    white-space: nowrap;
 }
 
 .tile-stats-label {
@@ -317,6 +395,31 @@ body {
     width: 60px;
     flex-shrink: 0;
     white-space: nowrap;
+}
+
+/* タイルサイズ実測ボタン（サイズ列タイトルの右） */
+.measure-size-btn {
+    margin-left: 6px;
+    padding: 2px 8px;
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.measure-size-btn:hover:not(:disabled) {
+    background-color: #dfe6e9;
+    border-color: #95a5a6;
+}
+
+.measure-size-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
 }
 
 .tile-stats-row input.tile-stats-count {
@@ -443,6 +546,34 @@ body {
 
 .point-action-btn:active {
     transform: translateY(0);
+}
+
+/* 地図タイルバージョン入力 */
+.map-tile-version-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    margin-bottom: 4px;
+}
+
+.map-tile-version-row label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #2c3e50;
+    white-space: nowrap;
+    margin-right: 12px;
+}
+
+.map-tile-version-row input[type="text"] {
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #2c3e50;
+    background-color: #ffffff;
+    min-width: 0;
 }
 
 /* 出力ボタン */

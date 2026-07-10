@@ -307,6 +307,208 @@ export class RouteManager extends BaseManager {
     }
 
     /**
+     * 2点間の距離を計算
+     * @param {{x:number, y:number}} a - 点A
+     * @param {{x:number, y:number}} b - 点B
+     * @returns {number} 距離
+     */
+    static distance(a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    /**
+     * 経路（開始→中間点→終了）の合計距離を計算
+     * @param {{x:number, y:number}} start - 開始ポイント座標
+     * @param {Array} waypoints - 中間点配列
+     * @param {{x:number, y:number}} end - 終了ポイント座標
+     * @returns {number} 合計距離
+     */
+    static calculatePathLength(start, waypoints, end) {
+        const path = [start, ...waypoints, end];
+        let total = 0;
+        for (let i = 0; i < path.length - 1; i++) {
+            total += RouteManager.distance(path[i], path[i + 1]);
+        }
+        return total;
+    }
+
+    /**
+     * 中間点の経路を最適化（選択中のルートのみ）
+     * 開始→中間点→終了の経路の合計距離が最小になるように中間点の訪問順を並べ替える
+     * @param {{x:number, y:number}} startCoord - 開始ポイントのキャンバス座標
+     * @param {{x:number, y:number}} endCoord - 終了ポイントのキャンバス座標
+     * @returns {{beforeLength:number, afterLength:number, changed:boolean}|null} 最適化結果
+     */
+    optimizeRoutePoints(startCoord, endCoord) {
+        const selectedRoute = this.getSelectedRoute();
+        if (!selectedRoute || !selectedRoute.routePoints || selectedRoute.routePoints.length < 2) {
+            return null;
+        }
+
+        const waypoints = selectedRoute.routePoints;
+        const beforeLength = RouteManager.calculatePathLength(startCoord, waypoints, endCoord);
+
+        const optimizedOrder = this._computeOptimalOrder(startCoord, waypoints, endCoord);
+        const optimizedWaypoints = optimizedOrder.map(i => waypoints[i]);
+        const afterLength = RouteManager.calculatePathLength(startCoord, optimizedWaypoints, endCoord);
+
+        // 距離が短縮された場合のみ並べ替えを反映
+        const changed = afterLength < beforeLength - 1e-6;
+        if (changed) {
+            selectedRoute.routePoints = optimizedWaypoints;
+            this.notify('onChange');
+
+            // 更新状態をチェック（Firebase保存・JSON出力の対象として更新フラグを立てる）
+            this.checkAndUpdateModifiedState();
+        }
+
+        return { beforeLength, afterLength, changed };
+    }
+
+    /**
+     * 最適な訪問順（インデックス配列）を計算
+     * 中間点が13点以下は厳密解（ビットDP）、それ以上は最近傍法＋2-opt改善で近似解を求める
+     * @returns {Array<number>} 元の中間点配列に対する訪問順のインデックス配列
+     */
+    _computeOptimalOrder(start, waypoints, end) {
+        if (waypoints.length <= 13) {
+            return this._computeExactOrder(start, waypoints, end);
+        }
+        return this._computeHeuristicOrder(start, waypoints, end);
+    }
+
+    /**
+     * ビットDP（Held-Karp法）による厳密な最適順序の計算
+     * dp[mask][i] = 開始点から出発し、mask内の中間点をすべて訪問してiで終わる最小距離
+     */
+    _computeExactOrder(start, waypoints, end) {
+        const n = waypoints.length;
+        const full = (1 << n) - 1;
+
+        // 距離テーブルを事前計算
+        const distFromStart = waypoints.map(wp => RouteManager.distance(start, wp));
+        const distToEnd = waypoints.map(wp => RouteManager.distance(wp, end));
+        const dist = waypoints.map(a => waypoints.map(b => RouteManager.distance(a, b)));
+
+        const dp = new Array(full + 1);
+        const parent = new Array(full + 1);
+        for (let mask = 0; mask <= full; mask++) {
+            dp[mask] = new Float64Array(n).fill(Infinity);
+            parent[mask] = new Int16Array(n).fill(-1);
+        }
+
+        for (let i = 0; i < n; i++) {
+            dp[1 << i][i] = distFromStart[i];
+        }
+
+        for (let mask = 1; mask <= full; mask++) {
+            for (let i = 0; i < n; i++) {
+                const cur = dp[mask][i];
+                if (!(mask & (1 << i)) || cur === Infinity) continue;
+                for (let j = 0; j < n; j++) {
+                    if (mask & (1 << j)) continue;
+                    const nextMask = mask | (1 << j);
+                    const cand = cur + dist[i][j];
+                    if (cand < dp[nextMask][j]) {
+                        dp[nextMask][j] = cand;
+                        parent[nextMask][j] = i;
+                    }
+                }
+            }
+        }
+
+        // 終了点への距離を含めて最小となる末尾の中間点を選択
+        let best = Infinity;
+        let last = -1;
+        for (let i = 0; i < n; i++) {
+            const total = dp[full][i] + distToEnd[i];
+            if (total < best) {
+                best = total;
+                last = i;
+            }
+        }
+
+        // parentをたどって経路を復元
+        const order = [];
+        let mask = full;
+        let cur = last;
+        while (cur !== -1) {
+            order.push(cur);
+            const prev = parent[mask][cur];
+            mask ^= (1 << cur);
+            cur = prev;
+        }
+        order.reverse();
+        return order;
+    }
+
+    /**
+     * 最近傍法＋2-opt改善による近似最適順序の計算（中間点が多い場合用）
+     */
+    _computeHeuristicOrder(start, waypoints, end) {
+        const n = waypoints.length;
+
+        // 最近傍法: 開始点から最も近い未訪問の中間点を順に選ぶ
+        const visited = new Array(n).fill(false);
+        const order = [];
+        let current = start;
+        for (let k = 0; k < n; k++) {
+            let bestIndex = -1;
+            let bestDist = Infinity;
+            for (let i = 0; i < n; i++) {
+                if (visited[i]) continue;
+                const d = RouteManager.distance(current, waypoints[i]);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestIndex = i;
+                }
+            }
+            visited[bestIndex] = true;
+            order.push(bestIndex);
+            current = waypoints[bestIndex];
+        }
+
+        // 2-opt改善: 部分経路の反転で距離が縮む限り繰り返す
+        // idx=-1は開始点、idx=nは終了点、それ以外はorder順の中間点を返す
+        const pathPoint = (idx) => {
+            if (idx === -1) return start;
+            if (idx === n) return end;
+            return waypoints[order[idx]];
+        };
+
+        let improved = true;
+        let guard = 0;
+        while (improved && guard < 100) {
+            improved = false;
+            guard++;
+            for (let i = 0; i < n - 1; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    const before = RouteManager.distance(pathPoint(i - 1), pathPoint(i)) +
+                        RouteManager.distance(pathPoint(j), pathPoint(j + 1));
+                    const after = RouteManager.distance(pathPoint(i - 1), pathPoint(j)) +
+                        RouteManager.distance(pathPoint(i), pathPoint(j + 1));
+                    if (after < before - 1e-9) {
+                        // order[i..j] を反転
+                        let lo = i, hi = j;
+                        while (lo < hi) {
+                            const tmp = order[lo];
+                            order[lo] = order[hi];
+                            order[hi] = tmp;
+                            lo++;
+                            hi--;
+                        }
+                        improved = true;
+                    }
+                }
+            }
+        }
+
+        return order;
+    }
+
+    /**
      * ルート中間点のみをクリア（開始・終了ポイントは保持）
      */
     clearRoutePoints() {

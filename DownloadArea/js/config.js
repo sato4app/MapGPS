@@ -2,7 +2,7 @@
 export const CONFIG = {
     // 地図設定
     MAP_CENTER: [34.853667, 135.472041], // 箕面大滝
-    MAP_ZOOM: 13,
+    MAP_ZOOM: 15,
 
     // 国土地理院タイル設定
     GSI_TILE_URL: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
@@ -68,10 +68,21 @@ export const CONFIG = {
     // Download領域 (タイル/円バッファ) 設定
     DOWNLOAD_AREA: {
         // ズームレベルとバッファ半径(m)
+        Z14: 14,
+        Z15: 15,
+        Z16: 16,
         Z17: 17,
         Z18: 18,
-        BUFFER_M_Z17: 500,
-        BUFFER_M_Z18: 200,
+        BUFFER_M_Z17: 300,  // z17 バッファ半径のデフォルト値
+        BUFFER_M_Z18: 160,  // z18 バッファ半径のデフォルト値
+
+        // 半径スライドバーの範囲・刻み(m)
+        BUFFER_R17_MIN: 100,
+        BUFFER_R17_MAX: 500,
+        BUFFER_R17_STEP: 100,
+        BUFFER_R18_MIN: 80,
+        BUFFER_R18_MAX: 240,
+        BUFFER_R18_STEP: 40,
 
         // 円ポリゴン近似の頂点数（GeoJSON出力用）
         CIRCLE_VERTICES: 64,
@@ -80,8 +91,10 @@ export const CONFIG = {
         EARTH_RADIUS_M: 6378137,
 
         // GeoJSON / Manifest メタデータ
-        MANIFEST_VERSION: 1,
         MANIFEST_SOURCE: 'download-area-edited',
+        LAYER_KEY_Z14: 'z14_default',
+        LAYER_KEY_Z15: 'z15_default',
+        LAYER_KEY_Z16: 'z16_default',
         LAYER_KEY_Z17: 'z17_default',
         LAYER_KEY_Z18: 'z18_optional',
         Z17_MIN_ZOOM: 13,
@@ -102,18 +115,20 @@ export const CONFIG = {
         // バッファ面積がタイル面積×閾値より小さい場合（低ズーム）は閾値を適用せず、
         // 従来通り「少しでも交差するタイル」を採用する。
         COVERAGE_THRESHOLD: 0.05,        // 5%
-        COVERAGE_SAMPLE_GRID: 10,        // 10×10 = 100 サンプル/タイル
+        COVERAGE_SAMPLE_GRID: 10         // 10×10 = 100 サンプル/タイル
+    },
 
-        // 動的バッファ
-        // 各ポイントのバッファ半径を「最近接ポイントまでの距離」に応じて自動的に縮小する。
-        DYNAMIC_BUFFER_ENABLED: true,    // 一括 ON/OFF（false で従来動作）
-        SHRINK_FACTOR: 0.6,              // 最近接距離 × この係数まで縮める
-        RADIUS_FLOOR_M: 50,              // 半径の最小値（m）
-
-        // クラスタ統合
-        // 近接ポイントをクラスタとしてまとめ、重心を中心とした単一の円で代表させる。
-        // クラスタ内の重複円・重複タイルを構造的に削減する。
-        CLUSTER_DISTANCE_M: 200          // ペア距離がこの値以下なら同じクラスタ（推移的に併合）
+    // タイルグリッド表示スタイル（ズームレベル別の対象タイル矩形）
+    // ズームレベルごとに枠線色を変えて視認性を確保する。
+    TILE_GRID_STYLE: {
+        weight: 1,
+        fillOpacity: 0.12,
+        interactive: false
+    },
+    // ズームレベル → 色（枠線・塗りで共用）。低ズームほど暖色、高ズームほど寒色。
+    TILE_GRID_COLORS: {
+        10: '#7f1d1d', 11: '#b91c1c', 12: '#ea580c', 13: '#d97706',
+        14: '#65a30d', 15: '#16a34a', 16: '#0d9488', 17: '#1d4ed8', 18: '#6d28d9'
     },
 
     // 円バッファ表示スタイル
@@ -129,6 +144,15 @@ export const CONFIG = {
         weight: 1,
         fillColor: '#22c55e',   // 緑(塗り)
         fillOpacity: 0.05,
+        interactive: false
+    },
+
+    // ルート線スタイル（GeoJSONで読み込んだ中間点列の描画）
+    // タイルグリッド矩形(枠線weight:1)より太く、視認しやすいオレンジ系。
+    ROUTE_LINE_STYLE: {
+        color: '#ea580c',
+        weight: 3,
+        opacity: 0.85,
         interactive: false
     },
 

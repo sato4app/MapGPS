@@ -767,6 +767,38 @@ header p {
     border: none;
     padding: 0;
     margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 「中間点数: N」のラベル部分
+   開始・終了ポイント行のラベル（min-width: 80px）と幅を揃えることで、
+   直後の最適化ボタン（幅60px）が終了ポイントのテキスト欄と左右の端で揃う */
+.waypoint-count-label {
+    min-width: 80px;
+    white-space: nowrap;
+}
+
+/* ルート経路の最適化ボタン（終了ポイントのテキスト欄と同等サイズ・右端を揃えて配置） */
+.route-optimize-btn {
+    width: 60px;
+    padding: 6px 4px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: white;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.route-optimize-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
 }
 
 .area-points-inputs .vertex-count {
@@ -777,7 +809,7 @@ header p {
     margin-top: 5px;
 }
 
-.waypoint-count span {
+.waypoint-count #waypointCount {
     color: #e67e22;
     font-weight: bold;
 }

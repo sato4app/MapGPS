@@ -187,6 +187,53 @@ export class RouteUIManager {
     }
 
     /**
+     * ルート中間点の経路最適化を実行
+     * 開始→中間点→終了の経路の合計距離が最小になるように中間点の訪問順を並べ替える。
+     * 並べ替えた結果はルートデータ（routePoints）に反映されるため、
+     * 「保存」（Firebase）や「出力」（JSON）にもそのまま反映される。
+     */
+    handleOptimizeRoute() {
+        // 「ルート経路を描画」チェックがオンの場合のみ動作
+        const showRoutePathCheckbox = document.getElementById('showRoutePathCheckbox');
+        if (!showRoutePathCheckbox || !showRoutePathCheckbox.checked) {
+            UIHelper.showMessage('最適化を実行するには「ルート経路を描画」をオンにしてください', 'warning');
+            return;
+        }
+
+        const selectedRoute = this.app.routeManager.getSelectedRoute();
+        if (!selectedRoute) {
+            UIHelper.showError('ルートが選択されていません。ルートを選択してから最適化を実行してください');
+            return;
+        }
+
+        // 開始・終了ポイントの座標を解決（ポイントIDまたはスポット名）
+        const startCoord = this.app.resolveRouteEndpointCoord(selectedRoute.startPointId);
+        const endCoord = this.app.resolveRouteEndpointCoord(selectedRoute.endPointId);
+        if (!startCoord || !endCoord) {
+            UIHelper.showError('開始ポイントと終了ポイントの両方を設定してから最適化を実行してください');
+            return;
+        }
+
+        const waypoints = selectedRoute.routePoints || [];
+        if (waypoints.length < 2) {
+            UIHelper.showMessage('最適化には中間点が2つ以上必要です', 'warning');
+            return;
+        }
+
+        const result = this.app.routeManager.optimizeRoutePoints(startCoord, endCoord);
+        if (!result) return;
+
+        if (result.changed) {
+            UIHelper.showMessage(
+                `中間点の経路を最適化しました（経路長: ${Math.round(result.beforeLength)} → ${Math.round(result.afterLength)}）。` +
+                `「保存」または「出力」で反映してください`
+            );
+        } else {
+            UIHelper.showMessage('中間点の経路はすでに最適です', 'info');
+        }
+    }
+
+    /**
      * 選択中のルートを削除
      */
     async handleDeleteRoute() {

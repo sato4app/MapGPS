@@ -155,6 +155,31 @@ export class CanvasRenderer {
     }
 
     /**
+     * ルート経路（開始ポイント→中間点→終了ポイント）を折れ線で描画
+     * @param {Array} pathPoints - 経路上の点の配列 [{x, y}, ...]（キャンバス座標）
+     * @param {number} canvasScale - キャンバスのスケール値
+     */
+    drawRoutePath(pathPoints, canvasScale = 1.0) {
+        if (!pathPoints || pathPoints.length < 2) return;
+
+        // devicePixelRatio + ズーム倍率で補正し、線の太さを一定に保つ
+        const lineWidth = this.applyDevicePixelRatioCorrection(2.5, canvasScale);
+
+        this.ctx.save();
+        this.ctx.strokeStyle = 'rgba(255, 149, 0, 0.8)';
+        this.ctx.lineWidth = lineWidth;
+        this.ctx.lineJoin = 'round';
+        this.ctx.lineCap = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+        for (let i = 1; i < pathPoints.length; i++) {
+            this.ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+        }
+        this.ctx.stroke();
+        this.ctx.restore();
+    }
+
+    /**
      * ルートポイント（中間点）を描画
      */
     drawRoutePoints(routePoints, canvasScale = 1.0, radius = 5) {
@@ -368,6 +393,11 @@ export class CanvasRenderer {
         // マーカー描画時にスケール変換を適用（canvas要素はズーム済みサイズ）
         this.ctx.save();
         this.ctx.scale(this.scale, this.scale);
+
+        // ルート経路の折れ線描画（マーカーより下に表示するため先に描画）
+        if (options.routePath && options.routePath.length >= 2) {
+            this.drawRoutePath(options.routePath, this.scale);
+        }
 
         // 現在のスケール値をマーカー描画メソッドに渡す
         this.drawPoints(points, options, this.scale);
