@@ -189,6 +189,7 @@ export class RouteUIManager {
     /**
      * ルート中間点の経路最適化を実行
      * 開始→中間点→終了の経路の合計距離が最小になるように中間点の訪問順を並べ替える。
+     * ルート選択中はそのルートのみ、未選択時は確認のうえ全ルートを順に最適化する。
      * 並べ替えた結果はルートデータ（routePoints）に反映されるため、
      * 「保存」（Firebase）や「出力」（JSON）にもそのまま反映される。
      */
@@ -200,37 +201,101 @@ export class RouteUIManager {
             return;
         }
 
-        const selectedRoute = this.app.routeManager.getSelectedRoute();
-        if (!selectedRoute) {
-            UIHelper.showError('ルートが選択されていません。ルートを選択してから最適化を実行してください');
+        const routeManager = this.app.routeManager;
+
+        // ルートが選択されている場合は、そのルートのみ最適化
+        if (routeManager.selectedRouteIndex >= 0) {
+            const outcome = this._optimizeRouteAt(routeManager.selectedRouteIndex);
+            switch (outcome.status) {
+                case 'no-endpoints':
+                    UIHelper.showError('開始ポイントと終了ポイントの両方を設定してから最適化を実行してください');
+                    break;
+                case 'few-waypoints':
+                    UIHelper.showMessage('最適化には中間点が2つ以上必要です', 'warning');
+                    break;
+                case 'optimized':
+                    UIHelper.showMessage(
+                        `中間点の経路を最適化しました（経路長: ${outcome.beforeLength} → ${outcome.afterLength}）。` +
+                        `「保存」または「出力」で反映してください`
+                    );
+                    break;
+                default: // already-optimal
+                    UIHelper.showMessage('中間点の経路はすでに最適です', 'info');
+                    break;
+            }
             return;
         }
+
+        // ルート未選択の場合は、確認のうえ全ルートを順に最適化
+        const allRoutes = routeManager.getAllRoutes();
+        if (allRoutes.length === 0) {
+            UIHelper.showMessage('最適化するルートがありません', 'warning');
+            return;
+        }
+
+        if (!confirm('最適化の対象ルートが選択されていません。全ルートの最適化を行いますか')) {
+            return;
+        }
+
+        // 各ルートの結果を集計して単一ルートのときと同様に出力
+        const lines = allRoutes.map((route, index) => {
+            const routeName = route.routeName || `${route.startPointId} ～ ${route.endPointId}`;
+            const outcome = this._optimizeRouteAt(index);
+            let summary;
+            switch (outcome.status) {
+                case 'no-endpoints':
+                    summary = 'スキップ（開始・終了ポイントが未設定または未登録）';
+                    break;
+                case 'few-waypoints':
+                    summary = 'スキップ（中間点が2つ未満）';
+                    break;
+                case 'optimized':
+                    summary = `経路長: ${outcome.beforeLength} → ${outcome.afterLength}`;
+                    break;
+                default: // already-optimal
+                    summary = 'すでに最適';
+                    break;
+            }
+            return `・${routeName}: ${summary}`;
+        });
+
+        UIHelper.showMessage(
+            `全ルート（${allRoutes.length}本）の最適化が完了しました\n` +
+            `${lines.join('\n')}\n` +
+            `「保存」または「出力」で、最適化の結果を反映してください`
+        );
+    }
+
+    /**
+     * 指定インデックスのルートに対して経路最適化を実行
+     * @param {number} index - 対象ルートのインデックス
+     * @returns {{status:string, beforeLength?:number, afterLength?:number}} 最適化結果
+     *   status: 'optimized'（最適化実施） | 'already-optimal'（変更なし） |
+     *           'no-endpoints'（開始・終了ポイント未解決） | 'few-waypoints'（中間点2つ未満）
+     */
+    _optimizeRouteAt(index) {
+        const route = this.app.routeManager.getAllRoutes()[index];
 
         // 開始・終了ポイントの座標を解決（ポイントIDまたはスポット名）
-        const startCoord = this.app.resolveRouteEndpointCoord(selectedRoute.startPointId);
-        const endCoord = this.app.resolveRouteEndpointCoord(selectedRoute.endPointId);
+        const startCoord = this.app.resolveRouteEndpointCoord(route.startPointId);
+        const endCoord = this.app.resolveRouteEndpointCoord(route.endPointId);
         if (!startCoord || !endCoord) {
-            UIHelper.showError('開始ポイントと終了ポイントの両方を設定してから最適化を実行してください');
-            return;
+            return { status: 'no-endpoints' };
         }
 
-        const waypoints = selectedRoute.routePoints || [];
-        if (waypoints.length < 2) {
-            UIHelper.showMessage('最適化には中間点が2つ以上必要です', 'warning');
-            return;
+        if (!route.routePoints || route.routePoints.length < 2) {
+            return { status: 'few-waypoints' };
         }
 
-        const result = this.app.routeManager.optimizeRoutePoints(startCoord, endCoord);
-        if (!result) return;
-
-        if (result.changed) {
-            UIHelper.showMessage(
-                `中間点の経路を最適化しました（経路長: ${Math.round(result.beforeLength)} → ${Math.round(result.afterLength)}）。` +
-                `「保存」または「出力」で反映してください`
-            );
-        } else {
-            UIHelper.showMessage('中間点の経路はすでに最適です', 'info');
+        const result = this.app.routeManager.optimizeRouteAt(index, startCoord, endCoord);
+        if (result && result.changed) {
+            return {
+                status: 'optimized',
+                beforeLength: Math.round(result.beforeLength),
+                afterLength: Math.round(result.afterLength)
+            };
         }
+        return { status: 'already-optimal' };
     }
 
     /**

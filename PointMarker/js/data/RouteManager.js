@@ -336,18 +336,33 @@ export class RouteManager extends BaseManager {
 
     /**
      * 中間点の経路を最適化（選択中のルートのみ）
-     * 開始→中間点→終了の経路の合計距離が最小になるように中間点の訪問順を並べ替える
      * @param {{x:number, y:number}} startCoord - 開始ポイントのキャンバス座標
      * @param {{x:number, y:number}} endCoord - 終了ポイントのキャンバス座標
      * @returns {{beforeLength:number, afterLength:number, changed:boolean}|null} 最適化結果
      */
     optimizeRoutePoints(startCoord, endCoord) {
-        const selectedRoute = this.getSelectedRoute();
-        if (!selectedRoute || !selectedRoute.routePoints || selectedRoute.routePoints.length < 2) {
+        return this.optimizeRouteAt(this.selectedRouteIndex, startCoord, endCoord);
+    }
+
+    /**
+     * 指定インデックスのルートの中間点経路を最適化
+     * 開始→中間点→終了の経路の合計距離が最小になるように中間点の訪問順を並べ替える
+     * @param {number} index - 対象ルートのインデックス
+     * @param {{x:number, y:number}} startCoord - 開始ポイントのキャンバス座標
+     * @param {{x:number, y:number}} endCoord - 終了ポイントのキャンバス座標
+     * @returns {{beforeLength:number, afterLength:number, changed:boolean}|null} 最適化結果
+     */
+    optimizeRouteAt(index, startCoord, endCoord) {
+        if (index < 0 || index >= this.routes.length) {
             return null;
         }
 
-        const waypoints = selectedRoute.routePoints;
+        const route = this.routes[index];
+        if (!route.routePoints || route.routePoints.length < 2) {
+            return null;
+        }
+
+        const waypoints = route.routePoints;
         const beforeLength = RouteManager.calculatePathLength(startCoord, waypoints, endCoord);
 
         const optimizedOrder = this._computeOptimalOrder(startCoord, waypoints, endCoord);
@@ -357,11 +372,15 @@ export class RouteManager extends BaseManager {
         // 距離が短縮された場合のみ並べ替えを反映
         const changed = afterLength < beforeLength - 1e-6;
         if (changed) {
-            selectedRoute.routePoints = optimizedWaypoints;
-            this.notify('onChange');
+            route.routePoints = optimizedWaypoints;
 
-            // 更新状態をチェック（Firebase保存・JSON出力の対象として更新フラグを立てる）
-            this.checkAndUpdateModifiedState();
+            // 更新フラグを立てる（Firebase保存・JSON出力の対象として明示）
+            if (!route.isModified) {
+                route.isModified = true;
+                this.notify('onModifiedStateChange', { isModified: true, routeIndex: index });
+                this.notify('onRouteListChange', this.routes);
+            }
+            this.notify('onChange');
         }
 
         return { beforeLength, afterLength, changed };
