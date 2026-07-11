@@ -69,6 +69,43 @@ export class UIHelper {
     }
 
     /**
+     * OKボタン付きメッセージを表示（時間経過では閉じず、OKボタンを押すまで表示し続ける）
+     * @param {string} message - 表示するメッセージ
+     * @param {string} type - メッセージタイプ ('info', 'warning', 'error')
+     */
+    static showMessageWithOk(message, type = 'info') {
+        // 既存のメッセージ要素があれば削除
+        const existingMessage = document.getElementById('messageOverlay');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+
+        const messageOverlay = document.createElement('div');
+        messageOverlay.id = 'messageOverlay';
+        messageOverlay.className = `message-overlay message-${type}`;
+
+        // メッセージ本文
+        const textElement = document.createElement('div');
+        textElement.textContent = message;
+        messageOverlay.appendChild(textElement);
+
+        // OKボタン
+        const okButton = document.createElement('button');
+        okButton.type = 'button';
+        okButton.className = 'message-ok-btn';
+        okButton.textContent = 'OK';
+        okButton.addEventListener('click', () => {
+            messageOverlay.remove();
+        });
+        messageOverlay.appendChild(okButton);
+
+        document.body.appendChild(messageOverlay);
+
+        // Enterキーで閉じられるようにOKボタンにフォーカス
+        okButton.focus();
+    }
+
+    /**
      * 自動消去しない永続メッセージを表示
      * 同じIDの既存メッセージがある場合は置き換える。
      * 明示的に hidePersistentMessage() を呼ぶまで表示し続ける。

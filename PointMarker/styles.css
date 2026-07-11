@@ -1013,6 +1013,25 @@ header p {
     border: 2px solid #4fc3f7;
 }
 
+/* メッセージオーバーレイのOKボタン（OKを押すまで閉じないメッセージ用） */
+.message-overlay .message-ok-btn {
+    display: block;
+    margin: 14px auto 0;
+    padding: 6px 36px;
+    font-size: 14px;
+    font-weight: 500;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    border-radius: var(--border-radius-sm);
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.message-overlay .message-ok-btn:hover {
+    background: white;
+}
+
 @keyframes messageSlideIn {
     from {
         opacity: 0;

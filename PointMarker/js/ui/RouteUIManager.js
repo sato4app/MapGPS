@@ -237,33 +237,47 @@ export class RouteUIManager {
             return;
         }
 
-        // 各ルートの結果を集計して単一ルートのときと同様に出力
-        const lines = allRoutes.map((route, index) => {
+        // 各ルートを順に最適化して結果を集計
+        const results = allRoutes.map((route, index) => {
             const routeName = route.routeName || `${route.startPointId} ～ ${route.endPointId}`;
-            const outcome = this._optimizeRouteAt(index);
-            let summary;
-            switch (outcome.status) {
-                case 'no-endpoints':
-                    summary = 'スキップ（開始・終了ポイントが未設定または未登録）';
-                    break;
-                case 'few-waypoints':
-                    summary = 'スキップ（中間点が2つ未満）';
-                    break;
-                case 'optimized':
-                    summary = `経路長: ${outcome.beforeLength} → ${outcome.afterLength}`;
-                    break;
-                default: // already-optimal
-                    summary = 'すでに最適';
-                    break;
-            }
-            return `・${routeName}: ${summary}`;
+            return { routeName, outcome: this._optimizeRouteAt(index) };
         });
 
-        UIHelper.showMessage(
-            `全ルート（${allRoutes.length}本）の最適化が完了しました\n` +
-            `${lines.join('\n')}\n` +
-            `「保存」または「出力」で、最適化の結果を反映してください`
-        );
+        // 結果一覧を作成（最適化済み＝すでに最適だったルートは出力対象外）
+        const lines = results
+            .filter(({ outcome }) => outcome.status !== 'already-optimal')
+            .map(({ routeName, outcome }) => {
+                let summary;
+                switch (outcome.status) {
+                    case 'no-endpoints':
+                        summary = 'スキップ（開始・終了ポイントが未設定または未登録）';
+                        break;
+                    case 'few-waypoints':
+                        summary = 'スキップ（中間点が2つ未満）';
+                        break;
+                    default: // optimized
+                        summary = `経路長: ${outcome.beforeLength} → ${outcome.afterLength}`;
+                        break;
+                }
+                return `・${routeName}: ${summary}`;
+            });
+
+        const optimizedCount = results.filter(({ outcome }) => outcome.status === 'optimized').length;
+
+        // 結果メッセージを組み立て
+        const messageParts = [`全ルート（${allRoutes.length}本）の最適化が完了しました`];
+        if (lines.length > 0) {
+            messageParts.push(lines.join('\n'));
+        } else {
+            // 全ルートがすでに最適（出力対象なし）
+            messageParts.push('すべてのルートはすでに最適です');
+        }
+        if (optimizedCount > 0) {
+            messageParts.push('「保存」または「出力」で、最適化の結果を反映してください');
+        }
+
+        // 結果一覧はOKボタンを押すまで表示し続ける（自動では閉じない）
+        UIHelper.showMessageWithOk(messageParts.join('\n'));
     }
 
     /**
