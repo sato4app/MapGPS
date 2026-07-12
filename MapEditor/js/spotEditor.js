@@ -3,6 +3,7 @@
 import { DEFAULTS, MODES, SPOT_CATEGORIES } from './constants.js';
 import { showMessage } from './message.js';
 import { updateStats } from './stats.js';
+import { normalizeId } from './routeEditor.js';
 
 // スポット編集の状態管理
 export let allSpots = [];
@@ -18,6 +19,19 @@ let duplicateExtractHandlers = null; // { mousedown, mousemove, mouseup }
 let duplicateExtractRectangle = null; // ドラッグ中/直近の長方形レイヤー
 const duplicateMarkedSpots = new Set(); // アクア色に変えたマーカー(featureを保持)
 const duplicateClickHandlerMap = new Map(); // feature -> 削除用clickハンドラ
+
+// スポット名をポップアップ用のHTMLに変換する
+// 改行(\n)は <br> に変換して2行以上で表示する。CSSの white-space: pre-line は
+// Leafletのポップアップ幅計算（一時的に nowrap にして1行幅を測る処理）を無効にし、
+// 改行の無い名称まで数文字ごとに折り返されてしまうため使わない
+export function toSpotNameHtml(name) {
+    const text = typeof name === 'string' ? name : '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\r?\n/g, '<br>');
+}
 
 // 状態変更用のセッター関数
 export function setSelectedSpotFeature(value) {
@@ -134,7 +148,9 @@ export function highlightSpot(spotIndex, spotMarkerMap) {
         resetSpotHighlightWithParams(previousSpotMarker, previousSpotFeature);
     }
 
-    document.getElementById('selectedSpotName').value = spot.name;
+    // テキストボックスは改行を保持できないため、改行はスペースに変換して表示する
+    // （元の名称は feature 側にそのまま残す）
+    document.getElementById('selectedSpotName').value = normalizeId(spot.name);
 
     // スポット区分を表示
     const category = spot.feature.properties && spot.feature.properties.category;
@@ -256,7 +272,7 @@ export function addSpotToMap(latlng, loadedData, spotMarkerMap, geoJsonLayer) {
     // 既定はドラッグ無効（追加・移動モードでのみ有効化する）
     if (marker.dragging) marker.dragging.disable();
 
-    marker.bindPopup(`${newSpotName}<br>(Spot)`);
+    marker.bindPopup(`${toSpotNameHtml(newSpotName)}<br>(Spot)`);
 
     marker.on('click', function(e) {
         // 重複スポット抽出モード中はドロップダウン選択を行わない
