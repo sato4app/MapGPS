@@ -46,6 +46,14 @@ export class CanvasEventHandler {
         const coords = CoordinateUtils.mouseToCanvas(event, this.app.canvas, scale, offset.x, offset.y);
         const mode = this.app.layoutManager.getCurrentEditingMode();
 
+        // スポット編集モードで領域選択中の場合、削除範囲ドラッグ開始
+        // （スポットの追加・移動より優先する）
+        if (mode === 'spot' && event.button === 0 && this.app.spotUIManager.isRegionModeActive()) {
+            this.app.spotUIManager.startRegionSelection(coords.x, coords.y);
+            event.preventDefault();
+            return;
+        }
+
         // 右クリック（button === 2）の場合、削除範囲ドラッグ開始
         if (event.button === 2 && mode === 'route') {
             this.isRightDragging = true;
@@ -133,6 +141,12 @@ export class CanvasEventHandler {
         const offset = this.app.canvasRenderer.getOffset();
         const coords = CoordinateUtils.mouseToCanvas(event, this.app.canvas, scale, offset.x, offset.y);
 
+        // スポット削除範囲のドラッグ中の処理（削除範囲の更新）
+        if (this.app.spotUIManager.isSelectingRegion()) {
+            this.app.spotUIManager.updateRegionSelection(coords.x, coords.y);
+            return;
+        }
+
         // 右クリックドラッグ中の処理（削除範囲の更新）
         if (this.isRightDragging) {
             this.rightDragCurrentX = coords.x;
@@ -183,6 +197,15 @@ export class CanvasEventHandler {
      * @param {MouseEvent} event 
      */
     async handleCanvasMouseUp(event) {
+        // スポット削除範囲のドラッグ終了時の処理
+        if (this.app.spotUIManager.isSelectingRegion()) {
+            // 直後のclickイベントで新規スポットが追加されるのを防ぐ
+            this.justFinishedDragging = true;
+            this.app.spotUIManager.finishRegionSelection();
+            event.preventDefault();
+            return;
+        }
+
         // 右クリックドラッグ終了時の処理
         if (this.isRightDragging) {
             // ドラッグ距離を計算（3px以上移動していたらドラッグ扱い）

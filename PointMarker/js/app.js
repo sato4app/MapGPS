@@ -20,6 +20,7 @@ import { FirebaseSyncManager } from './firebase/FirebaseSyncManager.js';
 import { CanvasEventHandler } from './ui/CanvasEventHandler.js';
 import { RouteUIManager } from './ui/RouteUIManager.js';
 import { AreaUIManager } from './ui/AreaUIManager.js';
+import { SpotUIManager } from './ui/SpotUIManager.js';
 
 /**
  * PointMarkerアプリケーションのメインクラス
@@ -43,6 +44,7 @@ export class PointMarkerApp {
         this.canvasEventHandler = new CanvasEventHandler(this);
         this.routeUIManager = new RouteUIManager(this);
         this.areaUIManager = new AreaUIManager(this);
+        this.spotUIManager = new SpotUIManager(this);
         this.dragDropHandler = new DragDropHandler();
         this.resizeHandler = new ResizeHandler();
         this.markerSettingsManager = new MarkerSettingsManager();
@@ -359,6 +361,11 @@ export class PointMarkerApp {
         });
 
         this.layoutManager.setCallback('onModeChange', (mode) => {
+            // スポット編集モード以外へ切り替えた場合は領域選択モードを解除
+            if (mode !== 'spot') {
+                this.spotUIManager.exitRegionMode();
+            }
+
             this.inputManager.setEditMode(mode);
             const pointIdCheckbox = document.getElementById('showPointIdsCheckbox');
             const spotNameCheckbox = document.getElementById('showSpotNamesCheckbox');
@@ -692,6 +699,23 @@ export class PointMarkerApp {
             e.preventDefault();
             this.routeUIManager.handleDeleteRoute();
         });
+
+        // スポット操作ボタン（領域を指定して削除）
+        const deleteDuplicateSpotsBtn = document.getElementById('deleteDuplicateSpotsBtn');
+        if (deleteDuplicateSpotsBtn) {
+            deleteDuplicateSpotsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.spotUIManager.toggleRegionMode('duplicate');
+            });
+        }
+
+        const deleteSpotsInRegionBtn = document.getElementById('deleteSpotsInRegionBtn');
+        if (deleteSpotsInRegionBtn) {
+            deleteSpotsInRegionBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.spotUIManager.toggleRegionMode('all');
+            });
+        }
 
         // エリア選択ドロップダウン
         const areaDropdown = document.getElementById('areaSelectDropdown');

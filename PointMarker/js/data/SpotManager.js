@@ -2,6 +2,13 @@ import { Validators } from '../utils/Validators.js';
 import { BaseManager } from '../core/BaseManager.js';
 
 /**
+ * 重複スポット判定の距離しきい値（キャンバス座標のピクセル）
+ * 同名かつこの距離以内にあるスポットを重複とみなす
+ * （MapEditorの「重複スポット抽出」が同名かつ30m以内としているのに相当）
+ */
+export const DUPLICATE_SPOT_DISTANCE = 30;
+
+/**
  * スポット管理クラス
  * 名称を持つ地図上の特定の点（スポット）の管理を行う
  */
@@ -95,6 +102,115 @@ export class SpotManager extends BaseManager {
             }
         }
         return -1;
+    }
+
+    /**
+     * 指定した矩形範囲内のスポットを検索
+     * @param {number} x1 - 矩形の始点X座標
+     * @param {number} y1 - 矩形の始点Y座標
+     * @param {number} x2 - 矩形の終点X座標
+     * @param {number} y2 - 矩形の終点Y座標
+     * @returns {Array} 範囲内のスポット情報の配列 [{index, spot}, ...]
+     */
+    findSpotsInRectangle(x1, y1, x2, y2) {
+        const left = Math.min(x1, x2);
+        const right = Math.max(x1, x2);
+        const top = Math.min(y1, y2);
+        const bottom = Math.max(y1, y2);
+
+        const spotsInRect = [];
+        this.spots.forEach((spot, index) => {
+            if (spot.x >= left && spot.x <= right &&
+                spot.y >= top && spot.y <= bottom) {
+                spotsInRect.push({ index, spot });
+            }
+        });
+
+        return spotsInRect;
+    }
+
+    /**
+     * 指定した矩形範囲内の重複スポット（同名かつ近接）をグループ単位で検索
+     * 各グループでは最初に見つかったスポットを残し、それ以外を削除対象とする
+     * @param {number} x1 - 矩形の始点X座標
+     * @param {number} y1 - 矩形の始点Y座標
+     * @param {number} x2 - 矩形の終点X座標
+     * @param {number} y2 - 矩形の終点Y座標
+     * @param {number} distanceLimit - 重複とみなす距離のしきい値（ピクセル）
+     * @returns {Array} 重複グループの配列 [{name, keepIndex, removeIndexes}, ...]
+     */
+    findDuplicateSpotsInRectangle(x1, y1, x2, y2, distanceLimit = DUPLICATE_SPOT_DISTANCE) {
+        // 名称が未入力のスポットは重複判定の対象外
+        const candidates = this.findSpotsInRectangle(x1, y1, x2, y2)
+            .filter(({ spot }) => (spot.name || '').trim() !== '');
+
+        // 同名のスポットごとにグループ化
+        const membersByName = new Map();
+        candidates.forEach(({ index, spot }) => {
+            const name = spot.name.trim();
+            if (!membersByName.has(name)) {
+                membersByName.set(name, []);
+            }
+            membersByName.get(name).push({ index, spot });
+        });
+
+        const duplicateGroups = [];
+        membersByName.forEach((members, name) => {
+            if (members.length < 2) return;
+
+            // 同名の中でも、近接しているもの同士のみを重複とみなす
+            const grouped = new Set();
+            members.forEach((base, i) => {
+                if (grouped.has(base.index)) return;
+
+                const removeIndexes = [];
+                for (let j = i + 1; j < members.length; j++) {
+                    const other = members[j];
+                    if (grouped.has(other.index)) continue;
+
+                    const distance = Math.hypot(other.spot.x - base.spot.x, other.spot.y - base.spot.y);
+                    if (distance <= distanceLimit) {
+                        grouped.add(other.index);
+                        removeIndexes.push(other.index);
+                    }
+                }
+
+                if (removeIndexes.length > 0) {
+                    grouped.add(base.index);
+                    duplicateGroups.push({ name, keepIndex: base.index, removeIndexes });
+                }
+            });
+        });
+
+        return duplicateGroups;
+    }
+
+    /**
+     * 複数のスポットをまとめて削除
+     * @param {Array<number>} indices - 削除するスポットのインデックス配列
+     * @returns {number} 削除した件数
+     */
+    removeSpots(indices) {
+        // 重複を除いたうえで降順に並べ替え（削除時に配列が崩れないように）
+        const targetIndices = [...new Set(indices)]
+            .filter(index => index >= 0 && index < this.spots.length)
+            .sort((a, b) => b - a);
+
+        if (targetIndices.length === 0) return 0;
+
+        targetIndices.forEach(index => {
+            this.spots.splice(index, 1);
+        });
+
+        // インデックスを再割り当て
+        this.spots.forEach((spot, i) => {
+            spot.index = i;
+        });
+
+        this.notify('onChange');
+        this.notify('onCountChange', this.spots.length);
+
+        return targetIndices.length;
     }
 
     /**

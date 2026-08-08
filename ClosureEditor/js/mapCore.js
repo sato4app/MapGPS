@@ -1,8 +1,11 @@
-// 地図のコア機能
+// 地図のコア機能（地理院地図の初期化・レイヤーの重ね順）
 
 import { DEFAULTS } from './constants.js';
 
-// 地図とレイヤーの初期化
+// 地図と描画レイヤーの初期化
+// 重ね順は専用ペインで制御する:
+//   basemapLines(410) < basemapMarkers(590) < 登録地点マーカー(markerPane 600)
+// 登録地点は常に背景（ハイキングマップ）より前面に置き、掴み損ねないようにする。
 export function initializeMap() {
     const map = L.map('map').setView(DEFAULTS.MAP_CENTER, DEFAULTS.MAP_ZOOM);
 
@@ -43,7 +46,7 @@ export function initializeMap() {
             return container;
         },
 
-        onRemove: function (map) {
+        onRemove: function () {
             // クリーンアップは特に必要なし
         }
     });
@@ -52,10 +55,11 @@ export function initializeMap() {
     new CustomZoomControl({ position: 'bottomright' }).addTo(map);
     new CustomZoomControl({ position: 'topleft' }).addTo(map);
 
-    const geoJsonLayer = L.layerGroup().addTo(map);
-    const markerMap = new Map();
-    const spotMarkerMap = new Map();
-    const areaLayerMap = new Map();
+    map.createPane('basemapLines').style.zIndex = 410;
+    map.createPane('basemapMarkers').style.zIndex = 590;
 
-    return { map, geoJsonLayer, markerMap, spotMarkerMap, areaLayerMap };
+    // 登録地点マーカーの置き場（既定の markerPane を使う）
+    const closureLayer = L.layerGroup().addTo(map);
+
+    return { map, closureLayer };
 }

@@ -155,6 +155,14 @@
                 <section class="spot-editor" id="spotEditor" style="display: none;">
                     <h3>スポット編集</h3>
 
+                    <!-- スポット削除操作（ボタンを押してから画像上をドラッグして領域を指定） -->
+                    <div class="spot-actions">
+                        <button type="button" id="deleteDuplicateSpotsBtn" class="spot-action-btn"
+                            title="ドラッグで囲んだ領域内の、同名で近接した重複スポットを1つ残して削除">重複スポットの削除</button>
+                        <button type="button" id="deleteSpotsInRegionBtn" class="spot-action-btn"
+                            title="ドラッグで囲んだ領域内のスポットをすべて削除">選択領域内のスポット削除</button>
+                    </div>
+
                     <div class="spot-count" aria-live="polite">
                         スポット数: <span id="spotCount">0</span>
                     </div>

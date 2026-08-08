@@ -741,6 +741,59 @@ header p {
 }
 
 /* =====================================
+   Spot Actions (領域指定によるスポット削除)
+   ===================================== */
+/* パネル幅を他の編集モードと揃えるため、ボタンは縦並び・パネル幅いっぱいに配置する */
+.spot-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.spot-action-btn {
+    width: 100%;
+    padding: 6px 4px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: white;
+    color: var(--secondary-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.spot-action-btn:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.spot-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 領域選択モード中のボタン（削除対象の指定待ちであることを示す） */
+.spot-action-btn.active {
+    background: var(--danger-color);
+    color: white;
+    border-color: var(--danger-color);
+}
+
+.spot-action-btn.active:hover {
+    background: var(--danger-dark);
+    border-color: var(--danger-dark);
+}
+
+/* 領域選択モード中はスポット名ポップアップをマウス操作の対象外にする
+   （ポップアップ上をドラッグが通過しても矩形指定が途切れないようにするため） */
+body.spot-region-selecting .spot-name-popup {
+    pointer-events: none !important;
+}
+
+/* =====================================
    Counters & Status
    ===================================== */
 .point-count,
