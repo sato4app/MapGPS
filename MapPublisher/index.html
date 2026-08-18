@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地図データの公開</title>
+    <link rel="icon"
+        href="data:image/svg+xml,
+            <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📤</text></svg>" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div class="control-panel">
+        <div class="panel-header">
+            <span class="panel-title">地図データの公開</span>
+            <span class="panel-version" id="appVersion"></span>
+        </div>
+
+        <!-- 地図データ（ポイント・ルート・スポット） -->
+        <section class="panel-section">
+            <div class="section-title">地図データ</div>
+
+            <div class="row">
+                <label for="mapDataFileInput" class="file-input-label">ファイル読み込み</label>
+                <input type="file" id="mapDataFileInput" accept=".geojson,.json">
+                <button id="clearMapDataBtn">消去</button>
+            </div>
+
+            <div class="row">
+                <label class="check-label">
+                    <input type="checkbox" id="mapDataVisible" checked>
+                    <span>地図に表示</span>
+                </label>
+            </div>
+
+            <div class="summary" id="mapDataCounts">未読み込み</div>
+            <div class="summary-note" id="mapDataExcluded"></div>
+
+            <div class="row">
+                <span class="label">現在公開中</span>
+                <input type="text" class="text-input" id="mapDataPublished" readonly>
+            </div>
+
+            <div class="row button-row">
+                <button class="action-btn publish-btn" id="publishMapDataBtn">公開</button>
+                <button id="exportMapDataBtn">整形結果を出力</button>
+            </div>
+        </section>
+
+        <!-- 通行止め・通行困難地点 -->
+        <section class="panel-section">
+            <div class="section-title">通行止め・通行困難地点</div>
+
+            <div class="row">
+                <label for="closureFileInput" class="file-input-label">ファイル読み込み</label>
+                <input type="file" id="closureFileInput" accept=".geojson,.json">
+                <button id="clearClosureBtn">消去</button>
+            </div>
+
+            <div class="row">
+                <label class="check-label">
+                    <input type="checkbox" id="closureVisible" checked>
+                    <span>地図に表示</span>
+                </label>
+            </div>
+
+            <div class="summary" id="closureCounts">未読み込み</div>
+            <div class="summary-note" id="closureNote"></div>
+
+            <div class="row">
+                <span class="label">現在公開中</span>
+                <input type="text" class="text-input" id="closurePublished" readonly>
+            </div>
+
+            <div class="row button-row">
+                <button class="action-btn publish-btn" id="publishClosureBtn">公開</button>
+                <button id="exportClosureBtn">整形結果を出力</button>
+            </div>
+        </section>
+
+        <div class="row button-row panel-footer">
+            <button class="reset-btn" id="reloadPublishedBtn" title="現在公開中の情報を取得">↻</button>
+            <button id="clearTokenBtn">トークン消去</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

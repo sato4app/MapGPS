@@ -97,15 +97,6 @@ h1 {
     text-align: center;
 }
 
-/* PNG画像アイコン(絵文字と同サイズで表示) */
-.app-icon img {
-    width: 1em;
-    height: 1em;
-    object-fit: contain;
-    vertical-align: -0.125em;
-    border-radius: 0.15em;
-}
-
 /* アプリケーションコンテンツ */
 .app-content {
     flex: 1;
