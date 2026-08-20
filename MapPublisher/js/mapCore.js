@@ -5,7 +5,7 @@ import { DEFAULTS } from './constants.js';
 // 地図と描画レイヤーの初期化
 // 重ね順は専用ペインで制御する:
 //   mapDataLines(410) < mapDataMarkers(590) < 通行止め地点マーカー(markerPane 600)
-// 通行止め地点は常に地図データより前面に置き、確認しやすくする。
+// 通行止め地点は常にハイキングマップデータより前面に置き、確認しやすくする。
 export function initializeMap() {
     const map = L.map('map').setView(DEFAULTS.MAP_CENTER, DEFAULTS.MAP_ZOOM);
 

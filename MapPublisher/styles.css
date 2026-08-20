@@ -28,23 +28,28 @@ body {
     box-sizing: border-box;
 }
 
+/* 見出しが長いため、版日付は収まらなければ次行へ回す
+   （見出しの途中で改行させない） */
 .panel-header {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 2px 8px;
     margin-bottom: 14px;
 }
 
 .panel-title {
     font-size: 16px;
     font-weight: bold;
+    white-space: nowrap;
 }
 
 .panel-version {
     font-size: 11px;
     color: #777;
     white-space: nowrap;
+    margin-left: auto;
 }
 
 .panel-section {

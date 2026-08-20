@@ -1,11 +1,12 @@
-// 地図データ（ポイント・ルート・スポット）の保持・表示・公開用整形
+// ハイキングマップデータ（ポイント・ルート・スポット）の保持・表示・公開用整形
 //
 // MapEditor が出力した作業用 GeoJSON を読み込み、公開スキーマへ整形して公開する。
 // 公開スキーマの正本は minoh-hiking `docs/publish-api-202608.md` §3。
 // 本アプリは編集を行わない（位置・属性の変更は MapEditor 側の役割）。
 
 import {
-    MAPDATA_TYPES, MAPDATA_STYLES, MAPDATA_TYPE_LABELS, EXCLUDED_TYPE_LABELS
+    MAPDATA_TYPES, MAPDATA_STYLES, MAPDATA_TYPE_LABELS,
+    EXCLUDED_TYPE_LABELS, SILENT_EXCLUDED_TYPES
 } from './constants.js';
 import { createPointMarker } from './render.js';
 import { roundCoord, escapeHtml } from './utils.js';
@@ -82,11 +83,13 @@ export function getTotal() {
     return state.features.length;
 }
 
-// 公開対象外として除去した件数の内訳（表示用の文字列。無ければ空文字）
+// 公開対象外として除去した件数の内訳（表示用の文字列。知らせるものが無ければ空文字）
+// SILENT_EXCLUDED_TYPES は仕様どおりの除外であり、運用者の判断材料にならないため出さない。
 export function getExcludedSummary() {
-    const entries = Object.entries(state.excluded);
-    if (entries.length === 0) return '';
-    const parts = entries.map(([type, n]) => `${EXCLUDED_TYPE_LABELS[type] || type} ${n}`);
+    const parts = Object.entries(state.excluded)
+        .filter(([type]) => !SILENT_EXCLUDED_TYPES.includes(type))
+        .map(([type, n]) => `${EXCLUDED_TYPE_LABELS[type] || type} ${n}`);
+    if (parts.length === 0) return '';
     return `公開対象外 ${parts.join(' / ')}`;
 }
 

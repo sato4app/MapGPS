@@ -34,18 +34,23 @@ export const PUBLISH_TOKEN_KEY = 'map-publisher.publish-token';
 // ===== 公開スキーマ =====
 // 正本は publish-api-202608.md §3。ここには「どの type を公開するか」だけを持つ。
 
-// 地図データとして公開する type（これ以外は公開時に除去する）
+// ハイキングマップデータとして公開する type（これ以外は公開時に除去する）
 export const MAPDATA_TYPES = ['ポイントGPS', 'route', 'spot'];
 
 // 公開対象外の type の表示名（除外件数の内訳表示で使用）
 export const EXCLUDED_TYPE_LABELS = {
-    point: '画像ポイント',
     route_waypoint: 'ルート中間点',
     area: 'エリア',
     closure: '通行止め地点'
 };
 
-// ===== 地図データ（mapdata）の表示 =====
+// 公開対象外のうち、除外を知らせないもの。
+// `point`（画像変換済みポイント）は `ポイントGPS` と同じ地点を別に持っているだけで、
+// 除外は仕様どおりであり運用者が対応することもない。毎回知らせても判断材料にならず、
+// 本当に確認してほしい除外（エリア・通行止め地点の混入など）が埋もれる。
+export const SILENT_EXCLUDED_TYPES = ['point'];
+
+// ===== ハイキングマップデータ（mapdata）の表示 =====
 // minoh-hiking のマーカー設定の既定値（config.js の MARKER_TYPES）に合わせ、
 // 公開後にユーザーが見る地図との見え方を揃える。
 export const MAPDATA_STYLES = {

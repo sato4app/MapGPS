@@ -107,7 +107,7 @@ export async function saveAsFile(data, filename) {
 export function setupExportButtons() {
     document.getElementById('exportMapDataBtn').addEventListener('click', async function () {
         if (!MapData.isLoaded()) {
-            showMessage('出力する地図データがありません', 'warning');
+            showMessage('出力するハイキングマップデータがありません', 'warning');
             return;
         }
         const saved = await saveAsFile(MapData.buildPublishData(), buildMapDataFileName());

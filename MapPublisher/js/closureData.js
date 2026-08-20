@@ -31,7 +31,7 @@ function isImportable(feature) {
         && Array.isArray(feature.geometry.coordinates);
 }
 
-// 読み込みは置換方式（地図データと同じ理由。mapData.js の load を参照）
+// 読み込みは置換方式（ハイキングマップデータと同じ理由。mapData.js の load を参照）
 export function load(json) {
     if (!json || json.type !== 'FeatureCollection' || !Array.isArray(json.features)) {
         throw new Error('FeatureCollection 形式の geojson ではありません');
@@ -121,7 +121,7 @@ function redraw() {
         const style = CLOSURE_STYLES[kind] || CLOSURE_STYLES[CLOSURE_DEFAULT_KIND];
         const [lng, lat] = feature.geometry.coordinates;
 
-        // 通行止め地点は地図データより前面に置く（既定の markerPane を使う）
+        // 通行止め地点はハイキングマップデータより前面に置く（既定の markerPane を使う）
         const marker = createPointMarker([lat, lng], style, {
             interactive: true,
             className: 'closure-marker',

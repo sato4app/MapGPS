@@ -47,7 +47,7 @@ function breakdownClosures(geojson) {
 const DATASETS = {
     mapdata: {
         key: 'mapdata',
-        label: '地図データ',
+        label: 'ハイキングマップデータ',
         url: API_URLS.mapdata,
         displayId: 'mapDataPublished',
         buttonId: 'publishMapDataBtn',

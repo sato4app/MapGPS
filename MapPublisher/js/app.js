@@ -73,12 +73,12 @@ document.getElementById('closureVisible').addEventListener('change', function ()
 
 document.getElementById('clearMapDataBtn').addEventListener('click', function () {
     if (!MapData.isLoaded()) {
-        showMessage('読み込んだ地図データはありません', 'warning');
+        showMessage('読み込んだハイキングマップデータはありません', 'warning');
         return;
     }
     MapData.clear();
     updateMapDataSummary();
-    showMessage('地図データを消去しました', 'success');
+    showMessage('ハイキングマップデータを消去しました', 'success');
 });
 
 document.getElementById('clearClosureBtn').addEventListener('click', function () {
