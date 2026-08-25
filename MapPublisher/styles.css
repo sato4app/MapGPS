@@ -52,21 +52,79 @@ body {
     margin-left: auto;
 }
 
+/* ===== 公開するデータセット ===== */
+/* 3つを開いたまま並べるとパネルが地図を覆い、操作の焦点もぼやけるため、開くのは1つだけにする
+   （同じ name を持つ <details> の標準動作）。ただし「現在公開中」は見出しに残し、
+   開いていないデータセットの版も一目で分かるようにする。 */
 .panel-section {
     border: 2px solid #999;
     border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
 }
 
-.panel-section:last-child {
+/* パネル末尾の操作行が最後の子のため :last-child では当たらない */
+.panel-section:last-of-type {
     margin-bottom: 0;
 }
 
+/* 見出し（クリックで開閉する）。既定の三角マーカーは消し、データセット名の前に自前のマークを出す */
+.section-head {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.section-head::-webkit-details-marker {
+    display: none;
+}
+
+.section-head:hover {
+    background: #f8f9fa;
+}
+
+.panel-section[open] .section-head {
+    border-radius: 6px 6px 0 0;
+}
+
 .section-title {
+    display: block;
     font-size: 13px;
     font-weight: bold;
-    margin-bottom: 10px;
+}
+
+.section-title::before {
+    content: '▶';
+    font-size: 10px;
+    color: #666;
+    margin-right: 6px;
+}
+
+.panel-section[open] .section-title::before {
+    content: '▼';
+}
+
+/* 見出しの「現在公開中」。開閉マークの分だけ字下げしてデータセット名と揃える */
+.published-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-left: 16px;
+}
+
+.published-row .label {
+    font-size: 11px;
+}
+
+/* .text-input より詳細度を上げて、見出し用に小さく詰める */
+.published-row .text-input {
+    padding: 3px 6px;
+    font-size: 11px;
+}
+
+.section-body {
+    padding: 0 12px 12px;
 }
 
 /* ===== 行レイアウト ===== */

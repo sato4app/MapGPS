@@ -1,7 +1,7 @@
 // アプリケーション全体で使用する定数定義
 
 // 版日付（MapGPS のカードに表示する版と揃える）
-export const APP_VERSION = '2026-08-18';
+export const APP_VERSION = '2026-08-23';
 
 // デフォルト設定
 export const DEFAULTS = {
@@ -16,7 +16,7 @@ export const DEFAULTS = {
 };
 
 // ===== 公開API =====
-// 仕様の正本は minoh-hiking `docs/publish-api-202608.md`（契約バージョン 2.0）。
+// 仕様の正本は minoh-hiking `docs/publish-api-202608.md`（契約バージョン 2.1）。
 // 検証ルール・エラー文言をここに再実装しないこと。判定はサーバーに任せ、
 // 失敗時は API が返した日本語メッセージをそのまま表示する。
 const API_ORIGIN = 'https://minoh-hiking.vercel.app';
@@ -24,11 +24,12 @@ const API_ORIGIN = 'https://minoh-hiking.vercel.app';
 export const API_URLS = {
     manifest: `${API_ORIGIN}/api/manifest`,
     mapdata: `${API_ORIGIN}/api/mapdata`,
-    closures: `${API_ORIGIN}/api/closures`
+    closures: `${API_ORIGIN}/api/closures`,
+    tiles: `${API_ORIGIN}/api/tiles`
 };
 
 // 公開トークンの保存先（この端末のみ。認証失敗〈401〉時は削除して再入力を促す）
-// 2データセット共通（サーバー側の環境変数 MAP_PUBLISH_TOKEN と同一）
+// 全データセット共通（サーバー側の環境変数 MAP_PUBLISH_TOKEN と同一）
 export const PUBLISH_TOKEN_KEY = 'map-publisher.publish-token';
 
 // ===== 公開スキーマ =====
@@ -87,3 +88,13 @@ export const CLOSURE_KIND_LABELS = {
 // 区分の既定値。MapEditor の CLOSURE_DEFAULT_KIND と揃える。
 // 公開スキーマでは kind は closed / difficult のみで、未選択は存在しない。
 export const CLOSURE_DEFAULT_KIND = 'closed';
+
+// ===== 地図タイルのダウンロード領域（tiles）=====
+// GeoJSON ではない（契約 2.1 §3.6）。DownloadArea が出力した tile_manifest.json を
+// そのまま公開するため、整形用の定義は持たない。
+
+// 件数の単位。tiles は Feature 数ではなくタイルの枚数を数える（契約 §5.2）
+export const TILE_COUNT_UNIT = '枚';
+
+// レイヤーキー（z14_default 等）はアプリが「基本／詳細」の区分に使う。
+// 命名はサーバーも検証しないため、表示でも読み替えずそのまま出す。

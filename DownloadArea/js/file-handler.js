@@ -7,6 +7,8 @@ export class FileHandler {
     constructor() {
         this.currentFileHandle = null;
         this.currentFileName = '';
+        // 前回JSONを保存したファイル。次回の保存ダイアログの開始位置に使う。
+        this.lastJsonFileHandle = null;
     }
 
     /**
@@ -214,5 +216,81 @@ export class FileHandler {
                 return { success: false, error: error.message };
             }
         }
+    }
+
+    /**
+     * 複数のJSONファイルを、利用者が保存先を選んで保存する
+     *
+     * ファイルごとに保存ダイアログ(showSaveFilePicker)を開く。
+     * フォルダ選択(showDirectoryPicker)は「フォルダ内のファイルの表示と編集」の
+     * 許可を求める確認が出るため使わない。保存ダイアログなら、その1ファイルを
+     * 書き込む許可だけで済む。
+     * 2つ目以降は1つ目の保存先が開くので、同じフォルダへ続けて保存できる。
+     * File System Access API 非対応ブラウザでは従来のダウンロードにする。
+     *
+     * @param {Array<{filename: string, content: string}>} files - 保存するファイル
+     * @returns {Promise<{success: boolean, filenames?: string[], savedFilenames?: string[], error?: string}>} 保存結果
+     */
+    async saveJsonFilesWithUserChoice(files) {
+        // 非対応ブラウザ（Firefox/Safari など）はダウンロードフォルダへ出す
+        if (!('showSaveFilePicker' in window)) {
+            files.forEach(f => this.downloadJSON(f.content, f.filename));
+            return { success: true };
+        }
+
+        // 保存済みのファイル名。途中で取りやめた場合に、どこまで出力したかを返す。
+        const savedFilenames = [];
+        // 次のダイアログを開く場所。直前に保存したファイルと同じフォルダを開く。
+        let startInHandle = this.lastJsonFileHandle;
+
+        try {
+            for (const f of files) {
+                const savePickerOptions = {
+                    suggestedName: f.filename,
+                    types: [{
+                        description: 'JSON Files',
+                        accept: { 'application/json': ['.json', '.geojson'] }
+                    }]
+                };
+                if (startInHandle) {
+                    savePickerOptions.startIn = startInHandle;
+                }
+
+                const fileHandle = await window.showSaveFilePicker(savePickerOptions);
+                const writable = await fileHandle.createWritable();
+                await writable.write(f.content);
+                await writable.close();
+
+                savedFilenames.push(fileHandle.name);
+                startInHandle = fileHandle;
+            }
+
+            // 次回の出力も同じフォルダから始められるよう保持する
+            this.lastJsonFileHandle = startInHandle;
+
+            return { success: true, filenames: savedFilenames };
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                return { success: false, error: 'キャンセル', savedFilenames };
+            }
+            return { success: false, error: error.message, savedFilenames };
+        }
+    }
+
+    /**
+     * JSON文字列をファイルとしてダウンロード（フォルダ指定なしのフォールバック）
+     * @param {string} content - JSON文字列
+     * @param {string} filename - ファイル名
+     */
+    downloadJSON(content, filename) {
+        const blob = new Blob([content], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }

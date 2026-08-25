@@ -32,14 +32,8 @@ class PointGPSApp {
             this.pointManager.setAppInstance(this);
 
             // Download領域管理初期化（円描画とファイル出力）
-            this.downloadAreaManager = new DownloadAreaManager(this.mapManager, this.gpsDataManager);
+            this.downloadAreaManager = new DownloadAreaManager(this.mapManager, this.gpsDataManager, this.fileHandler);
             this.pointManager.onPointsChanged = () => this.downloadAreaManager.updateCircles();
-
-            // 地図タイルバージョンの初期値（出力年月 yyyy-mm）を設定
-            const mapTileVersionField = document.getElementById('mapTileVersionField');
-            if (mapTileVersionField) {
-                mapTileVersionField.value = this.downloadAreaManager.todayVersionString();
-            }
 
             // イベントハンドラー設定
             this.setupEventHandlers();
@@ -278,18 +272,28 @@ class PointGPSApp {
         // ダウンロード領域の指定ファイル出力ボタン
         const exportDownloadAreaBtn = document.getElementById('exportDownloadAreaBtn');
 
-        exportDownloadAreaBtn.addEventListener('click', () => {
+        exportDownloadAreaBtn.addEventListener('click', async () => {
             try {
-                const versionField = document.getElementById('mapTileVersionField');
-                const version = versionField ? versionField.value.trim() : '';
-                const result = this.downloadAreaManager.exportFiles(version || null);
+                const result = await this.downloadAreaManager.exportFiles();
                 if (result.success) {
+                    // 保存ダイアログで名前を変えられるため、実際に保存した名前を表示する
+                    const names = (result.filenames && result.filenames.length > 0)
+                        ? result.filenames.join(' と ')
+                        : 'tile_buffers.geojson と tile_manifest.json';
                     this.showMessage(
-                        `tile_buffers.geojson と tile_manifest.json を出力しました\n` +
+                        `${names} を出力しました\n` +
                         `対象: ${result.pointCount}ポイント / ` +
                         `z14:${result.z14Count}枚 / z15:${result.z15Count}枚 / z16:${result.z16Count}枚 / ` +
                         `z17:${result.z17Count}枚 / z18:${result.z18Count}枚`
                     );
+                } else if (result.error === 'キャンセル') {
+                    // 片方だけ保存済みの状態は分かりにくいため、その旨を知らせる
+                    if (result.savedFilenames && result.savedFilenames.length > 0) {
+                        this.showMessage(
+                            `${result.savedFilenames.join('、')} のみ出力しました。残りは出力していません`,
+                            'warning'
+                        );
+                    }
                 } else {
                     this.showError(result.error);
                 }

@@ -6,9 +6,10 @@ import { CONFIG } from './config.js';
 const DA = CONFIG.DOWNLOAD_AREA;
 
 export class DownloadAreaManager {
-    constructor(mapManager, gpsDataManager) {
+    constructor(mapManager, gpsDataManager, fileHandler) {
         this.mapManager = mapManager;
         this.gpsDataManager = gpsDataManager;
+        this.fileHandler = fileHandler;
         this.bufferLayer = L.layerGroup().addTo(this.mapManager.getMap());
         // ズーム別の対象タイル矩形を描くレイヤー（円バッファとは独立）。
         this.tileGridLayer = L.layerGroup().addTo(this.mapManager.getMap());
@@ -412,7 +413,9 @@ export class DownloadAreaManager {
         return coords;
     }
 
-    // 出力ファイルの version フィールドに使う出力年月 (yyyy.mm)
+    // tile_buffers.geojson の version に入れる出力年月 (yyyy-mm)。
+    // 「どの回の出力か」を示す印であり、公開バージョンではない。
+    // 公開バージョン（yyyy.nn）は MapPublisher の画面で指定する。
     todayVersionString() {
         const today = new Date();
         return `${today.getFullYear()}-`
@@ -422,7 +425,7 @@ export class DownloadAreaManager {
     // tile_buffers.geojson を生成
     // z=14/15/16/17 は同じ z17 バッファ半径を共有するため、ジオメトリは同一だが
     // レイヤごとに個別の Feature を出力してマニフェストと対応を取る。
-    generateTileBuffersGeoJSON(version = null) {
+    generateTileBuffersGeoJSON() {
         const points = this.getEffectivePoints();
         const features = [];
         const z17SharedLayers = [
@@ -456,7 +459,7 @@ export class DownloadAreaManager {
         return {
             type: 'FeatureCollection',
             metadata: {
-                version: version || this.todayVersionString(),
+                version: this.todayVersionString(),
                 z14_layer: { buffer_m_max: this.bufferR17, max_zoom: DA.Z14, min_zoom: DA.Z14 },
                 z15_layer: { buffer_m_max: this.bufferR17, max_zoom: DA.Z15, min_zoom: DA.Z15 },
                 z16_layer: { buffer_m_max: this.bufferR17, max_zoom: DA.Z16, min_zoom: DA.Z16 },
@@ -571,7 +574,11 @@ export class DownloadAreaManager {
     }
 
     // tile_manifest.json を生成
-    generateTileManifest(version = null) {
+    //
+    // version は入れない。公開バージョンは MapPublisher の画面で指定するもので、
+    // ここに書いても公開結果には反映されない（公開API 契約 3.0 §4）。
+    // 同じ名前の値を2箇所で持つと、どちらが効くのか分からなくなる。
+    generateTileManifest() {
         const points = this.getEffectivePoints();
         const z14Set = new Set();
         const z15Set = new Set();
@@ -611,7 +618,6 @@ export class DownloadAreaManager {
             .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 
         return {
-            version: version || this.todayVersionString(),
             source: DA.MANIFEST_SOURCE,
             layers: {
                 [DA.LAYER_KEY_Z14]: {
@@ -648,22 +654,33 @@ export class DownloadAreaManager {
         };
     }
 
-    // 2つのファイルを出力
-    exportFiles(version = null) {
+    // 2つのファイルを、利用者が選んだフォルダへ出力する
+    async exportFiles() {
         const points = this.getEligiblePoints();
         if (points.length === 0 && this.routeWaypoints.length === 0) {
             return { success: false, error: CONFIG.MESSAGES.DOWNLOAD_AREA_EMPTY };
         }
 
-        const v = version || this.todayVersionString();
-        const geojson = this.generateTileBuffersGeoJSON(v);
-        const manifest = this.generateTileManifest(v);
+        const geojson = this.generateTileBuffersGeoJSON();
+        const manifest = this.generateTileManifest();
 
-        this.downloadJSON(geojson, DA.GEOJSON_FILENAME);
-        this.downloadJSON(manifest, DA.MANIFEST_FILENAME);
+        // 2ファイルは対で使うため、続けて保存する（2つ目は1つ目と同じフォルダが開く）
+        const saveResult = await this.fileHandler.saveJsonFilesWithUserChoice([
+            { filename: DA.GEOJSON_FILENAME, content: JSON.stringify(geojson) },
+            { filename: DA.MANIFEST_FILENAME, content: JSON.stringify(manifest) }
+        ]);
+
+        if (!saveResult.success) {
+            return {
+                success: false,
+                error: saveResult.error,
+                savedFilenames: saveResult.savedFilenames
+            };
+        }
 
         return {
             success: true,
+            filenames: saveResult.filenames,
             pointCount: points.length,
             z14Count: manifest.layers[DA.LAYER_KEY_Z14].tile_count,
             z15Count: manifest.layers[DA.LAYER_KEY_Z15].tile_count,
@@ -671,17 +688,5 @@ export class DownloadAreaManager {
             z17Count: manifest.layers[DA.LAYER_KEY_Z17].tile_count,
             z18Count: manifest.layers[DA.LAYER_KEY_Z18].tile_count
         };
-    }
-
-    downloadJSON(obj, filename) {
-        const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
     }
 }
