@@ -17,6 +17,7 @@ const { map } = initializeMap();
 
 MapData.init(map);
 ClosureData.init(map);
+TileData.init(map);
 
 document.getElementById('appVersion').textContent = `版 ${APP_VERSION}`;
 
@@ -55,10 +56,32 @@ function updateClosureSummary() {
     note.textContent = normalized > 0 ? `区分未設定 ${normalized}件を通行止めとして扱います` : '';
 }
 
+// ズームレベルの選択候補は読み込んだファイルの内容で決まる（z14〜z18 を想定）。
+// 読み込み・消去・公開中データへの復元のたびに作り直す。
+function updateTileZoomOptions() {
+    const select = document.getElementById('tileZoomSelect');
+    const levels = TileData.getZoomLevels();
+    const selected = TileData.getZoom();
+
+    select.innerHTML = '';
+    levels.forEach(level => {
+        const option = document.createElement('option');
+        option.value = String(level.z);
+        option.textContent = `z${level.z}`;
+        option.selected = level.z === selected;
+        select.appendChild(option);
+    });
+
+    // 未読み込みのときは選ぶものがない
+    select.disabled = levels.length === 0;
+}
+
 // タイル一覧はレイヤー別の枚数を出す。合計だけでは、レイヤーが1つ欠けた
 // マニフェストや別範囲のファイルとの取り違えに気づけないため。
 function updateTileSummary() {
     const summary = document.getElementById('tileCounts');
+
+    updateTileZoomOptions();
 
     if (!TileData.isLoaded()) {
         summary.textContent = '未読み込み';
@@ -110,6 +133,15 @@ document.getElementById('mapDataVisible').addEventListener('change', function ()
 
 document.getElementById('closureVisible').addEventListener('change', function () {
     ClosureData.setVisible(this.checked);
+});
+
+document.getElementById('tileVisible').addEventListener('change', function () {
+    TileData.setVisible(this.checked);
+});
+
+// 描けるのは1レベル分のみ。選び直したらそのレベルの領域へ描き替える
+document.getElementById('tileZoomSelect').addEventListener('change', function () {
+    TileData.setZoom(Number(this.value));
 });
 
 document.getElementById('clearMapDataBtn').addEventListener('click', function () {

@@ -114,7 +114,8 @@
         </details>
 
         <!-- 地図タイルのダウンロード領域（DownloadArea が出力した tile_manifest.json）
-             タイル一覧は地点でもルートでもないため「地図に表示」は持たない -->
+             タイル一覧は地点でもルートでもないが、配信する範囲は地図に重ねないと確かめられない。
+             ズームレベルごとに範囲が違うため、表示するレベルを選べるようにしている -->
         <details class="panel-section" name="dataset">
             <summary class="section-head">
                 <span class="section-title">地図タイルのダウンロード領域</span>
@@ -129,6 +130,15 @@
                     <label for="tileFileInput" class="file-input-label">ファイル読み込み</label>
                     <input type="file" id="tileFileInput" accept=".json">
                     <button id="clearTileBtn">消去</button>
+                </div>
+
+                <div class="row">
+                    <label class="check-label">
+                        <input type="checkbox" id="tileVisible" checked>
+                        <span>地図に表示</span>
+                    </label>
+                    <label class="zoom-label" for="tileZoomSelect">ズームレベル</label>
+                    <select class="select-input" id="tileZoomSelect"></select>
                 </div>
 
                 <div class="summary" id="tileCounts">未読み込み</div>

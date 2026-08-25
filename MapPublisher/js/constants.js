@@ -98,3 +98,21 @@ export const TILE_COUNT_UNIT = '枚';
 
 // レイヤーキー（z14_default 等）はアプリが「基本／詳細」の区分に使う。
 // 命名はサーバーも検証しないため、表示でも読み替えずそのまま出す。
+
+// 地図に重ねるダウンロード領域の見た目。color / weight / opacity は外周線、
+// fillColor / fillOpacity は塗りに使う（tileData.js の描画を参照）。
+// ハイキングマップデータ（緑・青）とも通行止め地点（赤・橙）とも重ならない紫にして、
+// 3つを同時に表示しても取り違えないようにする。
+// 領域は地点やルートの背面に敷くため、塗りは地理院地図が透けるくらい薄くする。
+export const TILE_AREA_STYLE = {
+    color: '#7C3AED',
+    weight: 2,
+    opacity: 0.9,
+    fillColor: '#A855F7',
+    fillOpacity: 0.15
+};
+
+// ズームレベルの既定値。読み込んだファイルに無ければ最も近いレベルを選ぶ。
+// 想定する範囲（z14〜z18）の中ほどで、領域の広がりと配信するタイルの細かさを
+// 同時に確かめやすい。
+export const TILE_DEFAULT_ZOOM = 17;

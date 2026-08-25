@@ -213,6 +213,36 @@ body {
     white-space: nowrap;
 }
 
+/* ズームレベルの見出し。「地図に表示」と同じ行に置き、右端へ寄せる */
+.zoom-label {
+    font-size: 12px;
+    white-space: nowrap;
+    margin-left: auto;
+    cursor: pointer;
+}
+
+.select-input {
+    padding: 5px 4px;
+    font-size: 12px;
+    border: 2px solid #333;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+}
+
+.select-input:focus {
+    outline: none;
+    border-color: #0066cc;
+}
+
+/* 未読み込みのときは選択候補が無い */
+.select-input:disabled {
+    color: #999;
+    border-color: #ccc;
+    background: #f8f9fa;
+    cursor: default;
+}
+
 /* ===== ボタン ===== */
 button {
     padding: 6px 10px;

@@ -63,7 +63,7 @@ js/
   render.js         マーカー描画（geojson の2データセット共通）
   mapData.js        ハイキングマップデータの保持・表示・公開用整形
   closureData.js    通行止め地点の保持・表示・公開用整形
-  tileData.js       タイル一覧の保持・件数（整形・地図表示は行わない）
+  tileData.js       タイル一覧の保持・件数・領域表示（整形は行わない）
   fileIO.js         ファイルの読み込み（置換方式）・出力
   publish.js        公開（POST・件数差分の確認・E01〜E06・バックアップ保存）
   message.js        トーストメッセージ
