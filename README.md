@@ -1,11 +1,9 @@
-# MapGPS
-
-### ハイキングマップのGPSデータ化
+## MapGPS
 
 紙・画像のハイキングマップを GPS データ化し、編集・公開するまでの一連のツール群。
 トップの `index.html` はアプリ選択画面で、各アプリを新しいタブで開く。
 
-## 収録アプリ
+### 収録アプリ
 
 | アプリ | 概要 | 詳細 |
 |--------|------|------|
@@ -16,7 +14,7 @@
 | ➿ DownloadArea | オフライン対応用に、ダウンロードする地理院タイルの領域を設定 | [README](DownloadArea/README.md) |
 | 📤 MapPublisher | ハイキングマップ・通行止め地点の GeoJSON を確認し、minoh-hiking へ公開 | [README](MapPublisher/README.md) |
 
-## 作業の流れ
+### 作業の流れ
 
 ```
 PointGPS ─(GPSポイント Excel)─┬──────────────────────────────────────┐
@@ -35,7 +33,7 @@ PointMarker ─(画像内座標)─> GeoReferencer ─(地域別GeoJSON)─> Map
 
 PointGPS の出力 Excel は、GeoReferencer・MapEditor の GPS ポイント入力と同じ列構成（ポイントID・名称・緯度・経度・標高・備考）である。
 
-## 動作環境
+### 動作環境
 
 | 項目 | 内容 |
 |------|------|
@@ -57,7 +55,7 @@ npx serve .
 # ブラウザで http://localhost:8000 を開く
 ```
 
-## フォルダ構成
+### フォルダ構成
 
 ```
 MapGPS/
