@@ -100,8 +100,53 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+// 通行止め（🚷 風）の形状（s×s の領域に描く）。minoh-hiking と同じ描き方
+// ISO 7010 P004「No thoroughfare」・道路標識「歩行者通行止め」風。白地に色の輪と斜線、
+// 中に黒の歩く人。斜線は人の上に重ねる。人の形は 100 四方で設計して輪の内側に収める
+function noThoroughfareShape(s, color) {
+    const c = s / 2;
+    const glyph = '#111827';
+    const sw = Math.max(2, s * 0.13);          // 輪・斜線の太さ
+    const rr = s / 2 - 1 - sw / 2;             // 輪の中心半径（外側 1px は白の縁）
+    const ri = rr - sw / 2;                    // 輪の内側の半径
+    const k = (ri * 1.7) / 100;
+    const o = c - 50 * k;
+    const q = (x, y) => `${(o + x * k).toFixed(2)},${(o + y * k).toFixed(2)}`;
+    const body =
+        `M${q(52, 31)} L${q(46, 60)} ` +
+        `M${q(50, 36)} L${q(37, 50)} L${q(33, 62)} ` +
+        `M${q(50, 36)} L${q(62, 47)} L${q(72, 51)} ` +
+        `M${q(46, 60)} L${q(58, 76)} L${q(61, 93)} ` +
+        `M${q(46, 60)} L${q(37, 78)} L${q(25, 89)}`;
+    const d = ri * 0.74;
+    return `<circle cx="${c}" cy="${c}" r="${(s / 2 - 0.5).toFixed(2)}" fill="#ffffff" />`
+        + `<circle cx="${c}" cy="${c}" r="${rr.toFixed(2)}" fill="#ffffff" stroke="${color}" stroke-width="${sw.toFixed(2)}" />`
+        + `<path d="${body}" fill="none" stroke="${glyph}" stroke-width="${(13 * k).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" />`
+        + `<circle cx="${(o + 56 * k).toFixed(2)}" cy="${(o + 15 * k).toFixed(2)}" r="${(11 * k).toFixed(2)}" fill="${glyph}" />`
+        + `<line x1="${(c - d).toFixed(2)}" y1="${(c - d).toFixed(2)}" x2="${(c + d).toFixed(2)}" y2="${(c + d).toFixed(2)}" stroke="${color}" stroke-width="${(sw * 0.9).toFixed(2)}" />`;
+}
+
+// 警戒（日本の道路標識の警戒標識風）の形状（s×s の領域に描く）。minoh-hiking と同じ描き方
+// 色のひし形に黒枠と「!」、その外側にひし形に沿った白の縁（地図の黄色い線から切り離すため）。
+// 白の縁は s×s の外へ約 ring px はみ出すため、CLOSURE_ICON_BOX はその分の余白を見込んでおく。
+// 「!」はフォント差をなくすため文字ではなく棒と点で描く
+function warningShape(s, color) {
+    const c = s / 2;
+    const glyph = '#111827';
+    const sw = Math.max(1.5, s * 0.09);       // 黒枠の太さ
+    const ring = Math.max(1.5, s * 0.1);      // 黒枠の外に見える白の縁の幅
+    const inset = sw / 2 + 0.5;
+    const p = (x, y) => `${x.toFixed(1)},${y.toFixed(1)}`;
+    const pts = `${p(c, inset)} ${p(s - inset, c)} ${p(c, s - inset)} ${p(inset, c)}`;
+    const w = Math.max(2, s * 0.11);
+    return `<polygon points="${pts}" fill="#ffffff" stroke="#ffffff" stroke-width="${(sw + ring * 2).toFixed(1)}" stroke-linejoin="round" />`
+        + `<polygon points="${pts}" fill="${color}" stroke="${glyph}" stroke-width="${sw.toFixed(1)}" stroke-linejoin="round" />`
+        + `<rect x="${(c - w / 2).toFixed(1)}" y="${(s * 0.27).toFixed(1)}" width="${w.toFixed(1)}" height="${(s * 0.3).toFixed(1)}" rx="${(w / 2).toFixed(1)}" fill="${glyph}" />`
+        + `<circle cx="${c}" cy="${(s * 0.7).toFixed(1)}" r="${(w * 0.55).toFixed(1)}" fill="${glyph}" />`;
+}
+
 // 区分（kind）に応じたマーカー形状のHTMLを生成
-// closed: ✖印 / difficult: 三角形
+// closed: 通行止め（歩行者通行止め風）/ difficult: 警戒（ひし形）
 function closureShapeHtml(kind, colorOverride) {
     const style = CLOSURE_STYLES[kind] || CLOSURE_STYLES[CLOSURE_DEFAULT_KIND];
     const color = colorOverride || style.color;
@@ -112,17 +157,10 @@ function closureShapeHtml(kind, colorOverride) {
     // 透明な背景矩形でアイコン全体をクリック・ドラッグの当たり領域にする
     const hitArea = `<rect x="0" y="0" width="${box}" height="${box}" fill="transparent" pointer-events="all" />`;
 
-    let shape;
-    if (style.shape === 'triangle') {
-        shape = `<polygon points="${box / 2},${offset} ${offset + size},${offset + size} ${offset},${offset + size}" fill="${color}" />`;
-    } else {
-        const weight = Math.max(2, Math.round(size / 3));
-        shape = `<line x1="${offset}" y1="${offset}" x2="${offset + size}" y2="${offset + size}" stroke="${color}" stroke-width="${weight}" stroke-linecap="round" />`
-            + `<line x1="${offset + size}" y1="${offset}" x2="${offset}" y2="${offset + size}" stroke="${color}" stroke-width="${weight}" stroke-linecap="round" />`;
-    }
+    const shape = (style.shape === 'warning') ? warningShape(size, color) : noThoroughfareShape(size, color);
 
     return `<svg width="${box}" height="${box}" viewBox="0 0 ${box} ${box}" style="display: block;">`
-        + hitArea + shape + `</svg>`;
+        + hitArea + `<g transform="translate(${offset},${offset})">${shape}</g></svg>`;
 }
 
 // 区分（kind）に応じたマーカーアイコン（L.divIcon）を生成
@@ -165,6 +203,11 @@ function formatClosurePopup(feature) {
     const kindLabel = CLOSURE_KIND_LABELS[props.kind] || CLOSURE_KIND_LABELS[CLOSURE_DEFAULT_KIND];
     lines.push(escapeHtml(kindLabel));
     if (props.reason) lines.push(`理由: ${escapeHtml(props.reason)}`);
+    // 解除予定日（YYYY-MM-DD）。過ぎていれば minoh-hiking と同じく注記する
+    if (props.reopenDate) {
+        const passed = props.reopenDate < getDateIso() ? '（予定日を過ぎています）' : '';
+        lines.push(`解除予定: ${escapeHtml(props.reopenDate)}${passed}`);
+    }
     if (props.note) lines.push(escapeHtml(props.note));
     if (props.updatedAt) lines.push(`更新日: ${escapeHtml(props.updatedAt)}`);
 
@@ -273,13 +316,16 @@ function setReasonRadios(value) {
     });
 }
 
-// 入力欄（名称・備考・各ラジオ）をクリア
+// 入力欄（名称・備考・解除予定・各ラジオ）をクリア
 export function clearClosureInputs() {
     const nameInput = document.getElementById('selectedClosureName');
     if (nameInput) nameInput.value = '';
 
     const noteInput = document.getElementById('closureNote');
     if (noteInput) noteInput.value = '';
+
+    const reopenInput = document.getElementById('closureReopenDate');
+    if (reopenInput) reopenInput.value = '';
 
     setKindRadios(null);
     setReasonRadios(null);
@@ -316,6 +362,7 @@ export function highlightClosure(closureIndex) {
     const props = closure.feature.properties || {};
     document.getElementById('selectedClosureName').value = closure.name;
     document.getElementById('closureNote').value = props.note || '';
+    document.getElementById('closureReopenDate').value = props.reopenDate || '';
     setKindRadios(props.kind === 'difficult' ? 'difficult' : CLOSURE_DEFAULT_KIND);
     setReasonRadios(props.reason || '');
 

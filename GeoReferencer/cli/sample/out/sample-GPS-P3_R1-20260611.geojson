@@ -1,0 +1,89 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-01",
+        "name": "登山口",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.465,
+          34.858
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-02",
+        "name": "東屋",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.48,
+          34.857
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-03",
+        "name": "山頂",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.479,
+          34.846
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "route_A-01_to_A-03",
+        "name": "A-01 ～ A-03",
+        "type": "route",
+        "startPoint": "A-01",
+        "endPoint": "A-03",
+        "startPointGPS": [
+          135.465,
+          34.858
+        ],
+        "endPointGPS": [
+          135.479,
+          34.846
+        ],
+        "source": "image_transformed",
+        "description": "ルート（GPS変換済）"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            135.46853,
+            34.85383
+          ],
+          [
+            135.47393,
+            34.84958
+          ]
+        ]
+      }
+    }
+  ]
+}

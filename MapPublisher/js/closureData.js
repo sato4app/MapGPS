@@ -7,7 +7,7 @@ import {
     CLOSURE_STYLES, CLOSURE_ICON_BOX, CLOSURE_KIND_LABELS, CLOSURE_DEFAULT_KIND
 } from './constants.js';
 import { createPointMarker } from './render.js';
-import { roundCoord, escapeHtml } from './utils.js';
+import { roundCoord, escapeHtml, getDateIso } from './utils.js';
 
 const state = {
     map: null,
@@ -100,6 +100,11 @@ function popupHtml(feature) {
     const kindLabel = CLOSURE_KIND_LABELS[p.kind];
     if (kindLabel) lines.push(escapeHtml(kindLabel));
     if (p.reason) lines.push(`理由: ${escapeHtml(p.reason)}`);
+    // 解除予定日（YYYY-MM-DD）。過ぎていれば minoh-hiking と同じく注記する（公開前に気づけるように）
+    if (p.reopenDate) {
+        const passed = p.reopenDate < getDateIso() ? '（予定日を過ぎています）' : '';
+        lines.push(`解除予定: ${escapeHtml(p.reopenDate)}${passed}`);
+    }
     if (p.note) lines.push(escapeHtml(p.note));
     if (p.updatedAt) lines.push(`更新日: ${escapeHtml(p.updatedAt)}`);
     return lines.join('<br>');
@@ -158,6 +163,8 @@ function toPublishFeature(feature) {
     if (p.reason) props.reason = p.reason;
     if (p.note) props.note = p.note;
     if (p.relatedRoute) props.relatedRoute = p.relatedRoute;
+    // 形式（YYYY-MM-DD の実在日付）の検査はサーバーが行う（不正なら 400 の理由をそのまま表示する）
+    if (p.reopenDate) props.reopenDate = p.reopenDate;
     props.updatedAt = p.updatedAt || '';
 
     return {

@@ -1,0 +1,179 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-01",
+        "name": "登山口",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.46531,
+          34.85801,
+          415.8
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-02",
+        "name": "東屋",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.47969,
+          34.85699,
+          313.9
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-03",
+        "name": "山頂",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.47933,
+          34.84601,
+          266.4
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "A-04",
+        "name": "駐車場前",
+        "type": "point",
+        "source": "image_transformed",
+        "description": "画像ポイント（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.46567,
+          34.84699,
+          255.7
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "spot01_見晴台",
+        "name": "見晴台",
+        "type": "spot",
+        "source": "image_transformed",
+        "description": "スポット（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          135.4725,
+          34.85233,
+          227.4
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "route_A-01_to_A-02",
+        "name": "A-01 ～ A-02",
+        "type": "route",
+        "startPoint": "A-01",
+        "endPoint": "A-02",
+        "startPointGPS": [
+          135.46531,
+          34.85801,
+          415.8
+        ],
+        "endPointGPS": [
+          135.47969,
+          34.85699,
+          313.9
+        ],
+        "source": "image_transformed",
+        "description": "ルート（GPS変換済）"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            135.46891,
+            34.85775,
+            290.5
+          ],
+          [
+            135.4725,
+            34.8575,
+            306.1
+          ],
+          [
+            135.47609,
+            34.85725,
+            335.2
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "area_01",
+        "name": "駐車場エリア",
+        "type": "area",
+        "source": "image_transformed",
+        "description": "エリア（GPS変換済）"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              135.46621,
+              34.84802,
+              314.7
+            ],
+            [
+              135.46801,
+              34.84793,
+              333
+            ],
+            [
+              135.46801,
+              34.847,
+              251.3
+            ],
+            [
+              135.46621,
+              34.84709,
+              261.3
+            ],
+            [
+              135.46621,
+              34.84802,
+              314.7
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

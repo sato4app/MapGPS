@@ -1,7 +1,7 @@
 # MapPublisher データ仕様書（入力 GeoJSON と公開スキーマへの整形）
 
-**バージョン:** 2.8
-**最終更新日:** 2026年8月25日
+**バージョン:** 2.9
+**最終更新日:** 2026年9月25日
 **対象アプリ:** MapPublisher
 **関連:**
 [機能仕様 `funcspec-202608.md`](funcspec-202608.md) /
@@ -167,6 +167,7 @@ MapEditor が出力するファイル、または公開API から保存したフ
 | `reason` | string | — | △ | 値があるときのみ |
 | `note` | string | — | △ | 値があるときのみ |
 | `relatedRoute` | string | — | △ | 値があるときのみ |
+| `reopenDate` | string（`YYYY-MM-DD`） | — | △ | 解除予定日。値があるときのみ。形式の検査はサーバーが行う（契約 3.1） |
 | `updatedAt` | string | — | ○ | 地点ごとの更新日時。無ければ空文字 |
 | `status` | — | — | × | **廃止済み。読み込み時に除去する** |
 
@@ -322,7 +323,7 @@ ID による重複検出も不要になる。
 | `ポイントGPS` | `type` → `id` → `name` →（`description`） |
 | `spot` | `type` → `name` |
 | `route` | `type` → `id` → `startPointGPS` → `endPointGPS` |
-| `closure` | `type` → `id` → `name` → `kind` →（`reason`）→（`note`）→（`relatedRoute`）→ `updatedAt` |
+| `closure` | `type` → `id` → `name` → `kind` →（`reason`）→（`note`）→（`relatedRoute`）→（`reopenDate`）→ `updatedAt` |
 
 括弧付きは**値があるときのみ**出力する。
 
@@ -421,6 +422,7 @@ geometry の座標、および `startPointGPS` / `endPointGPS` を
 
 | 日付 | バージョン | 内容 |
 |------|-----------|------|
+| 2026-09-25 | 2.9 | 通行止め・通行困難地点の `reopenDate`（解除予定日・`YYYY-MM-DD`・任意。公開API 契約 3.1）を公開するプロパティに追加（§4.2・§7.2） |
 | 2026-08-25 | 2.8 | タイル一覧を地図に描くようになったため、**ズームレベルの読み取り規則**を追加（§5.4） |
 | 2026-08-23 | 2.7 | DownloadArea が `tile_manifest.json` に `version` を出力しなくなったことを反映（§5.1）。古いファイルに残る `version` の扱いを注記 |
 | 2026-08-23 | 2.6 | 公開API 契約 **3.0** に対応。トップレベル `version` を**送信するように変更**（画面の入力欄で指定・形式は `yyyy.nn`）。§2.3・§5.1・§7.1 を追随させた |

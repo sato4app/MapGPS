@@ -69,15 +69,16 @@ export const MAPDATA_TYPE_LABELS = {
 
 // ===== 通行止め・通行困難地点（closures）の表示 =====
 
-// マーカーの既定スタイル。minoh-hiking の既定値に合わせる。
+// マーカーの既定スタイル。minoh-hiking の既定値（config.js の MARKER_TYPES）に合わせる。
+// 通行止め=赤の輪と斜線に歩く人（歩行者通行止め風）、通行困難=警戒（黄色のひし形に黒の「!」）
 export const CLOSURE_STYLES = {
-    closed: { color: '#DC2626', shape: 'x', size: 10 },
-    difficult: { color: '#F59E0B', shape: 'triangle', size: 16 }
+    closed: { color: '#DC2626', shape: 'noThoroughfare', size: 20 },
+    difficult: { color: '#FACC15', shape: 'warning', size: 20 }
 };
 
-// マーカーアイコンの当たり領域（px）。✖印のように描画部分が細い形状でも
-// クリックしやすいよう、実際の描画サイズより大きい正方形を確保する。
-export const CLOSURE_ICON_BOX = 24;
+// マーカーアイコンの当たり領域（px）。描画サイズ（20px）より大きい正方形を確保する。
+// 警戒のひし形は外側に白の縁（片側 3px）が付くため、26px 以上が必要。
+export const CLOSURE_ICON_BOX = 28;
 
 // 区分（kind）の表示ラベル
 export const CLOSURE_KIND_LABELS = {
@@ -101,7 +102,7 @@ export const TILE_COUNT_UNIT = '枚';
 
 // 地図に重ねるダウンロード領域の見た目。color / weight / opacity は外周線、
 // fillColor / fillOpacity は塗りに使う（tileData.js の描画を参照）。
-// ハイキングマップデータ（緑・青）とも通行止め地点（赤・橙）とも重ならない紫にして、
+// ハイキングマップデータ（緑・青）とも通行止め地点（赤・黄）とも重ならない紫にして、
 // 3つを同時に表示しても取り違えないようにする。
 // 領域は地点やルートの背面に敷くため、塗りは地理院地図が透けるくらい薄くする。
 export const TILE_AREA_STYLE = {

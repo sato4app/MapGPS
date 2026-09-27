@@ -9,6 +9,15 @@ export function getDateString() {
     return `${year}${month}${day}`;
 }
 
+// 本日の日付（YYYY-MM-DD形式。解除予定日の経過判定で使用。文字列比較で日付の前後を判定できる）
+export function getDateIso() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // 座標値を小数点以下5桁に丸める（経度・緯度・標高。配列にも再帰対応）
 // 内部に保持する座標は読み込んだ精度のままとし、丸めは出力時のみ適用する。
 export function roundCoord(value) {

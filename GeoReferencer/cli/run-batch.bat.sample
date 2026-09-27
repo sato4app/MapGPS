@@ -1,0 +1,15 @@
+@echo off
+rem GeoReferencer CLI バッチ実行サンプル
+rem 1行に1 png+json ペアを記述し、順番に実行されます。
+rem 標高取得の待ち時間（0.5秒/件）があるため、夜間などにまとめて実行する用途を想定。
+rem このファイルを run-batch.bat にコピーして、実際のフォルダ・ファイル名に書き換えてください。
+
+cd /d "%~dp0"
+
+node georef-cli.js "C:\data\maps" minoh-map.png   minoh-marks.json   pointGPS.xlsx "C:\data\output"
+node georef-cli.js "C:\data\maps" takao-map.png   takao-marks.json   pointGPS.xlsx "C:\data\output"
+node georef-cli.js "C:\data\maps" rokko-map.png   rokko-marks.json   pointGPS.xlsx "C:\data\output"
+
+echo.
+echo 全ペアの処理が完了しました。
+pause
